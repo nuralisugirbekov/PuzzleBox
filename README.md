@@ -59,3 +59,7 @@ PuzzleBoxApp/
     ├── GameContainerView.swift
     └── Theme.swift         цвета и стили
 ```
+
+## Лицензия
+
+[MIT](LICENSE) — используйте свободно, сохраняя указание авторства.
