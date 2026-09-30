@@ -78,85 +78,85 @@ enum GameID: String, CaseIterable, Identifiable {
     var info: GameInfo {
         switch self {
         case .match3:
-            GameInfo(title: "Three in a Row",
-                     tagline: "Swap gems, chase cascades",
+            GameInfo(title: L10n.text("Three in a Row"),
+                     tagline: L10n.text("Swap gems, chase cascades"),
                      symbol: "diamond.fill",
                      tint: .pink,
                      category: .casual,
                      difficulty: .easy)
         case .sudoku:
-            GameInfo(title: "Mini Sudoku",
-                     tagline: "6×6 logic, quick rounds",
+            GameInfo(title: L10n.text("Mini Sudoku"),
+                     tagline: L10n.text("6×6 logic, quick rounds"),
                      symbol: "square.grid.3x3.fill",
                      tint: .indigo,
                      category: .logic,
                      difficulty: .medium)
         case .snake:
-            GameInfo(title: "Snake",
-                     tagline: "Eat, grow, don't crash",
+            GameInfo(title: L10n.text("Snake"),
+                     tagline: L10n.text("Eat, grow, don't crash"),
                      symbol: "scribble.variable",
                      tint: .green,
                      category: .arcade,
                      difficulty: .medium)
         case .blockBlast:
-            GameInfo(title: "Block Blast",
-                     tagline: "Fill lines, clear the board",
+            GameInfo(title: L10n.text("Block Blast"),
+                     tagline: L10n.text("Fill lines, clear the board"),
                      symbol: "square.stack.3d.up.fill",
                      tint: .orange,
                      category: .logic,
                      difficulty: .easy)
         case .waterSort:
-            GameInfo(title: "Water Sort",
-                     tagline: "Pour and sort the colors",
+            GameInfo(title: L10n.text("Water Sort"),
+                     tagline: L10n.text("Pour and sort the colors"),
                      symbol: "testtube.2",
                      tint: .cyan,
                      category: .logic,
                      difficulty: .medium)
         case .solitaire:
-            GameInfo(title: "Solitaire",
-                     tagline: "Classic Klondike patience",
+            GameInfo(title: L10n.text("Solitaire"),
+                     tagline: L10n.text("Classic Klondike patience"),
                      symbol: "suit.diamond.fill",
                      tint: .teal,
                      category: .cards,
                      difficulty: .medium)
         case .spiderSolitaire:
-            GameInfo(title: "Spider",
-                     tagline: "Build runs, clear the table",
+            GameInfo(title: L10n.text("Spider"),
+                     tagline: L10n.text("Build runs, clear the table"),
                      symbol: "suit.club.fill",
                      tint: .purple,
                      category: .cards,
                      difficulty: .hard)
         case .freecell:
-            GameInfo(title: "FreeCell",
-                     tagline: "Every deal is winnable",
+            GameInfo(title: L10n.text("FreeCell"),
+                     tagline: L10n.text("Every deal is winnable"),
                      symbol: "suit.heart.fill",
                      tint: .pink,
                      category: .cards,
                      difficulty: .hard)
         case .spades:
-            GameInfo(title: "Spades",
-                     tagline: "Bid, trump, take tricks",
+            GameInfo(title: L10n.text("Spades"),
+                     tagline: L10n.text("Bid, trump, take tricks"),
                      symbol: "suit.spade.fill",
                      tint: .blue,
                      category: .cards,
                      difficulty: .medium)
         case .minesweeper:
-            GameInfo(title: "Minesweeper",
-                     tagline: "Flag the mines, clear the field",
+            GameInfo(title: L10n.text("Minesweeper"),
+                     tagline: L10n.text("Flag the mines, clear the field"),
                      symbol: "flag.fill",
                      tint: .red,
                      category: .logic,
                      difficulty: .medium)
         case .checkmate:
-            GameInfo(title: "Checkmate",
-                     tagline: "Find the mate in 1 or 2",
+            GameInfo(title: L10n.text("Checkmate"),
+                     tagline: L10n.text("Find the mate in 1 or 2"),
                      symbol: "crown.fill",
                      tint: .yellow,
                      category: .logic,
                      difficulty: .hard)
         case .dominoes:
-            GameInfo(title: "Dominoes",
-                     tagline: "Match pips, beat the bot",
+            GameInfo(title: L10n.text("Dominoes"),
+                     tagline: L10n.text("Match pips, beat the bot"),
                      symbol: "die.face.5.fill",
                      tint: .indigo,
                      category: .cards,

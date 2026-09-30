@@ -118,7 +118,7 @@ final class SpiderEngine: GameEngine {
     func dealFromStock() {
         guard state == .playing, let next = stock.last else { return }
         guard !tableau.contains(where: \.isEmpty) else {
-            message = "Fill every empty column before dealing"
+            message = L10n.text("Fill every empty column before dealing")
             Haptics.error()
             return
         }
@@ -161,7 +161,7 @@ struct SpiderView: View {
 
     private var statusBar: some View {
         HStack {
-            Label("\(engine.completedRuns) of 8 runs", systemImage: "checkmark.seal.fill")
+            Label(L10n.format("%d of 8 runs", engine.completedRuns), systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.neon)
             if !engine.message.isEmpty {
@@ -173,7 +173,7 @@ struct SpiderView: View {
             Button {
                 engine.dealFromStock()
             } label: {
-                Label("Deal (\(engine.stock.count))", systemImage: "square.stack.fill")
+                Label(L10n.format("Deal (%d)", engine.stock.count), systemImage: "square.stack.fill")
                     .font(.subheadline.bold())
                     .foregroundStyle(engine.stock.isEmpty ? Theme.textSecondary : .black)
                     .padding(.horizontal, 14)

@@ -145,7 +145,7 @@ struct MinesweeperView: View {
                 engine.flagMode.toggle()
                 Haptics.tap()
             } label: {
-                Label(engine.flagMode ? "Flag Mode" : "Dig Mode",
+                Label(engine.flagMode ? L10n.text("Flag Mode") : L10n.text("Dig Mode"),
                       systemImage: engine.flagMode ? "flag.fill" : "hammer.fill")
                     .font(.subheadline.bold())
                     .foregroundStyle(engine.flagMode ? .black : Theme.neon)

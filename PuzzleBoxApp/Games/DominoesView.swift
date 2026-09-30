@@ -25,7 +25,7 @@ final class DominoesEngine: GameEngine {
     private(set) var botHand: [Domino] = []
     private(set) var boneyard: [Domino] = []
     private(set) var isUserTurn = true
-    private(set) var message = "Your move — play a tile"
+    private(set) var message = L10n.text("Your move — play a tile")
     private(set) var score = 0
     var pendingChoice: Domino?
     var state: GameState = .playing
@@ -56,7 +56,7 @@ final class DominoesEngine: GameEngine {
         consecutivePasses = 0
         pendingChoice = nil
         score = 0
-        message = "Your move — play a tile"
+        message = L10n.text("Your move — play a tile")
         state = .playing
     }
 
@@ -110,13 +110,13 @@ final class DominoesEngine: GameEngine {
         if mine {
             hand.removeAll { $0.id == d.id }
             Haptics.move()
-            if hand.isEmpty { return finish(userWon: true, reason: "You played every tile!") }
+            if hand.isEmpty { return finish(userWon: true, reason: L10n.text("You played every tile!")) }
             passTurnToBot()
         } else {
             botHand.removeAll { $0.id == d.id }
-            if botHand.isEmpty { return finish(userWon: false, reason: "Bot played every tile.") }
+            if botHand.isEmpty { return finish(userWon: false, reason: L10n.text("Bot played every tile.")) }
             isUserTurn = true
-            message = userHasPlayableTile ? "Your move" : "No playable tile — draw"
+            message = userHasPlayableTile ? L10n.text("Your move") : L10n.text("No playable tile — draw")
         }
     }
 
@@ -125,11 +125,11 @@ final class DominoesEngine: GameEngine {
         if let tile = boneyard.popLast() {
             withAnimation { hand.append(tile) }
             Haptics.tap()
-            message = userHasPlayableTile ? "Drawn — you can play!" : "Still stuck — draw again"
+            message = userHasPlayableTile ? L10n.text("Drawn — you can play!") : L10n.text("Still stuck — draw again")
         } else {
             // Boneyard empty: pass.
             consecutivePasses += 1
-            message = "You passed"
+            message = L10n.text("You passed")
             if consecutivePasses >= 2 { return resolveBlocked() }
             passTurnToBot()
         }
@@ -137,7 +137,7 @@ final class DominoesEngine: GameEngine {
 
     private func passTurnToBot() {
         isUserTurn = false
-        if state == .playing { message = "Bot is thinking…" }
+        if state == .playing { message = L10n.text("Bot is thinking…") }
         botTask = Task { await botMove() }
     }
 
@@ -154,7 +154,7 @@ final class DominoesEngine: GameEngine {
 
         guard let choice = playable.max(by: { $0.pips < $1.pips }) else {
             consecutivePasses += 1
-            message = "Bot passed"
+            message = L10n.text("Bot passed")
             if consecutivePasses >= 2 { return resolveBlocked() }
             isUserTurn = true
             if !userHasPlayableTile && boneyard.isEmpty {
@@ -181,9 +181,9 @@ final class DominoesEngine: GameEngine {
         let myPips = hand.reduce(0) { $0 + $1.pips }
         let botPips = botHand.reduce(0) { $0 + $1.pips }
         if myPips <= botPips {
-            finish(userWon: true, reason: "Blocked — you have fewer pips (\(myPips) vs \(botPips)).")
+            finish(userWon: true, reason: L10n.format("Blocked — you have fewer pips (%d vs %d).", myPips, botPips))
         } else {
-            finish(userWon: false, reason: "Blocked — bot has fewer pips (\(botPips) vs \(myPips)).")
+            finish(userWon: false, reason: L10n.format("Blocked — bot has fewer pips (%d vs %d).", botPips, myPips))
         }
     }
 
@@ -221,7 +221,7 @@ struct DominoesView: View {
         HStack(spacing: 6) {
             Image(systemName: "cpu")
                 .foregroundStyle(Theme.neon)
-            Text("Bot")
+            Text(L10n.text("Bot"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
             ForEach(0..<min(engine.botHand.count, 10), id: \.self) { _ in
@@ -242,7 +242,7 @@ struct DominoesView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 3) {
                 if engine.chain.isEmpty {
-                    Text("Play the first tile")
+                    Text(L10n.text("Play the first tile"))
                         .font(.footnote)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.horizontal, 16)
@@ -274,7 +274,7 @@ struct DominoesView: View {
             Button {
                 engine.userDraw()
             } label: {
-                Label(engine.boneyard.isEmpty ? "Pass" : "Draw (\(engine.boneyard.count))",
+                Label(engine.boneyard.isEmpty ? L10n.text("Pass") : L10n.format("Draw (%d)", engine.boneyard.count),
                       systemImage: engine.boneyard.isEmpty ? "hand.raised.fill" : "plus.rectangle.on.rectangle")
                     .font(.subheadline.bold())
                     .foregroundStyle(drawEnabled ? .black : Theme.textSecondary)
@@ -294,18 +294,18 @@ struct DominoesView: View {
 
     private var choiceBar: some View {
         HStack(spacing: 10) {
-            Text("Play on which end?")
+            Text(L10n.text("Play on which end?"))
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(.white)
             Button { engine.chooseEnd(left: true) } label: {
-                Label("Left", systemImage: "arrow.left")
+                Label(L10n.text("Left"), systemImage: "arrow.left")
                     .font(.subheadline.bold())
                     .foregroundStyle(.black)
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(Theme.neon, in: Capsule())
             }
             Button { engine.chooseEnd(left: false) } label: {
-                Label("Right", systemImage: "arrow.right")
+                Label(L10n.text("Right"), systemImage: "arrow.right")
                     .font(.subheadline.bold())
                     .foregroundStyle(.black)
                     .padding(.horizontal, 14).padding(.vertical, 7)

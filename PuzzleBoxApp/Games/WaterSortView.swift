@@ -148,7 +148,7 @@ struct WaterSortView: View {
             VStack(spacing: 24) {
                 statusBar
                 tubesGrid
-                Text("Tap a tube to pick it up, then tap another to pour.")
+                Text(L10n.text("Tap a tube to pick it up, then tap another to pour."))
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -157,7 +157,7 @@ struct WaterSortView: View {
 
     private var statusBar: some View {
         HStack {
-            Label("\(engine.moves) moves", systemImage: "arrow.left.arrow.right")
+            Label(L10n.format("%d moves", engine.moves), systemImage: "arrow.left.arrow.right")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.neon)
                 .contentTransition(.numericText())
@@ -165,7 +165,7 @@ struct WaterSortView: View {
             Button {
                 engine.undo()
             } label: {
-                Label("Undo", systemImage: "arrow.uturn.backward")
+                Label(L10n.text("Undo"), systemImage: "arrow.uturn.backward")
                     .font(.subheadline.bold())
                     .foregroundStyle(engine.canUndo ? Theme.neon : Theme.textSecondary)
                     .padding(.horizontal, 14)

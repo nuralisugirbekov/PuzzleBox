@@ -7,6 +7,7 @@ import Observation
 @Observable
 final class SolitaireEngine: GameEngine {
     enum Selection: Equatable {
+        case foundation(Int)
         case waste
         case tableau(col: Int, index: Int)
     }
@@ -19,11 +20,40 @@ final class SolitaireEngine: GameEngine {
     var selection: Selection?
     var state: GameState = .playing
 
+    private struct Snapshot {
+        let stock: [Card]
+        let waste: [Card]
+        let foundations: [[Card]]
+        let tableau: [[Card]]
+        let score: Int
+    }
+    private var history: [Snapshot] = []
+    var canUndo: Bool { state == .playing && !history.isEmpty }
+
+    private func saveForUndo() {
+        history.append(Snapshot(stock: stock, waste: waste, foundations: foundations,
+                                tableau: tableau, score: score))
+    }
+
+    func undo() {
+        guard canUndo, let previous = history.popLast() else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            stock = previous.stock
+            waste = previous.waste
+            foundations = previous.foundations
+            tableau = previous.tableau
+            score = previous.score
+            selection = nil
+        }
+        Haptics.tap()
+    }
+
     init() { deal() }
 
     func restart() { deal() }
 
     private func deal() {
+        history.removeAll()
         var deck = Card.deck().shuffled()
         tableau = (0..<7).map { col in
             var pile: [Card] = []
@@ -48,6 +78,8 @@ final class SolitaireEngine: GameEngine {
     func tapStock() {
         guard state == .playing else { return }
         selection = nil
+        guard !stock.isEmpty || !waste.isEmpty else { return }
+        saveForUndo()
         withAnimation(.easeInOut(duration: 0.2)) {
             if var card = stock.popLast() {
                 card.faceUp = true
@@ -70,6 +102,8 @@ final class SolitaireEngine: GameEngine {
 
     private func selectedCards() -> [Card] {
         switch selection {
+        case .foundation(let pile):
+            return foundations[pile].last.map { [$0] } ?? []
         case .waste:
             return waste.last.map { [$0] } ?? []
         case .tableau(let col, let index):
@@ -82,6 +116,10 @@ final class SolitaireEngine: GameEngine {
 
     private func removeSelectedCards() {
         switch selection {
+        case .foundation(let pile):
+            foundations[pile].removeLast()
+            // Reverse the foundation bonus to prevent scoring by cycling a card.
+            score = max(0, score - 10)
         case .waste:
             waste.removeLast()
             score += 5
@@ -124,6 +162,7 @@ final class SolitaireEngine: GameEngine {
             guard first.rank == 13 else { return false }
         }
 
+        saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             removeSelectedCards()
             tableau[col].append(contentsOf: cards)
@@ -135,17 +174,31 @@ final class SolitaireEngine: GameEngine {
 
     func tapFoundation(_ pile: Int) {
         guard state == .playing else { return }
+        if selection == .foundation(pile) {
+            selection = nil
+            Haptics.tap()
+            return
+        }
+        if moveSelection(toFoundation: pile) { return }
+        selection = foundations[pile].isEmpty ? nil : .foundation(pile)
+        Haptics.tap()
+    }
+
+    private func moveSelection(toFoundation pile: Int) -> Bool {
+        // A selected foundation card can return to play, not to another foundation.
+        if case .foundation = selection { return false }
         let cards = selectedCards()
         // Only single cards go to foundations.
-        guard cards.count == 1, let card = cards.first else { return }
-        if case .tableau(let col, let index) = selection, index != tableau[col].count - 1 { return }
+        guard cards.count == 1, let card = cards.first else { return false }
+        if case .tableau(let col, let index) = selection, index != tableau[col].count - 1 { return false }
 
         if let top = foundations[pile].last {
-            guard top.suit == card.suit, card.rank == top.rank + 1 else { return }
+            guard top.suit == card.suit, card.rank == top.rank + 1 else { return false }
         } else {
-            guard card.rank == 1 else { return }
+            guard card.rank == 1 else { return false }
         }
 
+        saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             removeSelectedCards()
             foundations[pile].append(card)
@@ -158,6 +211,7 @@ final class SolitaireEngine: GameEngine {
         } else {
             Haptics.move()
         }
+        return true
     }
 
     func isSelected(col: Int, index: Int) -> Bool {
@@ -176,6 +230,10 @@ struct SolitaireView: View {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - 36) / 7
                 VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
+                    }
                     topRow(cardWidth: cardWidth)
                     tableauRow(cardWidth: cardWidth)
                     Spacer(minLength: 0)
@@ -212,9 +270,11 @@ struct SolitaireView: View {
             ForEach(0..<4, id: \.self) { pile in
                 Group {
                     if let top = engine.foundations[pile].last {
-                        CardView(card: top, width: cardWidth)
+                        CardView(card: top, width: cardWidth,
+                                 highlighted: engine.selection == .foundation(pile))
                     } else {
                         CardSlot(width: cardWidth, label: "A")
+                            .contentShape(Rectangle())
                     }
                 }
                 .onTapGesture { engine.tapFoundation(pile) }
@@ -234,7 +294,9 @@ struct SolitaireView: View {
         let cards = engine.tableau[col]
         let offsets = Self.offsets(for: cards)
         return ZStack(alignment: .top) {
-            CardSlot(width: cardWidth)
+            CardSlot(width: cardWidth, label: cards.isEmpty ? "K" : "")
+                // The outlined placeholder must accept taps across its empty interior.
+                .contentShape(Rectangle())
                 .onTapGesture { engine.tapColumn(col, index: nil) }
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,

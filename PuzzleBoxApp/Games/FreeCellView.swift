@@ -7,6 +7,7 @@ import Observation
 @Observable
 final class FreeCellEngine: GameEngine {
     enum Selection: Equatable {
+        case foundation(Int)
         case cascade(col: Int, index: Int)
         case freeCell(Int)
     }
@@ -19,11 +20,36 @@ final class FreeCellEngine: GameEngine {
 
     var score: Int { foundations.reduce(0) { $0 + $1.count } * 10 }
 
+    private struct Snapshot {
+        let cascades: [[Card]]
+        let freeCells: [Card?]
+        let foundations: [[Card]]
+    }
+    private var history: [Snapshot] = []
+    var canUndo: Bool { state == .playing && !history.isEmpty }
+
+    private func saveForUndo() {
+        history.append(Snapshot(cascades: cascades, freeCells: freeCells,
+                                foundations: foundations))
+    }
+
+    func undo() {
+        guard canUndo, let previous = history.popLast() else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            cascades = previous.cascades
+            freeCells = previous.freeCells
+            foundations = previous.foundations
+            selection = nil
+        }
+        Haptics.tap()
+    }
+
     init() { deal() }
 
     func restart() { deal() }
 
     private func deal() {
+        history.removeAll()
         var deck = Card.deck().shuffled()
         cascades = (0..<8).map { col in
             let count = col < 4 ? 7 : 6
@@ -48,6 +74,8 @@ final class FreeCellEngine: GameEngine {
 
     private func selectedCards() -> [Card] {
         switch selection {
+        case .foundation(let pile):
+            return foundations[pile].last.map { [$0] } ?? []
         case .cascade(let col, let index):
             return Array(cascades[col][index...])
         case .freeCell(let i):
@@ -59,6 +87,8 @@ final class FreeCellEngine: GameEngine {
 
     private func removeSelectedCards() {
         switch selection {
+        case .foundation(let pile):
+            foundations[pile].removeLast()
         case .cascade(let col, let index):
             cascades[col].removeSubrange(index...)
         case .freeCell(let i):
@@ -105,6 +135,7 @@ final class FreeCellEngine: GameEngine {
             guard target.rank == first.rank + 1, target.isRed != first.isRed else { return false }
         }
 
+        saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             removeSelectedCards()
             cascades[col].append(contentsOf: cards)
@@ -131,6 +162,7 @@ final class FreeCellEngine: GameEngine {
         // Empty cell: drop a single selected card here.
         let cards = selectedCards()
         guard cards.count == 1, let card = cards.first else { return }
+        saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             removeSelectedCards()
             freeCells[i] = card
@@ -141,15 +173,29 @@ final class FreeCellEngine: GameEngine {
 
     func tapFoundation(_ pile: Int) {
         guard state == .playing else { return }
+        if selection == .foundation(pile) {
+            selection = nil
+            Haptics.tap()
+            return
+        }
+        if moveSelection(toFoundation: pile) { return }
+        selection = foundations[pile].isEmpty ? nil : .foundation(pile)
+        Haptics.tap()
+    }
+
+    private func moveSelection(toFoundation pile: Int) -> Bool {
+        // A selected foundation card can return to play, not to another foundation.
+        if case .foundation = selection { return false }
         let cards = selectedCards()
-        guard cards.count == 1, let card = cards.first else { return }
+        guard cards.count == 1, let card = cards.first else { return false }
 
         if let top = foundations[pile].last {
-            guard top.suit == card.suit, card.rank == top.rank + 1 else { return }
+            guard top.suit == card.suit, card.rank == top.rank + 1 else { return false }
         } else {
-            guard card.rank == 1 else { return }
+            guard card.rank == 1 else { return false }
         }
 
+        saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             removeSelectedCards()
             foundations[pile].append(card)
@@ -161,6 +207,7 @@ final class FreeCellEngine: GameEngine {
         } else {
             Haptics.move()
         }
+        return true
     }
 
     func isSelected(col: Int, index: Int) -> Bool {
@@ -179,6 +226,10 @@ struct FreeCellView: View {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - 7 * 5) / 8
                 VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
+                    }
                     topRow(cardWidth: cardWidth)
                     cascadesRow(cardWidth: cardWidth)
                     Spacer(minLength: 0)
@@ -205,7 +256,8 @@ struct FreeCellView: View {
             ForEach(0..<4, id: \.self) { pile in
                 Group {
                     if let top = engine.foundations[pile].last {
-                        CardView(card: top, width: cardWidth)
+                        CardView(card: top, width: cardWidth,
+                                 highlighted: engine.selection == .foundation(pile))
                     } else {
                         CardSlot(width: cardWidth, label: "A")
                     }

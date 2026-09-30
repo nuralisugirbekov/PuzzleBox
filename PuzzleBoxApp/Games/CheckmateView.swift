@@ -38,26 +38,27 @@ struct ChessPiece {
 struct ChessPuzzle {
     let title: String
     let fen: String
-    /// Coordinate moves: user, (bot reply, user)*. E.g. ["d4f6", "h8g8", "f6g7"].
+    /// Coordinate moves: user, (bot reply, user)*. E.g. ["e6g8", "f8g8", "h6f7"].
     let line: [String]
 }
 
 @MainActor
 @Observable
 final class CheckmateEngine: GameEngine {
-    static let puzzles: [ChessPuzzle] = [
-        ChessPuzzle(title: "Mate in 1", fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w", line: ["e1e8"]),
-        ChessPuzzle(title: "Mate in 1", fen: "6k1/5p1p/8/8/8/6Q1/1B3PPP/6K1 w", line: ["g3g7"]),
-        ChessPuzzle(title: "Mate in 1", fen: "6rk/6pp/8/6N1/8/8/8/6K1 w", line: ["g5f7"]),
-        ChessPuzzle(title: "Mate in 1", fen: "3k4/R7/8/8/8/8/8/1R4K1 w", line: ["b1b8"]),
-        ChessPuzzle(title: "Mate in 1",
+    static var puzzles: [ChessPuzzle] { [
+        ChessPuzzle(title: L10n.text("Mate in 1"), fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w", line: ["e1e8"]),
+        ChessPuzzle(title: L10n.text("Mate in 1"), fen: "6k1/5p1p/8/8/8/6Q1/1B3PPP/6K1 w", line: ["g3g7"]),
+        ChessPuzzle(title: L10n.text("Mate in 1"), fen: "6rk/6pp/8/6N1/8/8/8/6K1 w", line: ["g5f7"]),
+        ChessPuzzle(title: L10n.text("Mate in 1"), fen: "3k4/R7/8/8/8/8/8/1R4K1 w", line: ["b1b8"]),
+        ChessPuzzle(title: L10n.text("Mate in 1"),
                     fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w",
                     line: ["h5f7"]),
-        ChessPuzzle(title: "Mate in 2", fen: "7k/7p/7P/8/3Q4/8/5PP1/6K1 w",
-                    line: ["d4f6", "h8g8", "f6g7"]),
-        ChessPuzzle(title: "Mate in 2", fen: "3k4/8/R7/1R6/8/8/8/6K1 w",
+        // Smothered mate: Qg8+ forces ...Rxg8 (the knight guards g8), then Nf7#.
+        ChessPuzzle(title: L10n.text("Mate in 2"), fen: "5r1k/6pp/4Q2N/8/8/8/8/6K1 w",
+                    line: ["e6g8", "f8g8", "h6f7"]),
+        ChessPuzzle(title: L10n.text("Mate in 2"), fen: "3k4/8/R7/1R6/8/8/8/6K1 w",
                     line: ["a6a7", "d8e8", "b5b8"]),
-    ]
+    ] }
 
     /// Index 0 = a8 (top-left), row-major toward h1.
     private(set) var board: [ChessPiece?] = []
@@ -89,7 +90,7 @@ final class CheckmateEngine: GameEngine {
         selected = nil
         targets = []
         awaitingBot = false
-        message = "White to move — find the mate!"
+        message = L10n.text("White to move — find the mate!")
     }
 
     private static func parseFEN(_ fen: String) -> [ChessPiece?] {
@@ -145,7 +146,7 @@ final class CheckmateEngine: GameEngine {
         guard let solution = Self.parseMove(puzzle.line[step]),
               solution.from == from, solution.to == to else {
             attempts += 1
-            message = "Not the winning move — try again"
+            message = L10n.text("Not the winning move — try again")
             Haptics.error()
             return
         }
@@ -159,7 +160,7 @@ final class CheckmateEngine: GameEngine {
         } else {
             // Black's stored reply, then back to the user.
             awaitingBot = true
-            message = "Black replies…"
+            message = L10n.text("Black replies…")
             Task {
                 try? await Task.sleep(for: .milliseconds(600))
                 if let reply = Self.parseMove(puzzle.line[step]) {
@@ -167,7 +168,7 @@ final class CheckmateEngine: GameEngine {
                 }
                 step += 1
                 awaitingBot = false
-                message = "Now finish it — mate!"
+                message = L10n.text("Now finish it — mate!")
             }
         }
     }
@@ -181,7 +182,7 @@ final class CheckmateEngine: GameEngine {
 
     private func puzzleSolved() {
         score += max(20, 100 - attempts * 20)
-        message = "Checkmate! 🎉"
+        message = L10n.text("Checkmate! 🎉")
         Haptics.success()
         if puzzleIndex + 1 >= Self.puzzles.count {
             state = .gameOver(won: true)
@@ -272,7 +273,7 @@ struct CheckmateView: View {
 
     private var statusBar: some View {
         VStack(spacing: 4) {
-            Text("\(engine.puzzle.title) — Puzzle \(engine.puzzleIndex + 1) of \(CheckmateEngine.puzzles.count)")
+            Text(L10n.format("%@ — Puzzle %d of %d", engine.puzzle.title, engine.puzzleIndex + 1, CheckmateEngine.puzzles.count))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.neon)
             Text(engine.message)

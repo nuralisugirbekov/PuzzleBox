@@ -224,7 +224,7 @@ struct Match3View: View {
             VStack(spacing: 16) {
                 movesBar
                 board
-                Text("Swipe a gem toward a neighbor to swap them.")
+                Text(L10n.text("Swipe a gem toward a neighbor to swap them."))
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -233,7 +233,7 @@ struct Match3View: View {
 
     private var movesBar: some View {
         HStack {
-            Label("\(engine.movesLeft) moves left", systemImage: "hand.draw.fill")
+            Label(L10n.format("%d moves left", engine.movesLeft), systemImage: "hand.draw.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.neon)
                 .contentTransition(.numericText())

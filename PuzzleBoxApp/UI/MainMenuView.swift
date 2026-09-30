@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MainMenuView: View {
     @Environment(StatsStore.self) private var stats
+    @AppStorage(L10n.languageKey) private var languageCode = ""
+    @State private var showingLanguages = false
     @State private var searchText = ""
     @State private var filter: GameCategory? = nil
     @State private var activeGame: GameID?
@@ -28,6 +30,20 @@ struct MainMenuView: View {
             .padding(.horizontal)
             .padding(.bottom, 24)
         }
+        .onAppear { AppAnalytics.screen("main_menu") }
+        .onChange(of: filter) { _, category in
+            AppAnalytics.log("category_selected", parameters: [
+                "game_category": category?.rawValue.lowercased() ?? "all"
+            ])
+        }
+        .sheet(isPresented: $showingLanguages, onDismiss: {
+            AppAnalytics.screen("main_menu")
+        }) {
+            LanguageSelectionView { language in
+                showingLanguages = false
+                languageCode = language.rawValue
+            }
+        }
         .background(Theme.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .fullScreenCover(item: $activeGame) { id in
@@ -43,16 +59,19 @@ struct MainMenuView: View {
                 (Text("Puzzle ").foregroundStyle(.white)
                     + Text("Box").foregroundStyle(Theme.neon))
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-                Text("Pick a game and start winning")
+                Text(L10n.text("Pick a game and start winning"))
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
-            Image(systemName: "gamecontroller.fill")
+            Button { showingLanguages = true } label: {
+                Image(systemName: "globe")
                 .font(.title2)
                 .foregroundStyle(Theme.neon)
                 .frame(width: 48, height: 48)
                 .themeCard(cornerRadius: 14)
+            }
+            .accessibilityLabel(L10n.text("Language"))
         }
         .padding(.top, 12)
     }
@@ -66,16 +85,19 @@ struct MainMenuView: View {
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.neon)
                     .contentTransition(.numericText())
-                Text("puzzles played")
+                Text(L10n.text("puzzles played"))
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             Button {
                 Haptics.tap()
-                activeGame = GameID.allCases.randomElement()
+                if let game = GameID.allCases.randomElement() {
+                    AppAnalytics.selectGame(game, source: "random")
+                    activeGame = game
+                }
             } label: {
-                Label("Random Game", systemImage: "dice.fill")
+                Label(L10n.text("Random Game"), systemImage: "dice.fill")
                     .font(.subheadline.bold())
                     .foregroundStyle(.black)
                     .padding(.horizontal, 16)
@@ -98,7 +120,7 @@ struct MainMenuView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Theme.textSecondary)
-            TextField("Search games", text: $searchText)
+            TextField(L10n.text("Search games"), text: $searchText)
                 .autocorrectionDisabled()
                 .tint(Theme.neon)
             if !searchText.isEmpty {
@@ -117,9 +139,9 @@ struct MainMenuView: View {
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip(title: "All", isSelected: filter == nil) { filter = nil }
+                chip(title: L10n.text("All"), isSelected: filter == nil) { filter = nil }
                 ForEach(GameCategory.allCases) { category in
-                    chip(title: category.rawValue, isSelected: filter == category) {
+                    chip(title: L10n.text(category.rawValue), isSelected: filter == category) {
                         filter = category
                     }
                 }
@@ -150,7 +172,11 @@ struct MainMenuView: View {
     private var gameGrid: some View {
         Group {
             if filteredGames.isEmpty {
-                ContentUnavailableView.search(text: searchText)
+                ContentUnavailableView {
+                    Label(L10n.text("No games found"), systemImage: "magnifyingglass")
+                } description: {
+                    Text(L10n.text("Try another search."))
+                }
                     .padding(.top, 40)
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
@@ -159,6 +185,7 @@ struct MainMenuView: View {
                     ForEach(filteredGames) { id in
                         Button {
                             Haptics.tap()
+                            AppAnalytics.selectGame(id, source: searchText.isEmpty ? "grid" : "search")
                             activeGame = id
                         } label: {
                             GameCardView(gameID: id)
@@ -192,14 +219,14 @@ struct GameCardView: View {
             Text(info.title)
                 .font(.headline)
                 .foregroundStyle(.white)
-                .lineLimit(1)
+                .lineLimit(2)
             Text(info.tagline)
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(2, reservesSpace: true)
 
             HStack {
-                Text(info.difficulty.rawValue)
+                Text(L10n.text(info.difficulty.rawValue))
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)

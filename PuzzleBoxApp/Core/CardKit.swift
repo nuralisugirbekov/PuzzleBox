@@ -75,6 +75,25 @@ struct CardView: View {
     }
 }
 
+/// Shared undo control for card games with move history.
+struct CardUndoButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(L10n.text("Undo"), systemImage: "arrow.uturn.backward")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isEnabled ? Theme.neon : Theme.textSecondary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .themeCard(cornerRadius: 12)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+}
+
 /// Empty pile placeholder (foundations, free cells, empty columns).
 struct CardSlot: View {
     var width: CGFloat = 44
@@ -89,5 +108,7 @@ struct CardSlot: View {
                     .font(.system(size: width * 0.4))
                     .foregroundStyle(Color.white.opacity(0.18))
             }
+            // Empty slots are outlined, but the entire card-sized area is tappable.
+            .contentShape(Rectangle())
     }
 }

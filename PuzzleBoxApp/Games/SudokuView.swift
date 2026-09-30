@@ -167,7 +167,7 @@ struct SudokuView: View {
 
     private var mistakesBar: some View {
         HStack {
-            Label("\(engine.mistakes) mistakes", systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.format("%d mistakes", engine.mistakes), systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(engine.mistakes > 0 ? .red : .secondary)
             Spacer()
@@ -275,7 +275,7 @@ struct SudokuView: View {
             Button {
                 engine.enter(nil)
             } label: {
-                Label("Erase", systemImage: "eraser.fill")
+                Label(L10n.text("Erase"), systemImage: "eraser.fill")
                     .font(.subheadline.bold())
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)

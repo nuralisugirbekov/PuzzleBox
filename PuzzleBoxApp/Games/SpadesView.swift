@@ -8,7 +8,7 @@ import Observation
 @MainActor
 @Observable
 final class SpadesEngine: GameEngine {
-    static let names = ["You", "West", "North", "East"]
+    static var names: [String] { [L10n.text("You"), L10n.text("West"), L10n.text("North"), L10n.text("East")] }
 
     struct Seat {
         var hand: [Card] = []
@@ -21,7 +21,7 @@ final class SpadesEngine: GameEngine {
     private(set) var turn = 0
     private(set) var bidding = true
     private(set) var spadesBroken = false
-    private(set) var message = "Choose your bid"
+    private(set) var message = L10n.text("Choose your bid")
     private(set) var score = 0
     private(set) var finalSummary = ""
     var userBid = 3
@@ -50,7 +50,7 @@ final class SpadesEngine: GameEngine {
         userBid = 3
         score = 0
         finalSummary = ""
-        message = "Choose your bid"
+        message = L10n.text("Choose your bid")
         state = .playing
     }
 
@@ -74,7 +74,7 @@ final class SpadesEngine: GameEngine {
     func startPlaying() {
         seats[0].bid = userBid
         bidding = false
-        message = "Your lead"
+        message = L10n.text("Your lead")
         Haptics.tap()
     }
 
@@ -144,14 +144,14 @@ final class SpadesEngine: GameEngine {
                 seats[winner].tricks += 1
                 withAnimation(.easeOut(duration: 0.25)) { trick = [] }
                 turn = winner
-                message = winner == 0 ? "You took the trick!" : "\(Self.names[winner]) took the trick"
+                message = winner == 0 ? L10n.text("You took the trick!") : L10n.format("%@ took the trick", Self.names[winner])
                 if winner == 0 { Haptics.success() }
                 if seats[0].hand.isEmpty {
                     finishHand()
                     return
                 }
                 if turn == 0 {
-                    message += " — your lead"
+                    message += L10n.text(" — your lead")
                     return
                 }
             } else if turn != 0 {
@@ -159,7 +159,7 @@ final class SpadesEngine: GameEngine {
                 guard state == .playing else { continue }
                 botPlay(turn)
             } else {
-                message = "Your turn"
+                message = L10n.text("Your turn")
                 return
             }
         }
@@ -206,7 +206,7 @@ final class SpadesEngine: GameEngine {
         let mine = partnershipScore(0, 2)
         let theirs = partnershipScore(1, 3)
         score = max(0, mine)
-        finalSummary = "Your team \(mine) — Opponents \(theirs)"
+        finalSummary = L10n.format("Your team %d — Opponents %d", mine, theirs)
         message = finalSummary
         state = .gameOver(won: mine > theirs)
     }
@@ -240,8 +240,8 @@ struct SpadesView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(seat == 2 ? Theme.neon : .white)
                     Text(engine.bidding
-                         ? "bids \(engine.seats[seat].bid)"
-                         : "\(engine.seats[seat].tricks)/\(engine.seats[seat].bid) tricks")
+                         ? L10n.format("bids %d", engine.seats[seat].bid)
+                         : L10n.format("%d/%d tricks", engine.seats[seat].tricks, engine.seats[seat].bid))
                         .font(.caption2)
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -283,7 +283,7 @@ struct SpadesView: View {
                 .lineLimit(1)
             Spacer()
             if !engine.bidding {
-                Text("You: \(engine.seats[0].tricks)/\(engine.seats[0].bid)")
+                Text(L10n.format("You: %d/%d", engine.seats[0].tricks, engine.seats[0].bid))
                     .font(.footnote.bold())
                     .foregroundStyle(Theme.neon)
             }
@@ -293,7 +293,7 @@ struct SpadesView: View {
 
     private var biddingPanel: some View {
         VStack(spacing: 14) {
-            Text("How many tricks will you take?")
+            Text(L10n.text("How many tricks will you take?"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
             HStack(spacing: 18) {
@@ -305,13 +305,13 @@ struct SpadesView: View {
                     .contentTransition(.numericText())
                 bidButton("plus") { if engine.userBid < 13 { engine.userBid += 1 } }
             }
-            Text(engine.userBid == 0 ? "Nil bid: +100 if you take no tricks, −100 if you take any!" : " ")
+            Text(engine.userBid == 0 ? L10n.text("Nil bid: +100 if you take no tricks, −100 if you take any!") : " ")
                 .font(.caption)
                 .foregroundStyle(.yellow)
             Button {
                 engine.startPlaying()
             } label: {
-                Label("Start Hand", systemImage: "play.fill")
+                Label(L10n.text("Start Hand"), systemImage: "play.fill")
                     .font(.headline)
                     .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)

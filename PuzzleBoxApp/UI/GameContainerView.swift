@@ -10,7 +10,10 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(StatsStore.self) private var stats
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isNewHighScore = false
+    @State private var roundAnalytics = GameRoundAnalytics()
+    @State private var hasStartedRound = false
 
     private var info: GameInfo { gameID.info }
 
@@ -28,7 +31,10 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             .padding()
 
             if engine.state == .paused {
-                PauseOverlay(resume: { engine.state = .playing },
+                PauseOverlay(resume: {
+                                 roundAnalytics.event("game_resume", score: engine.score)
+                                 engine.state = .playing
+                             },
                              restart: restart,
                              exit: { dismiss() })
             }
@@ -44,9 +50,28 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         }
         .preferredColorScheme(.dark)
         .animation(.easeInOut(duration: 0.25), value: engine.state)
+        .onAppear {
+            AppAnalytics.screen("game_\(gameID.rawValue)")
+            if !hasStartedRound {
+                hasStartedRound = true
+                roundAnalytics.start(gameID, active: scenePhase == .active && engine.state == .playing)
+            }
+        }
+        .onDisappear {
+            roundAnalytics.finish(score: engine.score, reason: "exit")
+        }
+        .onChange(of: scenePhase) { _, phase in
+            roundAnalytics.setActive(phase == .active && engine.state == .playing)
+        }
         .onChange(of: engine.state) { _, newState in
+            roundAnalytics.setActive(scenePhase == .active && newState == .playing)
+            if newState == .paused {
+                roundAnalytics.event("game_pause", score: engine.score)
+            }
             if case .gameOver(let won) = newState {
                 isNewHighScore = stats.record(gameID, score: engine.score)
+                roundAnalytics.finish(score: engine.score, reason: "completed",
+                                      won: won, newRecord: isNewHighScore)
                 if won { Haptics.success() } else { Haptics.error() }
             }
         }
@@ -54,8 +79,17 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
     private func restart() {
         Haptics.tap()
+        let wasPaused = engine.state == .paused
+        let wasCompleted: Bool
+        if case .gameOver = engine.state { wasCompleted = true } else { wasCompleted = false }
+        AppAnalytics.log("game_restart", parameters: [
+            "game_id": gameID.rawValue,
+            "restart_source": wasCompleted ? "game_over" : (wasPaused ? "pause" : "header")
+        ])
+        roundAnalytics.finish(score: engine.score, reason: "restart")
         isNewHighScore = false
         engine.restart()
+        roundAnalytics.start(gameID, active: scenePhase == .active && engine.state == .playing)
     }
 
     private var header: some View {
@@ -179,14 +213,14 @@ struct PauseOverlay: View {
             Image(systemName: "pause.circle.fill")
                 .font(.system(size: 52))
                 .foregroundStyle(Theme.neon)
-            Text("Paused")
+            Text(L10n.text("Paused"))
                 .font(.largeTitle.bold())
                 .foregroundStyle(.white)
 
             VStack(spacing: 10) {
-                PrimaryButton(title: "Resume", symbol: "play.fill", action: resume)
-                SecondaryButton(title: "Restart", symbol: "arrow.counterclockwise", action: restart)
-                SecondaryButton(title: "Main Menu", symbol: "house.fill", action: exit)
+                PrimaryButton(title: L10n.text("Resume"), symbol: "play.fill", action: resume)
+                SecondaryButton(title: L10n.text("Restart"), symbol: "arrow.counterclockwise", action: restart)
+                SecondaryButton(title: L10n.text("Main Menu"), symbol: "house.fill", action: exit)
             }
         }
         .transition(.opacity)
@@ -207,31 +241,31 @@ struct GameOverOverlay: View {
         OverlayCard {
             Text(won ? "🏆" : "💥")
                 .font(.system(size: 56))
-            Text(won ? "You Win!" : "Game Over")
+            Text(won ? L10n.text("You Win!") : L10n.text("Game Over"))
                 .font(.largeTitle.bold())
                 .foregroundStyle(.white)
 
             VStack(spacing: 6) {
-                Text("Score")
+                Text(L10n.text("Score"))
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
                 Text("\(score)")
                     .font(.system(size: 44, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.neon)
                 if isNewHighScore {
-                    Label("New High Score!", systemImage: "trophy.fill")
+                    Label(L10n.text("New High Score!"), systemImage: "trophy.fill")
                         .font(.subheadline.bold())
                         .foregroundStyle(.yellow)
                 } else {
-                    Text("Best: \(highScore)")
+                    Text(L10n.format("Best: %d", highScore))
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
 
             VStack(spacing: 10) {
-                PrimaryButton(title: "Play Again", symbol: "arrow.counterclockwise", action: playAgain)
-                SecondaryButton(title: "Main Menu", symbol: "house.fill", action: mainMenu)
+                PrimaryButton(title: L10n.text("Play Again"), symbol: "arrow.counterclockwise", action: playAgain)
+                SecondaryButton(title: L10n.text("Main Menu"), symbol: "house.fill", action: mainMenu)
             }
         }
         .transition(.opacity.combined(with: .scale(scale: 0.9)))
