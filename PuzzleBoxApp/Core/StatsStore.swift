@@ -6,14 +6,20 @@ import Observation
 final class StatsStore {
     private static let highScoresKey = "puzzlebox.highScores"
     private static let playedKey = "puzzlebox.gamesPlayed"
+    private static let favoritesKey = "puzzlebox.favorites"
+    private static let lastOpenedKey = "puzzlebox.lastOpened"
 
     private var highScores: [String: Int]
     private var played: [String: Int]
+    private var favorites: Set<String>
+    private var lastOpened: [String: Double]
 
     init() {
         let defaults = UserDefaults.standard
         highScores = defaults.dictionary(forKey: Self.highScoresKey) as? [String: Int] ?? [:]
         played = defaults.dictionary(forKey: Self.playedKey) as? [String: Int] ?? [:]
+        favorites = Set(defaults.stringArray(forKey: Self.favoritesKey) ?? [])
+        lastOpened = defaults.dictionary(forKey: Self.lastOpenedKey) as? [String: Double] ?? [:]
     }
 
     func highScore(for id: GameID) -> Int { highScores[id.rawValue] ?? 0 }
@@ -21,6 +27,33 @@ final class StatsStore {
 
     var totalPlayed: Int {
         GameID.allCases.reduce(0) { $0 + gamesPlayed(for: $1) }
+    }
+
+    // MARK: Favorites
+
+    func isFavorite(_ id: GameID) -> Bool { favorites.contains(id.rawValue) }
+
+    var favoriteGames: [GameID] { GameID.allCases.filter(isFavorite) }
+
+    func toggleFavorite(_ id: GameID) {
+        if favorites.remove(id.rawValue) == nil {
+            favorites.insert(id.rawValue)
+        }
+        persist()
+    }
+
+    // MARK: Recently opened
+
+    /// Games the player has opened, most recent first.
+    var recentGames: [GameID] {
+        GameID.allCases
+            .filter { lastOpened[$0.rawValue] != nil }
+            .sorted { lastOpened[$0.rawValue, default: 0] > lastOpened[$1.rawValue, default: 0] }
+    }
+
+    func markOpened(_ id: GameID) {
+        lastOpened[id.rawValue] = Date().timeIntervalSince1970
+        persist()
     }
 
     /// Records a finished round. Returns true when `score` set a new high score.
@@ -40,5 +73,7 @@ final class StatsStore {
         let defaults = UserDefaults.standard
         defaults.set(highScores, forKey: Self.highScoresKey)
         defaults.set(played, forKey: Self.playedKey)
+        defaults.set(Array(favorites).sorted(), forKey: Self.favoritesKey)
+        defaults.set(lastOpened, forKey: Self.lastOpenedKey)
     }
 }

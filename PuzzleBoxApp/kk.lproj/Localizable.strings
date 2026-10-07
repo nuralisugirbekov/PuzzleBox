@@ -107,3 +107,39 @@
 "Choose your language" = "Тілді таңдаңыз";
 "You can change it later in the main menu." = "Тілді кейін басты мәзірден өзгерте аласыз.";
 "Continue" = "Жалғастыру";
+
+/* Tab bar & browsing */
+"Home" = "Басты бет";
+"Discover" = "Шолу";
+"Rating" = "Рейтинг";
+"Games" = "Ойындар";
+"Search" = "Іздеу";
+"All games" = "Барлық ойындар";
+"Settings" = "Баптаулар";
+"Statistics" = "Статистика";
+"Games played" = "Ойналған ойындар";
+"Favorites" = "Таңдаулылар";
+"Done" = "Дайын";
+"Remove from Favorites" = "Таңдаулылардан өшіру";
+"Add to Favorites" = "Таңдаулыларға қосу";
+"Revert" = "Болдырмау";
+"Game of the Day" = "Күн ойыны";
+"Featured" = "Ұсынамыз";
+"Recently Played" = "Жақында ойналғандар";
+"Quick and Easy" = "Жылдам әрі оңай";
+"Browse Categories" = "Санаттар";
+"Your Records" = "Сіздің рекордтарыңыз";
+"Games tried" = "Байқалған ойындар";
+"Played: %d" = "Ойналды: %d";
+
+/* Appearance */
+"Appearance" = "Безендіру";
+"Automatic" = "Автоматты";
+"Light" = "Ашық";
+"Dark" = "Қараңғы";
+
+/* My games */
+"My Games" = "Менің ойындарым";
+"No Favorites Yet" = "Әзірге таңдаулылар жоқ";
+"Tap the heart on any game to keep it here." = "Ойын осында көрінуі үшін оның жүрекшесін басыңыз.";
+"Discover Games" = "Ойындарды табу";

@@ -107,3 +107,39 @@
 "Choose your language" = "Выберите язык";
 "You can change it later in the main menu." = "Язык можно изменить позже в главном меню.";
 "Continue" = "Продолжить";
+
+/* Tab bar & browsing */
+"Home" = "Главная";
+"Discover" = "Обзор";
+"Rating" = "Рейтинг";
+"Games" = "Игры";
+"Search" = "Поиск";
+"All games" = "Все игры";
+"Settings" = "Настройки";
+"Statistics" = "Статистика";
+"Games played" = "Сыграно игр";
+"Favorites" = "Избранное";
+"Done" = "Готово";
+"Remove from Favorites" = "Удалить из избранного";
+"Add to Favorites" = "Добавить в избранное";
+"Revert" = "Отменить";
+"Game of the Day" = "Игра дня";
+"Featured" = "Рекомендуем";
+"Recently Played" = "Недавние";
+"Quick and Easy" = "Быстро и просто";
+"Browse Categories" = "Категории";
+"Your Records" = "Ваши рекорды";
+"Games tried" = "Опробовано";
+"Played: %d" = "Сыграно: %d";
+
+/* Appearance */
+"Appearance" = "Оформление";
+"Automatic" = "Автоматически";
+"Light" = "Светлое";
+"Dark" = "Тёмное";
+
+/* My games */
+"My Games" = "Мои игры";
+"No Favorites Yet" = "Пока нет избранного";
+"Tap the heart on any game to keep it here." = "Нажмите на сердечко у игры, чтобы она появилась здесь.";
+"Discover Games" = "Найти игры";

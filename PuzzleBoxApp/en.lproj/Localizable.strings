@@ -107,3 +107,39 @@
 "Choose your language" = "Choose your language";
 "You can change it later in the main menu." = "You can change it later in the main menu.";
 "Continue" = "Continue";
+
+/* Tab bar & browsing */
+"Home" = "Home";
+"Discover" = "Discover";
+"Rating" = "Rating";
+"Games" = "Games";
+"Search" = "Search";
+"All games" = "All games";
+"Settings" = "Settings";
+"Statistics" = "Statistics";
+"Games played" = "Games played";
+"Favorites" = "Favorites";
+"Done" = "Done";
+"Remove from Favorites" = "Remove from Favorites";
+"Add to Favorites" = "Add to Favorites";
+"Revert" = "Revert";
+"Game of the Day" = "Game of the Day";
+"Featured" = "Featured";
+"Recently Played" = "Recently Played";
+"Quick and Easy" = "Quick and Easy";
+"Browse Categories" = "Browse Categories";
+"Your Records" = "Your Records";
+"Games tried" = "Games tried";
+"Played: %d" = "Played: %d";
+
+/* Appearance */
+"Appearance" = "Appearance";
+"Automatic" = "Automatic";
+"Light" = "Light";
+"Dark" = "Dark";
+
+/* My games */
+"My Games" = "My Games";
+"No Favorites Yet" = "No Favorites Yet";
+"Tap the heart on any game to keep it here." = "Tap the heart on any game to keep it here.";
+"Discover Games" = "Discover Games";

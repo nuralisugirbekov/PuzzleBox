@@ -121,7 +121,7 @@ struct AppRootView: View {
     var body: some View {
         Group {
             if let language = AppLanguage(rawValue: languageCode) {
-                MainMenuView()
+                RootTabView()
                     .environment(\.locale, Locale(identifier: language.rawValue))
                     .id(language)
             } else {
