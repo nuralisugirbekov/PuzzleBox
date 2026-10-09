@@ -146,9 +146,14 @@ struct SnakeView: View {
     @State private var engine = SnakeEngine()
 
     var body: some View {
-        GameContainerView(gameID: .snake, engine: engine) {
+        GameContainerView(gameID: .snake, engine: engine, centersContent: true) {
             VStack(spacing: 20) {
                 board
+                Text(L10n.text("Swipe on the board to steer the snake."))
+                    .font(.footnote)
+                    .foregroundStyle(GameTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 controls
             }
         }
@@ -172,7 +177,7 @@ struct SnakeView: View {
             for r in 0..<SnakeEngine.rows {
                 for c in 0..<SnakeEngine.cols where (r + c).isMultiple(of: 2) {
                     context.fill(Path(rect(GridPos(r: r, c: c), inset: 0)),
-                                 with: .color(Theme.neon.opacity(0.05)))
+                                 with: .color(GameTheme.accent.opacity(0.05)))
                 }
             }
 
@@ -183,15 +188,15 @@ struct SnakeView: View {
             // Snake body, head drawn brighter
             for (i, segment) in snake.enumerated() {
                 let path = Path(roundedRect: rect(segment), cornerRadius: cell * 0.25)
-                context.fill(path, with: .color(i == 0 ? Theme.neon : Theme.neon.opacity(0.65)))
+                context.fill(path, with: .color(i == 0 ? GameTheme.accent : GameTheme.accent.opacity(0.65)))
             }
         }
         .aspectRatio(CGFloat(SnakeEngine.cols) / CGFloat(SnakeEngine.rows), contentMode: .fit)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .background(GameTheme.surface, in: RoundedRectangle(cornerRadius: 16))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Theme.stroke, lineWidth: 1)
+                .strokeBorder(GameTheme.stroke, lineWidth: 1)
         }
         .gesture(swipe)
     }
@@ -228,12 +233,12 @@ struct SnakeView: View {
             Image(systemName: symbol)
                 .font(.title2)
                 .frame(width: 56, height: 48)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .background(GameTheme.surface, in: RoundedRectangle(cornerRadius: 14))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Theme.stroke, lineWidth: 1)
+                        .strokeBorder(GameTheme.stroke, lineWidth: 1)
                 }
-                .foregroundStyle(Theme.neon)
+                .foregroundStyle(GameTheme.accent)
         }
     }
 }

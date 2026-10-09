@@ -150,7 +150,7 @@ struct WaterSortView: View {
                 tubesGrid
                 Text(L10n.text("Tap a tube to pick it up, then tap another to pour."))
                     .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(GameTheme.textSecondary)
             }
         }
     }
@@ -159,7 +159,7 @@ struct WaterSortView: View {
         HStack {
             Label(L10n.format("%d moves", engine.moves), systemImage: "arrow.left.arrow.right")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.neon)
+                .foregroundStyle(GameTheme.accent)
                 .contentTransition(.numericText())
             Spacer()
             Button {
@@ -167,11 +167,11 @@ struct WaterSortView: View {
             } label: {
                 Label(L10n.text("Undo"), systemImage: "arrow.uturn.backward")
                     .font(.subheadline.bold())
-                    .foregroundStyle(engine.canUndo ? Theme.neon : Theme.textSecondary)
+                    .foregroundStyle(engine.canUndo ? GameTheme.accent : GameTheme.textSecondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(Theme.surface, in: Capsule())
-                    .overlay { Capsule().strokeBorder(Theme.stroke, lineWidth: 1) }
+                    .background(GameTheme.surface, in: Capsule())
+                    .overlay { Capsule().strokeBorder(GameTheme.stroke, lineWidth: 1) }
             }
             .disabled(!engine.canUndo)
         }
@@ -212,7 +212,7 @@ struct WaterSortView: View {
         .padding(5)
         .frame(width: 58)
         .background(
-            Theme.surface,
+            GameTheme.surface,
             in: UnevenRoundedRectangle(topLeadingRadius: 6,
                                        bottomLeadingRadius: 18,
                                        bottomTrailingRadius: 18,
@@ -223,7 +223,7 @@ struct WaterSortView: View {
                                    bottomLeadingRadius: 18,
                                    bottomTrailingRadius: 18,
                                    topTrailingRadius: 6)
-                .strokeBorder(isSelected ? Theme.neon : Color.white.opacity(0.15), lineWidth: isSelected ? 2 : 1)
+                .strokeBorder(isSelected ? GameTheme.accent : GameTheme.stroke, lineWidth: isSelected ? 2 : 1)
         }
         .offset(y: isSelected ? -14 : 0)
         .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isSelected)

@@ -212,7 +212,7 @@ struct SudokuView: View {
             if let value {
                 Text("\(value)")
                     .font(.system(.title2, design: .rounded).weight(isGiven ? .bold : .medium))
-                    .foregroundStyle(isWrong ? .red : (isGiven ? Color.white : Theme.neon))
+                    .foregroundStyle(isWrong ? .red : (isGiven ? GameTheme.ink : GameTheme.accent))
             }
         }
         .aspectRatio(1, contentMode: .fit)
@@ -227,10 +227,10 @@ struct SudokuView: View {
     }
 
     private func cellBackground(isSelected: Bool, isWrong: Bool, sameUnit: Bool) -> Color {
-        if isSelected { return Theme.neon.opacity(0.30) }
+        if isSelected { return GameTheme.accent.opacity(0.30) }
         if isWrong { return .red.opacity(0.18) }
-        if sameUnit { return Theme.neon.opacity(0.07) }
-        return Theme.surface
+        if sameUnit { return GameTheme.accent.opacity(0.07) }
+        return GameTheme.surface
     }
 
     /// Thick separators outlining the 2×3 blocks.
@@ -262,13 +262,13 @@ struct SudokuView: View {
                             .font(.title2.bold())
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(Theme.neon.opacity(0.12),
+                            .background(GameTheme.accent.opacity(0.12),
                                         in: RoundedRectangle(cornerRadius: 12))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(Theme.neon.opacity(0.3), lineWidth: 1)
+                                    .strokeBorder(GameTheme.accent.opacity(0.3), lineWidth: 1)
                             }
-                            .foregroundStyle(Theme.neon)
+                            .foregroundStyle(GameTheme.accent)
                     }
                 }
             }
@@ -279,9 +279,9 @@ struct SudokuView: View {
                     .font(.subheadline.bold())
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
-                    .background(Theme.surfaceHigh,
+                    .background(GameTheme.surfaceHigh,
                                 in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(GameTheme.ink)
             }
         }
     }

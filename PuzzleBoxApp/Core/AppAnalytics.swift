@@ -82,7 +82,7 @@ final class GameRoundAnalytics {
         AppAnalytics.log(name, parameters: parameters)
     }
 
-    func finish(score: Int, reason: String, won: Bool = false, newRecord: Bool = false) {
+    func finish(score: Int, reason: String, won: Bool = false, newRecord: Bool = false, timeBonus: Int? = nil) {
         guard let game, !ended else { return }
         setActive(false)
         ended = true
@@ -92,6 +92,7 @@ final class GameRoundAnalytics {
         parameters["end_reason"] = reason
         parameters["duration_seconds"] = Int(elapsed)
         parameters["new_high_score"] = newRecord ? 1 : 0
+        if let timeBonus { parameters["time_bonus"] = timeBonus }
         AppAnalytics.log(AnalyticsEventLevelEnd, parameters: parameters)
         if reason == "completed" {
             AppAnalytics.log(AnalyticsEventPostScore, parameters: [

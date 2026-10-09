@@ -7,9 +7,9 @@ struct LanguageSelectionView: View {
     init(onSelect: @escaping (AppLanguage) -> Void) {
         self.onSelect = onSelect
         let saved = UserDefaults.standard.string(forKey: L10n.languageKey) ?? ""
-        let preferred = Locale.preferredLanguages.first?.components(separatedBy: "-").first ?? "en"
+        let preferred = Locale.preferredLanguages.first ?? "en"
         _selectedLanguage = State(initialValue: AppLanguage(rawValue: saved)
-                                  ?? AppLanguage(rawValue: preferred) ?? .english)
+                                  ?? AppLanguage.matching(preferred) ?? .english)
     }
 
     private func text(_ key: String) -> String {
@@ -23,28 +23,28 @@ struct LanguageSelectionView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Image(systemName: "gamecontroller.fill")
                             .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(Theme.neon)
+                            .foregroundStyle(Color.accentColor)
                             .frame(width: 64, height: 64)
-                            .themeCard(cornerRadius: 18)
+                            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 20))
                             .padding(.bottom, 8)
                             .accessibilityHidden(true)
 
-                        (Text("Puzzle ").foregroundStyle(.white)
-                         + Text("Box").foregroundStyle(Theme.neon))
-                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                        Text("Puzzle Box")
+                            .foregroundStyle(.primary)
+                            .font(.largeTitle.bold())
 
                         Text(text("Make yourself at home."))
                             .font(.subheadline)
-                            .foregroundStyle(Theme.textSecondary)
+                            .foregroundStyle(Color.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(text("Choose your language"))
                                 .font(.title2.bold())
-                            Text(text("You can change it later in the main menu."))
+                            Text(text("You can change it later in Settings."))
                                 .font(.subheadline)
-                                .foregroundStyle(Theme.textSecondary)
+                                .foregroundStyle(Color.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
@@ -59,20 +59,20 @@ struct LanguageSelectionView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: "globe")
                                     .font(.title3)
-                                    .foregroundStyle(Theme.neon)
+                                    .foregroundStyle(Color.accentColor)
                                 Text(verbatim: selectedLanguage.name)
                                     .font(.body.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.primary)
                                 Spacer(minLength: 12)
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(Theme.textSecondary)
+                                    .foregroundStyle(Color.secondary)
                             }
                             .padding(18)
-                            .background(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 14))
+                            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 14)
-                                    .strokeBorder(Theme.stroke, lineWidth: 1)
+                                    .strokeBorder(Color(.separator).opacity(0.25), lineWidth: 1)
                             }
                             .contentShape(RoundedRectangle(cornerRadius: 14))
                         }
@@ -90,17 +90,16 @@ struct LanguageSelectionView: View {
                                 Image(systemName: "arrow.right")
                             }
                             .font(.headline)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 17)
-                            .background(Theme.neon, in: RoundedRectangle(cornerRadius: 14))
-                            .neonGlow(0.2)
+                            .background(Color.accentColor, in: Capsule())
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("language-continue")
                     }
                     .padding(24)
-                    .themeCard(cornerRadius: 24)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
                 }
                 .frame(maxWidth: 440)
                 .padding(24)
@@ -108,9 +107,10 @@ struct LanguageSelectionView: View {
                 .frame(minHeight: geometry.size.height)
             }
         }
-        .background(Theme.background.ignoresSafeArea())
-        .foregroundStyle(.white)
-        .preferredColorScheme(.dark)
+        .background(Color(.systemBackground).ignoresSafeArea())
+        .foregroundStyle(.primary)
+        .tint(.blue)
+        .environment(\.locale, Locale(identifier: selectedLanguage.rawValue))
         .onAppear { AppAnalytics.screen("language_selection") }
     }
 }

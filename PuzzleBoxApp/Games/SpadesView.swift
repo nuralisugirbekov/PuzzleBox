@@ -238,16 +238,16 @@ struct SpadesView: View {
                 VStack(spacing: 2) {
                     Text(SpadesEngine.names[seat] + (seat == 2 ? " ★" : ""))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(seat == 2 ? Theme.neon : .white)
+                        .foregroundStyle(seat == 2 ? GameTheme.accent : GameTheme.ink)
                     Text(engine.bidding
                          ? L10n.format("bids %d", engine.seats[seat].bid)
                          : L10n.format("%d/%d tricks", engine.seats[seat].tricks, engine.seats[seat].bid))
                         .font(.caption2)
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(GameTheme.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .themeCard(cornerRadius: 12)
+                .gameCard(cornerRadius: 12)
             }
         }
     }
@@ -255,8 +255,8 @@ struct SpadesView: View {
     private var trickArea: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Theme.surface.opacity(0.5))
-                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.stroke, lineWidth: 1) }
+                .fill(GameTheme.surface.opacity(0.5))
+                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(GameTheme.stroke, lineWidth: 1) }
             ForEach(engine.trick, id: \.card.id) { entry in
                 CardView(card: entry.card, width: 46)
                     .offset(trickOffset(for: entry.seat))
@@ -279,13 +279,13 @@ struct SpadesView: View {
         HStack {
             Text(engine.message)
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(GameTheme.textSecondary)
                 .lineLimit(1)
             Spacer()
             if !engine.bidding {
                 Text(L10n.format("You: %d/%d", engine.seats[0].tricks, engine.seats[0].bid))
                     .font(.footnote.bold())
-                    .foregroundStyle(Theme.neon)
+                    .foregroundStyle(GameTheme.accent)
             }
         }
         .padding(.horizontal, 4)
@@ -295,12 +295,12 @@ struct SpadesView: View {
         VStack(spacing: 14) {
             Text(L10n.text("How many tricks will you take?"))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(GameTheme.ink)
             HStack(spacing: 18) {
                 bidButton("minus") { if engine.userBid > 0 { engine.userBid -= 1 } }
                 Text("\(engine.userBid)")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.neon)
+                    .foregroundStyle(GameTheme.accent)
                     .frame(width: 70)
                     .contentTransition(.numericText())
                 bidButton("plus") { if engine.userBid < 13 { engine.userBid += 1 } }
@@ -313,16 +313,16 @@ struct SpadesView: View {
             } label: {
                 Label(L10n.text("Start Hand"), systemImage: "play.fill")
                     .font(.headline)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(Theme.neon, in: RoundedRectangle(cornerRadius: 14))
-                    .neonGlow()
+                    .background(GameTheme.accent, in: RoundedRectangle(cornerRadius: 14))
+                    .gameElevation()
             }
             handView
         }
         .padding(16)
-        .themeCard(cornerRadius: 18)
+        .gameCard(cornerRadius: 18)
     }
 
     private func bidButton(_ symbol: String, action: @escaping () -> Void) -> some View {
@@ -332,9 +332,9 @@ struct SpadesView: View {
         } label: {
             Image(systemName: symbol)
                 .font(.title3.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(GameTheme.ink)
                 .frame(width: 44, height: 44)
-                .background(Theme.surfaceHigh, in: Circle())
+                .background(GameTheme.surfaceHigh, in: Circle())
         }
     }
 

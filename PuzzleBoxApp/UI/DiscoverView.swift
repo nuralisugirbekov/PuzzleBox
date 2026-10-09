@@ -25,7 +25,7 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("Quick and Easy"))
-                        Shelf(items: GameID.allCases.filter { $0.info.difficulty == .easy }) { id in
+                        Shelf(items: GameID.visibleGames.filter { $0.info.difficulty == .easy }) { id in
                             ShelfGameTile(gameID: id, width: 130, source: "discover_easy")
                         }
                     }
@@ -37,7 +37,7 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("All games"))
-                        GameGrid(games: GameID.allCases, source: "discover_all")
+                        GameGrid(games: GameID.visibleGames, source: "discover_all")
                             .padding(.horizontal)
                     }
                 }

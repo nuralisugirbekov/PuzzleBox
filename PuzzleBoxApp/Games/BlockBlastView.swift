@@ -184,7 +184,7 @@ struct BlockBlastView: View {
         }
         .onPreferenceChange(GridFrameKey.self) { gridFrame = $0 }
         .padding(6)
-        .themeCard(cornerRadius: 16)
+        .gameCard(cornerRadius: 16)
         .aspectRatio(1, contentMode: .fit)
     }
 
@@ -205,9 +205,9 @@ struct BlockBlastView: View {
             return AnyShapeStyle(BlockBlastEngine.colors[colorIndex].gradient)
         }
         if isPreview {
-            return AnyShapeStyle(previewValid ? Theme.neon.opacity(0.45) : Color.red.opacity(0.3))
+            return AnyShapeStyle(previewValid ? GameTheme.accent.opacity(0.45) : Color.red.opacity(0.3))
         }
-        return AnyShapeStyle(Theme.background)
+        return AnyShapeStyle(GameTheme.background)
     }
 
     // MARK: Tray
@@ -226,10 +226,10 @@ struct BlockBlastView: View {
         let piece = engine.tray.indices.contains(index) ? engine.tray[index] : nil
         ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(Theme.surface)
+                .fill(GameTheme.surface)
                 .overlay {
                     RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Theme.stroke, lineWidth: 1)
+                        .strokeBorder(GameTheme.stroke, lineWidth: 1)
                 }
             if let piece, dragIndex != index {
                 PieceView(piece: piece, cellSize: 16, spacing: 2)

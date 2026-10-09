@@ -47,13 +47,14 @@ struct RootTabView: View {
                 theme.apply()
             }
             .environment(\.playGame, PlayGameAction { id, source in
+                guard id.isVisible else { return }
                 Haptics.tap()
                 AppAnalytics.selectGame(id, source: source)
                 stats.markOpened(id)
                 activeGame = id
             })
             .fullScreenCover(item: $activeGame) { id in
-                gameView(for: id)
+                GameSessionView(initialGame: id)
             }
             .onChange(of: selection, initial: true) { _, tab in
                 AppAnalytics.screen(tab.rawValue)
@@ -213,24 +214,20 @@ struct SettingsView: View {
                     }
                 }
                 Section(L10n.text("Language")) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Button {
+                    Picker(L10n.text("Language"), selection: Binding(
+                        get: { languageCode },
+                        set: { code in
+                            guard let language = AppLanguage(rawValue: code), code != languageCode else { return }
                             Haptics.tap()
                             AppAnalytics.selectLanguage(language)
-                            languageCode = language.rawValue
-                        } label: {
-                            HStack {
-                                Text(language.name)
-                                    .foregroundStyle(Color(.label))
-                                Spacer()
-                                if languageCode == language.rawValue {
-                                    Image(systemName: "checkmark")
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.tint)
-                                }
-                            }
+                            languageCode = code
+                        }
+                    )) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(verbatim: language.name).tag(language.rawValue)
                         }
                     }
+                    .pickerStyle(.menu)
                 }
                 Section(L10n.text("Statistics")) {
                     LabeledContent(L10n.text("Games played"), value: "\(stats.totalPlayed)")
@@ -251,5 +248,22 @@ struct SettingsView: View {
             }
         }
         .onAppear { AppAnalytics.screen("settings") }
+    }
+}
+
+/// Keeps random-game navigation inside the existing full-screen presentation.
+private struct GameSessionView: View {
+    @Environment(StatsStore.self) private var stats
+    @State private var currentGame: GameID
+    init(initialGame: GameID) { _currentGame = State(initialValue: initialGame) }
+    var body: some View {
+        gameView(for: currentGame)
+            .id(currentGame)
+            .environment(\.playGame, PlayGameAction { id, source in
+                guard id.isVisible else { return }
+                AppAnalytics.selectGame(id, source: source)
+                stats.markOpened(id)
+                currentGame = id
+            })
     }
 }

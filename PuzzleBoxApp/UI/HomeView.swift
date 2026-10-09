@@ -6,9 +6,11 @@ struct HomeView: View {
     @Environment(StatsStore.self) private var stats
     @Environment(\.playGame) private var playGame
 
+    @State private var featuredSelection: [GameID] = []
+
     private var featured: [GameID] {
         let today = GameID.gameOfTheDay
-        return [today] + [.match3, .blockBlast, .solitaire, .sudoku].filter { $0 != today }
+        return [today] + featuredSelection.filter { $0.isVisible && $0 != today }
     }
 
     var body: some View {
@@ -48,6 +50,10 @@ struct HomeView: View {
             .background(Color(.systemBackground))
             .navigationTitle(L10n.text("Home"))
             .toolbar { SettingsToolbarButton() }
+            .onAppear {
+                let today = GameID.gameOfTheDay
+                featuredSelection = Array(GameID.visibleGames.filter { $0 != today }.shuffled().prefix(4))
+            }
         }
     }
 
@@ -63,7 +69,7 @@ struct HomeView: View {
             }
             Spacer()
             Button {
-                if let game = GameID.allCases.randomElement() {
+                if let game = GameID.visibleGames.randomElement() {
                     playGame(game, source: "random")
                 }
             } label: {

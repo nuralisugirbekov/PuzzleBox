@@ -58,10 +58,10 @@ struct CardView: View {
                     }
             } else {
                 RoundedRectangle(cornerRadius: corner)
-                    .fill(Theme.surfaceHigh)
+                    .fill(GameTheme.surfaceHigh)
                     .overlay {
                         RoundedRectangle(cornerRadius: corner * 0.7)
-                            .strokeBorder(Theme.neon.opacity(0.35), lineWidth: 1)
+                            .strokeBorder(GameTheme.accent.opacity(0.35), lineWidth: 1)
                             .padding(3)
                     }
             }
@@ -69,7 +69,7 @@ struct CardView: View {
         .frame(width: width, height: width * 1.45)
         .overlay {
             RoundedRectangle(cornerRadius: corner)
-                .strokeBorder(highlighted ? Theme.neon : Color.black.opacity(0.3),
+                .strokeBorder(highlighted ? GameTheme.accent : Color.black.opacity(0.3),
                               lineWidth: highlighted ? 2.5 : 1)
         }
     }
@@ -84,10 +84,10 @@ struct CardUndoButton: View {
         Button(action: action) {
             Label(L10n.text("Undo"), systemImage: "arrow.uturn.backward")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isEnabled ? Theme.neon : Theme.textSecondary)
+                .foregroundStyle(isEnabled ? GameTheme.accent : GameTheme.textSecondary)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
-                .themeCard(cornerRadius: 12)
+                .gameCard(cornerRadius: 12)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

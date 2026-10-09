@@ -220,19 +220,19 @@ struct DominoesView: View {
     private var botBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "cpu")
-                .foregroundStyle(Theme.neon)
+                .foregroundStyle(GameTheme.accent)
             Text(L10n.text("Bot"))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(GameTheme.ink)
             ForEach(0..<min(engine.botHand.count, 10), id: \.self) { _ in
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Theme.surfaceHigh)
-                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Theme.stroke, lineWidth: 1) }
+                    .fill(GameTheme.surfaceHigh)
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(GameTheme.stroke, lineWidth: 1) }
                     .frame(width: 14, height: 26)
             }
             Text("\(engine.botHand.count)")
                 .font(.caption.bold())
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(GameTheme.textSecondary)
             Spacer()
         }
         .padding(.horizontal, 4)
@@ -244,7 +244,7 @@ struct DominoesView: View {
                 if engine.chain.isEmpty {
                     Text(L10n.text("Play the first tile"))
                         .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(GameTheme.textSecondary)
                         .padding(.horizontal, 16)
                 }
                 ForEach(engine.chain) { tile in
@@ -261,14 +261,14 @@ struct DominoesView: View {
         }
         .frame(height: 64)
         .frame(maxWidth: .infinity)
-        .themeCard(cornerRadius: 14)
+        .gameCard(cornerRadius: 14)
     }
 
     private var statusBar: some View {
         HStack {
             Text(engine.message)
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(GameTheme.textSecondary)
                 .lineLimit(1)
             Spacer()
             Button {
@@ -277,10 +277,10 @@ struct DominoesView: View {
                 Label(engine.boneyard.isEmpty ? L10n.text("Pass") : L10n.format("Draw (%d)", engine.boneyard.count),
                       systemImage: engine.boneyard.isEmpty ? "hand.raised.fill" : "plus.rectangle.on.rectangle")
                     .font(.subheadline.bold())
-                    .foregroundStyle(drawEnabled ? .black : Theme.textSecondary)
+                    .foregroundStyle(drawEnabled ? .white : GameTheme.textSecondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(drawEnabled ? AnyShapeStyle(Theme.neon) : AnyShapeStyle(Theme.surface),
+                    .background(drawEnabled ? AnyShapeStyle(GameTheme.accent) : AnyShapeStyle(GameTheme.surface),
                                 in: Capsule())
             }
             .disabled(!drawEnabled)
@@ -296,20 +296,20 @@ struct DominoesView: View {
         HStack(spacing: 10) {
             Text(L10n.text("Play on which end?"))
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(GameTheme.ink)
             Button { engine.chooseEnd(left: true) } label: {
                 Label(L10n.text("Left"), systemImage: "arrow.left")
                     .font(.subheadline.bold())
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Theme.neon, in: Capsule())
+                    .background(GameTheme.accent, in: Capsule())
             }
             Button { engine.chooseEnd(left: false) } label: {
                 Label(L10n.text("Right"), systemImage: "arrow.right")
                     .font(.subheadline.bold())
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Theme.neon, in: Capsule())
+                    .background(GameTheme.accent, in: Capsule())
             }
         }
     }
@@ -326,7 +326,7 @@ struct DominoesView: View {
                     .background(Color.white, in: RoundedRectangle(cornerRadius: 6))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(playable ? Theme.neon : Color.black.opacity(0.3),
+                            .strokeBorder(playable ? GameTheme.accent : Color.black.opacity(0.3),
                                           lineWidth: playable ? 2.5 : 1)
                     }
                     .opacity(playable || !engine.isUserTurn ? 1 : 0.45)

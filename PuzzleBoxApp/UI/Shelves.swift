@@ -141,6 +141,12 @@ extension GameCategory {
         case .casual: "sparkles"
         case .arcade: "arcade.stick"
         case .cards: "suit.spade.fill"
+        case .attention: "eye.fill"
+        case .visual: "square.grid.3x3.fill"
+        case .numbers: "number"
+        case .japanese: "circle.grid.3x3"
+        case .physics: "basketball.fill"
+        case .reaction: "bolt.fill"
         }
     }
 
@@ -150,11 +156,17 @@ extension GameCategory {
         case .casual: .pink
         case .arcade: .green
         case .cards: .teal
+        case .attention: .cyan
+        case .visual: .purple
+        case .numbers: .orange
+        case .japanese: .red
+        case .physics: .blue
+        case .reaction: .mint
         }
     }
 
     var games: [GameID] {
-        GameID.allCases.filter { $0.info.category == self }
+        GameID.visibleGames.filter { $0.info.category == self }
     }
 }
 
@@ -201,9 +213,22 @@ struct CategoryGrid: View {
 }
 
 extension GameID {
-    /// A game that changes once a day, the same for every player.
+    /// Random daily pick, shared by Home and Discover and retained across launches.
     static var gameOfTheDay: GameID {
-        let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
-        return allCases[day % allCases.count]
+        let defaults = UserDefaults.standard
+        let day = Calendar.current.startOfDay(for: .now).timeIntervalSince1970
+        let dateKey = "dailyGame.date"
+        let gameKey = "dailyGame.id"
+        if defaults.double(forKey: dateKey) == day,
+           let raw = defaults.string(forKey: gameKey),
+           let saved = GameID(rawValue: raw), saved.isVisible {
+            return saved
+        }
+        let previous = defaults.string(forKey: gameKey)
+        let candidates = visibleGames.filter { $0.rawValue != previous }
+        let selected = candidates.randomElement() ?? visibleGames.randomElement() ?? .bounce
+        defaults.set(selected.rawValue, forKey: gameKey)
+        defaults.set(day, forKey: dateKey)
+        return selected
     }
 }

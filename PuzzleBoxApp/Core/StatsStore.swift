@@ -33,7 +33,7 @@ final class StatsStore {
 
     func isFavorite(_ id: GameID) -> Bool { favorites.contains(id.rawValue) }
 
-    var favoriteGames: [GameID] { GameID.allCases.filter(isFavorite) }
+    var favoriteGames: [GameID] { GameID.visibleGames.filter(isFavorite) }
 
     func toggleFavorite(_ id: GameID) {
         if favorites.remove(id.rawValue) == nil {
@@ -46,7 +46,7 @@ final class StatsStore {
 
     /// Games the player has opened, most recent first.
     var recentGames: [GameID] {
-        GameID.allCases
+        GameID.visibleGames
             .filter { lastOpened[$0.rawValue] != nil }
             .sorted { lastOpened[$0.rawValue, default: 0] > lastOpened[$1.rawValue, default: 0] }
     }

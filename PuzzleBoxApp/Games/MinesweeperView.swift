@@ -124,7 +124,7 @@ struct MinesweeperView: View {
     @State private var engine = MinesweeperEngine()
 
     private static let numberColors: [Color] =
-        [.clear, .blue, .green, .orange, .red, .purple, .cyan, .yellow, .white]
+        [.clear, .blue, .green, .orange, .red, .purple, .cyan, .yellow, GameTheme.ink]
 
     var body: some View {
         GameContainerView(gameID: .minesweeper, engine: engine) {
@@ -148,12 +148,12 @@ struct MinesweeperView: View {
                 Label(engine.flagMode ? L10n.text("Flag Mode") : L10n.text("Dig Mode"),
                       systemImage: engine.flagMode ? "flag.fill" : "hammer.fill")
                     .font(.subheadline.bold())
-                    .foregroundStyle(engine.flagMode ? .black : Theme.neon)
+                    .foregroundStyle(engine.flagMode ? .white : GameTheme.accent)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(engine.flagMode ? AnyShapeStyle(Theme.neon) : AnyShapeStyle(Theme.surface),
+                    .background(engine.flagMode ? AnyShapeStyle(GameTheme.accent) : AnyShapeStyle(GameTheme.surface),
                                 in: Capsule())
-                    .overlay { Capsule().strokeBorder(Theme.stroke, lineWidth: 1) }
+                    .overlay { Capsule().strokeBorder(GameTheme.stroke, lineWidth: 1) }
             }
         }
         .padding(.horizontal, 4)
@@ -170,7 +170,7 @@ struct MinesweeperView: View {
             }
         }
         .padding(8)
-        .themeCard(cornerRadius: 16)
+        .gameCard(cornerRadius: 16)
         .aspectRatio(1, contentMode: .fit)
     }
 
@@ -179,7 +179,7 @@ struct MinesweeperView: View {
         let cell = engine.grid[r][c]
         ZStack {
             RoundedRectangle(cornerRadius: 5)
-                .fill(cell.revealed ? Theme.background : Theme.surfaceHigh)
+                .fill(cell.revealed ? GameTheme.background : GameTheme.surfaceHigh)
             if cell.revealed {
                 if cell.isMine {
                     Text("💣").font(.system(size: 15))

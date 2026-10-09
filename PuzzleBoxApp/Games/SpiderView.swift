@@ -163,7 +163,7 @@ struct SpiderView: View {
         HStack {
             Label(L10n.format("%d of 8 runs", engine.completedRuns), systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.neon)
+                .foregroundStyle(GameTheme.accent)
             if !engine.message.isEmpty {
                 Text(engine.message)
                     .font(.caption)
@@ -175,10 +175,10 @@ struct SpiderView: View {
             } label: {
                 Label(L10n.format("Deal (%d)", engine.stock.count), systemImage: "square.stack.fill")
                     .font(.subheadline.bold())
-                    .foregroundStyle(engine.stock.isEmpty ? Theme.textSecondary : .black)
+                    .foregroundStyle(engine.stock.isEmpty ? GameTheme.textSecondary : .white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(engine.stock.isEmpty ? AnyShapeStyle(Theme.surface) : AnyShapeStyle(Theme.neon),
+                    .background(engine.stock.isEmpty ? AnyShapeStyle(GameTheme.surface) : AnyShapeStyle(GameTheme.accent),
                                 in: Capsule())
             }
             .disabled(engine.stock.isEmpty)

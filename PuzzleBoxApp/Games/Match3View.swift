@@ -226,7 +226,7 @@ struct Match3View: View {
                 board
                 Text(L10n.text("Swipe a gem toward a neighbor to swap them."))
                     .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(GameTheme.textSecondary)
             }
         }
     }
@@ -235,7 +235,7 @@ struct Match3View: View {
         HStack {
             Label(L10n.format("%d moves left", engine.movesLeft), systemImage: "hand.draw.fill")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.neon)
+                .foregroundStyle(GameTheme.accent)
                 .contentTransition(.numericText())
             Spacer()
         }
@@ -252,7 +252,7 @@ struct Match3View: View {
                 // Static cell backdrops
                 ForEach(0..<(n * n), id: \.self) { i in
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Theme.background)
+                        .fill(GameTheme.background)
                         .frame(width: cell - 5, height: cell - 5)
                         .position(x: CGFloat(i % n) * cell + cell / 2,
                                   y: CGFloat(i / n) * cell + cell / 2)
@@ -272,7 +272,7 @@ struct Match3View: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(8)
-        .themeCard(cornerRadius: 16)
+        .gameCard(cornerRadius: 16)
         .aspectRatio(1, contentMode: .fit)
     }
 
@@ -288,7 +288,7 @@ struct Match3View: View {
             .overlay {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Theme.neon, lineWidth: 3)
+                        .strokeBorder(GameTheme.accent, lineWidth: 3)
                 }
             }
             .frame(width: cellSize - 5, height: cellSize - 5)
