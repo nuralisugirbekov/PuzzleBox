@@ -100,8 +100,6 @@ struct GamePreviewArt: View {
         Color(gameID == .blockBlast ? .systemBackground : .tertiarySystemBackground)
             .overlay {
                 switch gameID {
-                case .match3:
-                    Match3PreviewArt()
                 case .blockBlast:
                     BlockBlastPreviewArt()
                 default:
@@ -117,22 +115,6 @@ struct GamePreviewArt: View {
             }
             .clipped()
             .accessibilityHidden(true)
-    }
-}
-
-/// Figma "image 2": the Match-3 screenshot, cropped into a square and laid flat.
-private struct Match3PreviewArt: View {
-    private let side: CGFloat = 268.577
-
-    var body: some View {
-        Image("Match3Preview")
-            .resizable()
-            .frame(width: side * 2.2137, height: side * 1.3275)
-            .offset(x: -side * 0.3804, y: -side * 0.2313)
-            .frame(width: side, height: side, alignment: .topLeading)
-            .clipped()
-            .isometric()
-            .offset(x: 0.09, y: 6.29)
     }
 }
 

@@ -6,7 +6,7 @@ struct SearchView: View {
     @State private var query = ""
 
     private var results: [GameID] {
-        GameID.visibleGames.filter { id in
+        GameID.allCases.filter { id in
             let info = id.info
             return info.title.localizedCaseInsensitiveContains(query)
                 || info.tagline.localizedCaseInsensitiveContains(query)

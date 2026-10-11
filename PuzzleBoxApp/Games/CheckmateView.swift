@@ -81,6 +81,14 @@ final class CheckmateEngine: GameEngine {
     var selected: Int?
     private(set) var targets: Set<Int> = []
     private(set) var solvedCount = 0
+    /// Mates found on the first try in a row; each adds a bonus.
+    private(set) var streak = 0
+    /// The piece a hint points at, for the current puzzle.
+    private(set) var hintSquare: Int?
+    private(set) var lastMove: (from: Int, to: Int)?
+    /// Bumped on each solve so the view can show the time bonus.
+    private(set) var bonusFlash = 0
+    static let timeBonus: TimeInterval = 5
     private(set) var remainingTime: TimeInterval = 30
     private var clockAnchor: TimeInterval?
     private var clockActive = false
@@ -142,6 +150,7 @@ final class CheckmateEngine: GameEngine {
         puzzleIndex = 0
         score = 0
         solvedCount = 0
+        streak = 0
         clockAnchor = nil
         remainingTime = 30
         state = .playing
@@ -156,7 +165,19 @@ final class CheckmateEngine: GameEngine {
         selected = nil
         targets = []
         awaitingBot = false
+        hintSquare = nil
+        lastMove = nil
         message = L10n.text("White to move — find the mate!")
+    }
+
+    /// Highlights the piece that starts the winning move; the mate is then worth half.
+    func hint() {
+        tick()
+        guard hasStarted, state == .playing, !awaitingBot, hintSquare == nil,
+              let move = acceptedMoves.compactMap({ Self.parseMove($0) }).first else { return }
+        hintSquare = move.from
+        streak = 0
+        Haptics.tap(); SoundFX.play(.tick)
     }
 
     private static func parseFEN(_ fen: String) -> [ChessPiece?] {
@@ -210,7 +231,7 @@ final class CheckmateEngine: GameEngine {
             message = L10n.text("White to move — find the mate!")
             selected = square
             targets = legalMoves(from: square)
-            Haptics.tap()
+            Haptics.tap(); SoundFX.play(.tap)
         } else {
             if selected != nil {
                 reportMoveError(L10n.text("Illegal move — choose a highlighted square"))
@@ -225,7 +246,7 @@ final class CheckmateEngine: GameEngine {
         attempts += 1
         hasMoveError = true
         message = text
-        Haptics.error()
+        Haptics.error(); SoundFX.play(.wrong)
     }
 
     private var acceptedMoves: [String] {
@@ -260,6 +281,7 @@ final class CheckmateEngine: GameEngine {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     // Restore the whole position so captured pieces return too.
                     board = previousBoard
+                    lastMove = nil
                 }
                 awaitingBot = false
             }
@@ -269,7 +291,7 @@ final class CheckmateEngine: GameEngine {
         hasMoveError = false
         apply(from: from, to: to, promotion: solution.promotion)
         step += 1
-        Haptics.move()
+        Haptics.move(); SoundFX.play(.place)
 
         if step == puzzle.line.count {
             puzzleSolved()
@@ -294,6 +316,7 @@ final class CheckmateEngine: GameEngine {
 
     private func apply(from: Int, to: Int, promotion: PieceType?) {
         guard let piece = board[from] else { return }
+        lastMove = (from, to)
         withAnimation(.easeInOut(duration: 0.2)) {
             // En passant: a diagonal pawn move to an empty square removes the pawn beside it.
             if piece.type == .pawn, from % 8 != to % 8, board[to] == nil {
@@ -315,9 +338,13 @@ final class CheckmateEngine: GameEngine {
         consumeElapsedTime()
         awaitingBot = true
         solvedCount += 1
-        score = solvedCount * 100
+        // First-try mates build a streak; hints halve the reward.
+        if attempts == 0 && hintSquare == nil { streak += 1 } else { streak = 0 }
+        score += (hintSquare == nil ? 100 : 50) + max(0, streak - 1) * 25
+        remainingTime += Self.timeBonus
+        bonusFlash += 1
         message = L10n.text("Checkmate! 🎉")
-        Haptics.success()
+        Haptics.success(); SoundFX.play(.clear)
         let token = roundToken
         Task {
             // Keep the final position visible before loading the next puzzle.
@@ -563,13 +590,31 @@ struct CheckmateView: View {
                         .font(.title3.bold().monospacedDigit())
                         .foregroundStyle(engine.secondsLeft <= 5 ? Color.red : GameTheme.accent)
                 }
+                if engine.bonusFlash > 0 {
+                    Text(verbatim: "+\(Int(CheckmateEngine.timeBonus))s")
+                        .font(.subheadline.bold()).foregroundStyle(.green)
+                        .id(engine.bonusFlash)
+                        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
+                }
+                if engine.streak > 1 {
+                    Label { Text(verbatim: "×\(engine.streak)") } icon: { Image(systemName: "flame.fill") }
+                        .font(.subheadline.bold()).foregroundStyle(.orange)
+                }
                 Spacer()
+                Button { engine.hint() } label: {
+                    Label(L10n.text("Hint"), systemImage: "lightbulb.fill")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(GameTheme.surfaceHigh, in: Capsule())
+                }
+                .disabled(engine.hintSquare != nil || engine.awaitingBot)
                 Text(L10n.format("Solved: %d", engine.solvedCount))
                     .font(.subheadline.bold())
                     .foregroundStyle(GameTheme.ink)
             }
+            .animation(.snappy, value: engine.bonusFlash)
             Group {
-                Text(L10n.text("100 points per mate"))
+                Text(L10n.text("Mate on the first try to build a streak. Each mate adds 5 seconds."))
                     .font(.caption)
                     .foregroundStyle(GameTheme.textSecondary)
             }
@@ -621,8 +666,14 @@ struct CheckmateView: View {
             Rectangle()
                 .fill(isLight ? Color(red: 0.65, green: 0.69, blue: 0.61)
                               : Color(red: 0.32, green: 0.39, blue: 0.29))
+            if let last = engine.lastMove, last.from == index || last.to == index {
+                Rectangle().fill(Color.yellow.opacity(0.35))
+            }
             if engine.selected == index {
                 Rectangle().fill(GameTheme.accent.opacity(0.35))
+            }
+            if engine.hintSquare == index {
+                Rectangle().strokeBorder(Color.yellow, lineWidth: 3)
             }
             if let piece {
                 Text(verbatim: piece.type.glyph(isWhite: piece.isWhite))

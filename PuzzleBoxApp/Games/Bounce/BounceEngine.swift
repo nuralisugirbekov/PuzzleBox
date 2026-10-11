@@ -58,6 +58,17 @@ struct BounceLevel {
     }
 }
 
+/// A spiky critter patrolling a stretch of floor. Landing on it from above defeats it.
+struct BounceEnemy {
+    var x: CGFloat
+    let y: CGFloat
+    let minX: CGFloat
+    let maxX: CGFloat
+    var speed: CGFloat
+    var alive = true
+    static let radius: CGFloat = 11
+}
+
 @MainActor @Observable
 final class BounceEngine: GameEngine {
     var state: GameState = .playing {
@@ -73,6 +84,9 @@ final class BounceEngine: GameEngine {
     private(set) var message = ""
     private(set) var transition = 0.0
     private(set) var invulnerable = 0.0
+    private(set) var enemies: [BounceEnemy] = []
+    private(set) var fx = ArcadeFX()
+    private(set) var clock: CGFloat = 0
     var active = false { didSet { if !active { releaseControls() } } }
     private var velocity = CGVector.zero
     private var left = false
@@ -89,7 +103,8 @@ final class BounceEngine: GameEngine {
     init() { restart() }
     func restart() {
         state = .playing; score = 0; levelIndex = 0; lives = 3; started = false
-        collected = []; transition = 0; changingLevel = false; message = ""; respawn()
+        collected = []; transition = 0; changingLevel = false; message = ""; fx.reset(); clock = 0
+        setupEnemies(); respawn()
     }
     func start() { guard active,state == .playing else { return }; started = true }
     func holdLeft(_ value: Bool) { left = value && canControl }
@@ -107,10 +122,11 @@ final class BounceEngine: GameEngine {
     func advance(_ elapsed: Double) {
         guard active,started,state == .playing else { return }
         let dt = min(0.08,max(0,elapsed))
+        fx.update(CGFloat(dt)); clock += CGFloat(dt)
         if transition > 0 {
             transition = max(0,transition-dt)
             if transition == 0 {
-                if changingLevel { levelIndex += 1; collected = []; changingLevel = false }
+                if changingLevel { levelIndex += 1; collected = []; changingLevel = false; setupEnemies() }
                 message = ""; respawn()
             }
             return
@@ -125,7 +141,7 @@ final class BounceEngine: GameEngine {
         invulnerable = max(0,invulnerable-dt); jumpBuffer = max(0,jumpBuffer-dt)
         coyote = grounded ? 0.1 : max(0,coyote-dt)
         if jumpBuffer > 0 && coyote > 0 {
-            velocity.dy = -405; grounded = false; coyote = 0; jumpBuffer = 0; Haptics.tap()
+            velocity.dy = -405; grounded = false; coyote = 0; jumpBuffer = 0; Haptics.tap(); SoundFX.play(.jump)
         }
         let direction: CGFloat = (right ? 1 : 0) - (left ? 1 : 0)
         let target = direction*180,acceleration: CGFloat = direction == 0 ? 1000 : 1300
@@ -149,23 +165,59 @@ final class BounceEngine: GameEngine {
             }
         }
         for (i,ring) in level.rings.enumerated() where !collected.contains(i) {
-            if hypot(ball.x-ring.x,ball.y-ring.y) < 24 { collected.insert(i); score += 50; Haptics.success() }
+            if hypot(ball.x-ring.x,ball.y-ring.y) < 24 {
+                collected.insert(i); score += 50; Haptics.success(); SoundFX.play(.coin)
+                fx.burst(at: ring, color: .yellow, count: 14, speed: 120, gravity: 200, size: 2.5, life: 0.5)
+                fx.popup("+50", at: CGPoint(x: ring.x, y: ring.y - 20), color: .yellow)
+                if gateOpen { fx.popup(L10n.text("Exit open!"), at: CGPoint(x: ring.x, y: ring.y - 44), color: .green, size: 18) }
+            }
         }
         if ball.y > 460 || (invulnerable == 0 && level.spikes.contains(where: { touches($0) })) { die(); return }
+        for i in enemies.indices where enemies[i].alive {
+            enemies[i].x += enemies[i].speed*d
+            if enemies[i].x < enemies[i].minX || enemies[i].x > enemies[i].maxX { enemies[i].speed *= -1 }
+            let enemy = enemies[i]
+            guard hypot(ball.x-enemy.x,ball.y-enemy.y) < radius+BounceEnemy.radius else { continue }
+            if velocity.dy > 0 && ball.y < enemy.y-4 {
+                // Stomp: defeat it and bounce off.
+                enemies[i].alive = false
+                velocity.dy = -330; score += 100
+                fx.burst(at: CGPoint(x: enemy.x, y: enemy.y), color: .purple, count: 22, speed: 170, gravity: 400, size: 3)
+                fx.popup("+100", at: CGPoint(x: enemy.x, y: enemy.y - 24), color: .white, size: 18)
+                fx.kick(4); Haptics.heavy(); SoundFX.play(.hit)
+            } else if invulnerable == 0 {
+                die(); return
+            }
+        }
         if gateOpen && level.exit.insetBy(dx:-radius,dy:0).contains(ball) {
             score += 250
             if levelIndex == BounceLevel.levels.count-1 { score += lives*100; state = .gameOver(won:true) }
-            else { changingLevel = true; message = "Level complete!"; transition = 1; releaseControls() }
+            else { changingLevel = true; message = "Level complete!"; transition = 1; releaseControls(); SoundFX.play(.win) }
         }
     }
+    /// From level 2 on, critters patrol the wider floor sections (never the spawn floor).
+    private func setupEnemies() {
+        enemies = []
+        guard levelIndex > 0 else { return }
+        let floors = level.platforms.filter { $0.height > 40 && $0.width >= 220 && !$0.contains(CGPoint(x: level.spawn.x, y: $0.minY + 1)) }
+        let count = min(floors.count, 1 + levelIndex / 3)
+        for (i, floor) in floors.prefix(count).enumerated() {
+            let minX = floor.minX + 30, maxX = floor.maxX - 30
+            enemies.append(BounceEnemy(x: (minX + maxX) / 2, y: floor.minY - BounceEnemy.radius,
+                                       minX: minX, maxX: maxX, speed: (i.isMultiple(of: 2) ? 1 : -1) * CGFloat(45 + levelIndex * 4)))
+        }
+    }
+
     private func touches(_ rect: CGRect) -> Bool {
         let x = min(rect.maxX,max(rect.minX,ball.x)),y = min(rect.maxY,max(rect.minY,ball.y))
         return hypot(ball.x-x,ball.y-y) < radius-2
     }
     private func die() {
+        fx.burst(at: ball, color: .red, count: 26, speed: 200, gravity: 300, size: 3.5, life: 0.7)
+        fx.kick(7)
         lives -= 1; Haptics.error(); releaseControls()
         if lives == 0 { state = .gameOver(won:false) }
-        else { message = "Try again"; transition = 0.8; changingLevel = false }
+        else { message = "Try again"; transition = 0.8; changingLevel = false; SoundFX.play(.hit) }
         // Collected rings remain collected, so a respawn cannot farm points.
     }
 }

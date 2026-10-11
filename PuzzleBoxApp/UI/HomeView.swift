@@ -10,7 +10,7 @@ struct HomeView: View {
 
     private var featured: [GameID] {
         let today = GameID.gameOfTheDay
-        return [today] + featuredSelection.filter { $0.isVisible && $0 != today }
+        return [today] + featuredSelection.filter { $0 != today }
     }
 
     var body: some View {
@@ -52,7 +52,7 @@ struct HomeView: View {
             .toolbar { SettingsToolbarButton() }
             .onAppear {
                 let today = GameID.gameOfTheDay
-                featuredSelection = Array(GameID.visibleGames.filter { $0 != today }.shuffled().prefix(4))
+                featuredSelection = Array(GameID.allCases.filter { $0 != today }.shuffled().prefix(4))
             }
         }
     }
@@ -69,7 +69,7 @@ struct HomeView: View {
             }
             Spacer()
             Button {
-                if let game = GameID.visibleGames.randomElement() {
+                if let game = GameID.allCases.randomElement() {
                     playGame(game, source: "random")
                 }
             } label: {

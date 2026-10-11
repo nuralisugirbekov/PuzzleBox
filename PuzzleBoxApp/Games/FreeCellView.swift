@@ -41,7 +41,7 @@ final class FreeCellEngine: GameEngine {
             foundations = previous.foundations
             selection = nil
         }
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
 
     init() { deal() }
@@ -111,15 +111,16 @@ final class FreeCellEngine: GameEngine {
     func tapCascade(_ col: Int, index: Int?) {
         guard state == .playing else { return }
 
-        if selection != nil, moveSelection(toCascade: col) { return }
+        if selection != nil, moveSelection(toCascade: col) { autoPlaySafeCards(); return }
 
         if case .cascade(let c, let i) = selection, c == col, i == index {
-            selection = nil
+            // Tapping the same card again sends it to the best place.
+            if !autoMoveSelection() { selection = nil }
             return
         }
         if let index, isValidRun(col: col, from: index) {
             selection = .cascade(col: col, index: index)
-            Haptics.tap()
+            Haptics.tap(); SoundFX.play(.tap)
         } else {
             selection = nil
         }
@@ -141,7 +142,7 @@ final class FreeCellEngine: GameEngine {
             cascades[col].append(contentsOf: cards)
         }
         selection = nil
-        Haptics.move()
+        Haptics.move(); SoundFX.play(.card)
         return true
     }
 
@@ -149,10 +150,10 @@ final class FreeCellEngine: GameEngine {
         guard state == .playing else { return }
         if let card = freeCells[i] {
             if selection == .freeCell(i) {
-                selection = nil
+                if !autoMoveSelection() { selection = nil }
             } else if selection == nil {
                 selection = .freeCell(i)
-                Haptics.tap()
+                Haptics.tap(); SoundFX.play(.tap)
             } else {
                 selection = nil
             }
@@ -168,19 +169,20 @@ final class FreeCellEngine: GameEngine {
             freeCells[i] = card
         }
         selection = nil
-        Haptics.move()
+        Haptics.move(); SoundFX.play(.card)
+        autoPlaySafeCards()
     }
 
     func tapFoundation(_ pile: Int) {
         guard state == .playing else { return }
         if selection == .foundation(pile) {
             selection = nil
-            Haptics.tap()
+            Haptics.tap(); SoundFX.play(.tap)
             return
         }
-        if moveSelection(toFoundation: pile) { return }
+        if moveSelection(toFoundation: pile) { autoPlaySafeCards(); return }
         selection = foundations[pile].isEmpty ? nil : .foundation(pile)
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
 
     private func moveSelection(toFoundation pile: Int) -> Bool {
@@ -205,7 +207,7 @@ final class FreeCellEngine: GameEngine {
         if foundations.reduce(0, { $0 + $1.count }) == 52 {
             state = .gameOver(won: true)
         } else {
-            Haptics.move()
+            Haptics.move(); SoundFX.play(.card)
         }
         return true
     }
@@ -213,6 +215,49 @@ final class FreeCellEngine: GameEngine {
     func isSelected(col: Int, index: Int) -> Bool {
         if case .cascade(let c, let i) = selection { return c == col && index >= i }
         return false
+    }
+
+    /// Foundation first, then a cascade with cards, then an empty cascade, then a free cell.
+    @discardableResult
+    func autoMoveSelection() -> Bool {
+        guard selection != nil else { return false }
+        for pile in 0..<4 where moveSelection(toFoundation: pile) { autoPlaySafeCards(); return true }
+        let order = (0..<cascades.count).sorted { (cascades[$0].isEmpty ? 1 : 0) < (cascades[$1].isEmpty ? 1 : 0) }
+        for col in order where moveSelection(toCascade: col) { autoPlaySafeCards(); return true }
+        if selectedCards().count == 1, case .cascade = selection, let cell = freeCells.firstIndex(where: { $0 == nil }) {
+            tapFreeCell(cell)
+            return true
+        }
+        return false
+    }
+
+    /// A card is safe to send home when nothing could still need it as a base:
+    /// aces and twos always, otherwise once both opposite-colour cards one rank lower are home.
+    private func isSafeForFoundation(_ card: Card) -> Bool {
+        if card.rank <= 2 { return true }
+        let opposite = foundations.filter { pile in pile.first.map { $0.isRed != card.isRed } ?? false }
+        return opposite.count == 2 && opposite.allSatisfy { ($0.last?.rank ?? 0) >= card.rank - 1 }
+    }
+
+    /// Plays safe cards from cascades and free cells to the foundations, one by one.
+    func autoPlaySafeCards() {
+        Task {
+            while state == .playing {
+                try? await Task.sleep(for: .milliseconds(140))
+                guard state == .playing, selection == nil else { return }
+                var moved = false
+                let sources: [Selection] = cascades.indices.compactMap { col in
+                    cascades[col].isEmpty ? nil : .cascade(col: col, index: cascades[col].count - 1)
+                } + freeCells.indices.compactMap { freeCells[$0] == nil ? nil : .freeCell($0) }
+                for source in sources {
+                    selection = source
+                    guard let card = selectedCards().first, isSafeForFoundation(card) else { selection = nil; continue }
+                    if (0..<4).contains(where: { moveSelection(toFoundation: $0) }) { moved = true; break }
+                    selection = nil
+                }
+                if !moved { return }
+            }
+        }
     }
 }
 

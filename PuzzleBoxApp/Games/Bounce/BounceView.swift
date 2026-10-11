@@ -3,6 +3,7 @@ import SwiftUI
 struct BounceView: View {
     @State private var engine = BounceEngine()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         GameContainerView(gameID:.bounce,engine:engine,centersContent:true) {
             VStack(spacing:12) {
@@ -15,9 +16,11 @@ struct BounceView: View {
                 GeometryReader { geometry in
                     Canvas { context,size in
                         context.scaleBy(x:size.width/360,y:size.height/420)
+                        let shake = engine.fx.shakeOffset(reduceMotion: reduceMotion)
+                        context.translateBy(x: shake.width, y: shake.height)
                         draw(&context)
                     }
-                    .background(GameTheme.arena, in: RoundedRectangle(cornerRadius: 24))
+                    .arenaBackground()
                     .environment(\.colorScheme, .dark)
                     .clipShape(RoundedRectangle(cornerRadius:24))
                     .overlay {
@@ -37,7 +40,7 @@ struct BounceView: View {
                     Spacer(minLength:12)
                     BounceControl(symbol:"arrow.up",label:L10n.text("Jump"),set:engine.holdJump)
                 }.disabled(!engine.started || engine.state != .playing || engine.transition > 0)
-                Text(L10n.text(engine.gateOpen ? "All rings collected! Reach the green exit." : "Hold arrows to roll. Tap Jump to leap. Collect every ring and reach the exit."))
+                Text(L10n.text(engine.gateOpen ? "All rings collected! Reach the green exit." : "Hold arrows to roll. Tap Jump to leap. Collect every ring, stomp the critters and reach the exit."))
                     .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
             }
         }
@@ -54,6 +57,9 @@ struct BounceView: View {
     }
     private func draw(_ context:inout GraphicsContext) {
         let offset = engine.cameraX
+        context.fill(Path(CGRect(x:-20,y:-20,width:400,height:460)),
+                     with:.linearGradient(Gradient(colors:[Color(red:0.08,green:0.07,blue:0.2),Color(red:0.16,green:0.1,blue:0.25)]),startPoint:.zero,endPoint:CGPoint(x:0,y:420)))
+        context.fill(Path(ellipseIn:CGRect(x:250-offset*0.05,y:40,width:56,height:56)),with:.color(Color(red:1,green:0.9,blue:0.7).opacity(0.85)))
         // Distant scenery scrolls more slowly than the foreground.
         for i in 0..<12 {
             let x = CGFloat(i)*130-offset*0.3
@@ -77,7 +83,9 @@ struct BounceView: View {
             }
         }
         for (i,p) in engine.level.rings.enumerated() where !engine.collected.contains(i) {
-            let ring = Path(ellipseIn:CGRect(x:p.x-12,y:p.y-16,width:24,height:32))
+            // Rings slowly spin around their vertical axis.
+            let w = 24*max(0.25,abs(cos(engine.clock*2.2+CGFloat(i))))
+            let ring = Path(ellipseIn:CGRect(x:p.x-w/2,y:p.y-16,width:w,height:32))
             context.stroke(ring,with:.color(.yellow.opacity(0.15)),lineWidth:10)
             context.stroke(ring,with:.color(.yellow),lineWidth:4)
         }
@@ -87,12 +95,33 @@ struct BounceView: View {
         var glyph = context.resolve(Image(systemName:engine.gateOpen ? "arrow.right" : "lock.fill"))
         glyph.shading = .color(engine.gateOpen ? GameTheme.accent : GameTheme.textSecondary)
         context.draw(glyph,in:CGRect(x:gate.midX-9,y:gate.midY-10,width:18,height:20))
+        for enemy in engine.enemies where enemy.alive {
+            let r = BounceEnemy.radius
+            let bob = sin(engine.clock*10+enemy.x*0.05)*1.5
+            let c = CGPoint(x:enemy.x,y:enemy.y+bob)
+            var spikes = Path()
+            for k in 0..<12 {
+                let a = CGFloat(k)/12 * .pi*2 + engine.clock*1.5
+                let len = k.isMultiple(of:2) ? r+5 : r-1
+                let q = CGPoint(x:c.x+cos(a)*len,y:c.y+sin(a)*len)
+                if k == 0 { spikes.move(to:q) } else { spikes.addLine(to:q) }
+            }
+            spikes.closeSubpath()
+            context.fill(spikes,with:.color(Color(red:0.55,green:0.25,blue:0.85)))
+            context.fill(Path(ellipseIn:CGRect(x:c.x-r,y:c.y-r,width:r*2,height:r*2)),with:.radialGradient(Gradient(colors:[Color(red:0.85,green:0.6,blue:1),Color(red:0.45,green:0.15,blue:0.7)]),center:CGPoint(x:c.x-3,y:c.y-4),startRadius:0,endRadius:r*1.4))
+            let look: CGFloat = enemy.speed > 0 ? 2 : -2
+            for s in [-4.0,4.0] {
+                context.fill(Path(ellipseIn:CGRect(x:c.x+s-3,y:c.y-5,width:6,height:7)),with:.color(.white))
+                context.fill(Path(ellipseIn:CGRect(x:c.x+s-1.5+look*0.6,y:c.y-3,width:3,height:4)),with:.color(.black))
+            }
+        }
         var ball = context
         ball.translateBy(x:engine.ball.x,y:engine.ball.y); ball.rotate(by:.radians(Double(engine.rotation)))
         ball.opacity = engine.invulnerable > 0 && Int(engine.invulnerable*12).isMultiple(of:2) ? 0.55 : 1
-        ball.fill(Path(ellipseIn:CGRect(x:-12,y:-12,width:24,height:24)),with:.color(.red))
+        ball.fill(Path(ellipseIn:CGRect(x:-12,y:-12,width:24,height:24)),with:.radialGradient(Gradient(colors:[Color(red:1,green:0.5,blue:0.45),.red,Color(red:0.6,green:0,blue:0.05)]),center:CGPoint(x:-4,y:-5),startRadius:0,endRadius:18))
         ball.fill(Path(ellipseIn:CGRect(x:-7,y:-8,width:8,height:6)),with:.color(.white.opacity(0.8)))
         ball.stroke(Path(ellipseIn:CGRect(x:-11,y:-11,width:22,height:22)),with:.color(.pink),lineWidth:1.5)
+        engine.fx.draw(in:&context)
     }
 }
 

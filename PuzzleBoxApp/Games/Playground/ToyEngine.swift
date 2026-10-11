@@ -2,18 +2,14 @@ import SwiftUI
 import Observation
 
 enum ToyMode: String, CaseIterable {
-    case basketShot, bottleFlip, paperToss, darts, miniGolf, pinballMini, plinko, ricochet, ropeCut, drawBridge
+    case basketShot, bottleFlip, miniGolf, plinko, ropeCut, drawBridge
     var id: GameID { GameID(rawValue:rawValue)! }
     var title: String {
         switch self {
         case .basketShot:"Basket Shot"
         case .bottleFlip:"Bottle Flip"
-        case .paperToss:"Paper Toss"
-        case .darts:"Darts"
         case .miniGolf:"Golf"
-        case .pinballMini:"Pinball Mini"
         case .plinko:"Plinko"
-        case .ricochet:"Ricochet"
         case .ropeCut:"Rope Cut"
         case .drawBridge:"Draw Bridge"
         }
@@ -22,20 +18,42 @@ enum ToyMode: String, CaseIterable {
         switch self {
         case .basketShot:"Pull back from the ball and release to throw in the opposite direction."
         case .bottleFlip:"Swipe up from the bottle. Land upright after a full flip."
-        case .paperToss:"Pull back from the paper and release. Aim opposite your drag; watch the wind."
-        case .darts:"Pull back from the dart and release. A longer pull throws farther in the opposite direction."
-        case .miniGolf:"Pull back from the ball and release. Sink it with one shot."
-        case .pinballMini:"Hold the left or right side to raise that flipper. Keep the ball alive."
+        case .miniGolf:"Pull back from the ball and release. Sink it in 3 shots or fewer."
         case .plinko:"Drag across the top and release. Aim for the highlighted bin."
-        case .ricochet:"Swipe to shoot. Bounce off a wall before hitting the target."
         case .ropeCut:"Swipe across ropes to cut them. Swing the candy into the goal."
         case .drawBridge:"Draw a bridge between the platforms, then tap Roll."
         }
     }
+    /// Plinko is mostly luck, so it gets a few more balls than the skill games get lives.
+    var maxLives: Int { self == .plinko ? 5 : 3 }
 }
 
+struct ToySegment { var a: CGPoint; var b: CGPoint }
+
+struct ToyFXParticle {
+    var p: CGPoint
+    var v: CGVector
+    var age = 0.0
+    var life: Double
+    var color: Color
+    var size: CGFloat
+}
+
+struct ToyFXPopup: Identifiable {
+    let id: Int
+    let text: String
+    var p: CGPoint
+    var age = 0.0
+    let color: Color
+    let big: Bool
+}
+
+/// Endless arcade run: every success raises the level (moving targets, wind,
+/// obstacles, less ink), consecutive successes multiply points, and misses cost lives.
 @MainActor @Observable
 final class ToyEngine: GameEngine {
+    private enum Outcome { case success, safe, miss }
+
     let mode: ToyMode
     var state: GameState = .playing
     private(set) var score = 0
@@ -49,105 +67,217 @@ final class ToyEngine: GameEngine {
     private(set) var bridge: [CGPoint] = []
     private(set) var bridgePath = Path()
     private(set) var ropes = [true,true]
-    private(set) var attempts = 0
+    private(set) var anchors = [CGPoint(x:75,y:60),CGPoint(x:245,y:60)]
     private(set) var successes = 0
     private(set) var lives = 3
-    private(set) var timeLeft = 30.0
+    private(set) var streak = 0
     private(set) var notice = ""
-    private(set) var wind: CGFloat = 0
     private(set) var selectedBin = 3
-    private(set) var leftHeld = false
-    private(set) var rightHeld = false
-    private(set) var leftLift: CGFloat = 0
-    private(set) var rightLift: CGFloat = 0
-    private var bridgeSegments: [(CGPoint, CGPoint)] = []
+    private(set) var particles: [ToyFXParticle] = []
+    private(set) var popups: [ToyFXPopup] = []
+
+    // Mode-specific layout, varied by level.
+    private(set) var wind: CGFloat = 0
+    private(set) var strokes = 0
+    private(set) var obstacles: [ToySegment] = []
+    private(set) var movingBar: ToySegment?
+    private(set) var goldPegs: Set<Int> = []
+    private(set) var stars: [CGPoint] = []
+    private(set) var leftTop: CGFloat = 200
+    private(set) var leftEdge: CGFloat = 90
+    private(set) var rightTop: CGFloat = 300
+    private(set) var rightEdge: CGFloat = 230
+    private(set) var inkUsed: CGFloat = 0
+    private(set) var inkMax: CGFloat = 420
+    private(set) var padX: CGFloat = 200
+    private(set) var padWidth: CGFloat = 56
+    private(set) var targetHalfWidth: CGFloat = 30
+    let pegs: [CGPoint]
+
     var active = false
-    let anchors = [CGPoint(x:75,y:60),CGPoint(x:245,y:60)]
-    let bumpers = [CGPoint(x:90,y:130),CGPoint(x:220,y:170),CGPoint(x:160,y:250)]
+    var reduceMotion = false
+
+    private var bridgeSegments: [ToySegment] = []
+    private var ropeLengths: [CGFloat] = []
     private var spin: CGFloat = 0
     private var flight = 0.0
     private var delay = 0.0
-    private var cooldown = 0.0
-    private var bounces = 0
-    private var dartStart = CGPoint.zero
-    private var dartEnd = CGPoint.zero
     private var trailClock = 0.0
-    init(mode:ToyMode) { self.mode = mode; restart() }
-    var pegs: [CGPoint] {
-        (0..<7).flatMap { row in (0..<6).compactMap { col -> CGPoint? in
+    private var clock = 0.0
+    private var movingBaseX: CGFloat = 0
+    private var movingAmplitude: CGFloat = 0
+    private var touchedRim = false
+    private var cutLast: CGPoint?
+    private var popupID = 0
+
+    var level: Int { successes + 1 }
+    /// Multiplier the next success would earn.
+    var nextMultiplier: Int { multiplier(for:streak+1) }
+    var maxLives: Int { mode.maxLives }
+    var binValues: [Int] {
+        (0..<6).map { i in i == selectedBin ? 100 + 25*(level-1) : abs(i-selectedBin) == 1 ? 30 : 10 }
+    }
+    var leftConnector: CGPoint { CGPoint(x:leftEdge-10,y:leftTop-5) }
+    var rightConnector: CGPoint { CGPoint(x:rightEdge+10,y:rightTop-5) }
+
+    init(mode:ToyMode) {
+        self.mode = mode
+        pegs = (0..<7).flatMap { row in (0..<6).compactMap { col -> CGPoint? in
             let x = CGFloat(col)*50 + (row.isMultiple(of:2) ? 35 : 60)
             return x < 300 ? CGPoint(x:x,y:95+CGFloat(row)*38) : nil
         } }
+        restart()
     }
+    private func multiplier(for streak:Int) -> Int { streak >= 5 ? 3 : streak >= 3 ? 2 : 1 }
+
     func restart() {
-        state = .playing; score = 0; started = false; attempts = 0; successes = 0; lives = 3; timeLeft = 30; delay = 0
-        leftLift = 0; rightLift = 0; release(); prepare()
+        state = .playing; score = 0; started = false; successes = 0; streak = 0; delay = 0
+        lives = mode.maxLives; particles = []; popups = []; clock = 0
+        prepare()
     }
+
     private func prepare() {
         ball = CGPoint(x:70,y:380); velocity = .zero; target = CGPoint(x:245,y:190)
-        launched = false; angle = 0; spin = 0; flight = 0; trail = []; bridge = []; bridgePath = Path(); bridgeSegments = []; notice = ""; ropes = [true,true]; bounces = 0; cooldown = 0
+        launched = false; angle = 0; spin = 0; flight = 0; trail = []; bridge = []; bridgePath = Path(); bridgeSegments = []
+        notice = ""; strokes = 0; wind = 0; movingAmplitude = 0; movingBar = nil; touchedRim = false; cutLast = nil
+        stars = []; inkUsed = 0
+        let level = CGFloat(self.level)
         switch mode {
-        case .basketShot: ball = CGPoint(x:80,y:310); target.x = CGFloat.random(in:205...260)
-        case .bottleFlip: ball = CGPoint(x:130,y:370)
-        case .paperToss: ball = CGPoint(x:160,y:320); target = CGPoint(x:CGFloat.random(in:90...250),y:185); wind = CGFloat.random(in:-22...22)
-        case .darts: ball = CGPoint(x:160,y:320); target = CGPoint(x:160,y:160)
-        case .miniGolf: ball = CGPoint(x:60,y:380); target = CGPoint(x:250,y:85)
-        case .pinballMini: ball = CGPoint(x:275,y:370); velocity = CGVector(dx:-80,dy:-520); launched = true
-        case .plinko: ball = CGPoint(x:160,y:35); selectedBin = Int.random(in:0..<6)
-        case .ricochet: ball = CGPoint(x:60,y:390); target = CGPoint(x:250,y:110)
-        case .ropeCut: ball = CGPoint(x:160,y:210); target = CGPoint(x:attempts.isMultiple(of:2) ? 250 : 70,y:400)
-        case .drawBridge: ball = CGPoint(x:45,y:188); target = CGPoint(x:270,y:288)
+        case .basketShot:
+            ball = CGPoint(x:80,y:310)
+            let spread = min(1,(level-1)/5)
+            target = CGPoint(x:CGFloat.random(in:(225-35*spread)...(250+12*spread)),
+                             y:CGFloat.random(in:(190-40*spread)...(190+50*spread)))
+            if self.level >= 3 { wind = CGFloat.random(in:20...min(90,20+level*8)) * (Bool.random() ? 1 : -1) }
+            if self.level >= 5 { movingAmplitude = min(40,15+level*3) }
+            movingBaseX = min(282-movingAmplitude,max(200,target.x)); target.x = movingBaseX
+        case .bottleFlip:
+            ball = CGPoint(x:130,y:370)
+            padWidth = max(30,62-level*4)
+            padX = CGFloat.random(in:40...280)
+            while abs(padX-130) < 40 { padX = CGFloat.random(in:40...280) }
+        case .miniGolf: layoutGolf()
+        case .plinko:
+            ball = CGPoint(x:160,y:35); selectedBin = Int.random(in:0..<6)
+            goldPegs = Set(pegs.indices.shuffled().prefix(4))
+        case .ropeCut: layoutRopes()
+        case .drawBridge: layoutBridge()
         }
     }
+
+    private func layoutGolf() {
+        ball = CGPoint(x:CGFloat.random(in:60...260),y:405)
+        target = CGPoint(x:CGFloat.random(in:45...275),y:CGFloat.random(in:70...140))
+        let templates: [[ToySegment]] = [
+            [ToySegment(a:CGPoint(x:100,y:240),b:CGPoint(x:225,y:240))],
+            [ToySegment(a:CGPoint(x:10,y:280),b:CGPoint(x:170,y:280)),ToySegment(a:CGPoint(x:150,y:190),b:CGPoint(x:310,y:190))],
+            [ToySegment(a:CGPoint(x:55,y:265),b:CGPoint(x:145,y:215)),ToySegment(a:CGPoint(x:175,y:215),b:CGPoint(x:265,y:265))],
+            [ToySegment(a:CGPoint(x:130,y:200),b:CGPoint(x:190,y:200)),ToySegment(a:CGPoint(x:190,y:200),b:CGPoint(x:190,y:260)),
+             ToySegment(a:CGPoint(x:190,y:260),b:CGPoint(x:130,y:260)),ToySegment(a:CGPoint(x:130,y:260),b:CGPoint(x:130,y:200))],
+            [ToySegment(a:CGPoint(x:10,y:230),b:CGPoint(x:120,y:230)),ToySegment(a:CGPoint(x:200,y:230),b:CGPoint(x:310,y:230))],
+        ]
+        var layout = level == 1 ? templates[0] : templates[Int.random(in:0..<templates.count)]
+        // Mirror half of the layouts so they feel less familiar.
+        if level > 1, Bool.random() {
+            layout = layout.map { ToySegment(a:CGPoint(x:320-$0.a.x,y:$0.a.y),b:CGPoint(x:320-$0.b.x,y:$0.b.y)) }
+        }
+        obstacles = layout
+        if level >= 3 {
+            movingBaseX = 160; movingAmplitude = 105
+            movingBar = ToySegment(a:CGPoint(x:125,y:340),b:CGPoint(x:195,y:340))
+        }
+    }
+
+    private func layoutRopes() {
+        ball = CGPoint(x:160,y:210)
+        if level >= 3 {
+            anchors = [CGPoint(x:CGFloat.random(in:45...100),y:CGFloat.random(in:55...85)),
+                       CGPoint(x:CGFloat.random(in:140...180),y:CGFloat.random(in:35...50)),
+                       CGPoint(x:CGFloat.random(in:220...275),y:CGFloat.random(in:55...85))]
+        } else {
+            anchors = [CGPoint(x:CGFloat.random(in:55...95),y:CGFloat.random(in:50...80)),
+                       CGPoint(x:CGFloat.random(in:225...265),y:CGFloat.random(in:50...80))]
+        }
+        ropes = anchors.map { _ in true }
+        ropeLengths = anchors.map { hypot(ball.x-$0.x,ball.y-$0.y) }
+        targetHalfWidth = max(20,30-CGFloat(level-1)*2)
+        let side: Bool = Bool.random()
+        movingBaseX = side ? CGFloat.random(in:210...270) : CGFloat.random(in:50...110)
+        target = CGPoint(x:movingBaseX,y:400)
+        if level >= 4 { movingAmplitude = min(45,15+CGFloat(level)*4); movingBaseX = min(320-movingAmplitude-30,max(movingAmplitude+30,movingBaseX)) }
+        // Stars sit on the arc the candy follows when it swings from one rope.
+        let swings = anchors.indices.filter { abs(atan2(ball.x-anchors[$0].x,ball.y-anchors[$0].y)) > 0.35 }
+        stars = swings.shuffled().prefix(level >= 2 ? 2 : 1).map { i in
+            let a = anchors[i],length = ropeLengths[i]
+            let start = atan2(ball.x-a.x,ball.y-a.y)
+            let theta = start*CGFloat.random(in:-0.8...0.4)
+            return CGPoint(x:a.x+sin(theta)*length,y:a.y+cos(theta)*length)
+        }
+    }
+
+    private func layoutBridge() {
+        leftTop = CGFloat.random(in:170...235); leftEdge = CGFloat.random(in:75...105)
+        rightTop = min(370,leftTop+CGFloat.random(in:40...min(140,50+CGFloat(level)*15)))
+        rightEdge = CGFloat.random(in:max(leftEdge+100,195)...245)
+        ball = CGPoint(x:leftEdge-45,y:leftTop-12)
+        target = CGPoint(x:rightEdge+40,y:rightTop-12)
+        let gap = hypot(rightConnector.x-leftConnector.x,rightConnector.y-leftConnector.y)
+        inkMax = max(gap*1.45,480-CGFloat(level)*25)
+        let mid = CGPoint(x:(leftConnector.x+rightConnector.x)/2,y:(leftConnector.y+rightConnector.y)/2)
+        stars = [CGPoint(x:mid.x+CGFloat.random(in:-20...20),y:mid.y-CGFloat.random(in:18...min(55,20+CGFloat(level)*6)))]
+    }
+
     func start() { guard active, state == .playing else { return }; started = true }
-    func release() { leftHeld = false; rightHeld = false }
-    func holdFlipper(left: Bool, held: Bool) {
-        let pressed = held && active && started && state == .playing
-        if left { leftHeld = pressed } else { rightHeld = pressed }
-    }
-    func flipperTip(left: Bool) -> CGPoint {
-        let lift = left ? leftLift : rightLift
-        let angle = CGFloat(0.38) - lift * 0.85
-        return CGPoint(x: (left ? 70 : 250) + (left ? 1 : -1) * 80 * cos(angle), y: 375 + 80 * sin(angle))
-    }
+
     func touch(_ p:CGPoint) {
         guard active, started, state == .playing, delay == 0 else { return }
-        if mode == .pinballMini { leftHeld = p.x < 160; rightHeld = !leftHeld }
-        if mode == .plinko && !launched { ball.x = min(300,max(20,p.x)) }
-        if mode == .drawBridge && !launched {
-            let q = CGPoint(x:min(310,max(10,p.x)),y:min(410,max(160,p.y)))
-            if bridge.count < 100, bridge.last.map({ hypot($0.x-q.x,$0.y-q.y) > 5 }) ?? true {
-                if bridge.isEmpty { bridgePath.move(to:q) } else { bridgePath.addLine(to:q) }
-                bridge.append(q)
-            }
-        }
-    }
-    func clearBridge() { guard state == .playing,!launched else { return }; bridge = []; bridgePath = Path(); bridgeSegments = []; notice = "" }
-    func roll() {
-        guard active, started, state == .playing,!launched,mode == .drawBridge,let first = bridge.first,let last = bridge.last else { return }
-        let forward = hypot(first.x-80,first.y-195) < 35 && hypot(last.x-240,last.y-295) < 35
-        let reverse = hypot(last.x-80,last.y-195) < 35 && hypot(first.x-240,first.y-295) < 35
-        guard forward || reverse else { notice = "Connect both platform edges."; return }
-        // Sample the drawn surface once. A single contact per step avoids snagging
-        // on overlapping endpoint circles at every joint of the drawn polyline.
-        bridgeSegments = Array(zip(bridge, bridge.dropFirst())).filter { hypot($0.1.x-$0.0.x,$0.1.y-$0.0.y) > 0.5 }
-        launched = true; velocity = CGVector(dx:110,dy:0); notice = ""
-    }
-    func gesture(from:CGPoint,to:CGPoint) {
-        release()
-        guard active,started,state == .playing,delay == 0 else { return }
         if mode == .ropeCut {
-            for i in anchors.indices where ropes[i] {
-                if intersects(from,to,anchors[i],ball) || distance(to,anchors[i],ball) < 12 { ropes[i] = false; launched = true }
-            }
+            if let last = cutLast { cut(last,p) }
+            cutLast = p
             return
         }
-        guard !launched,mode != .drawBridge,mode != .pinballMini else { return }
-        if mode == .plinko { launched = true; ball.x = min(300,max(20,to.x)); return }
+        if mode == .plinko && !launched { ball.x = min(300,max(20,p.x)) }
+        if mode == .drawBridge && !launched {
+            let q = CGPoint(x:min(310,max(10,p.x)),y:min(430,max(100,p.y)))
+            if let last = bridge.last {
+                let step = hypot(last.x-q.x,last.y-q.y)
+                guard step > 5, inkUsed+step <= inkMax else { return }
+                inkUsed += step; bridgePath.addLine(to:q)
+            } else { bridgePath.move(to:q) }
+            bridge.append(q)
+        }
+    }
+    func endTouch() { cutLast = nil }
+    func clearBridge() { guard state == .playing,!launched else { return }; bridge = []; bridgePath = Path(); bridgeSegments = []; inkUsed = 0; notice = "" }
+    func roll() {
+        guard active, started, state == .playing,!launched,mode == .drawBridge,let first = bridge.first,let last = bridge.last else { return }
+        let l = leftConnector,r = rightConnector
+        let forward = hypot(first.x-l.x,first.y-l.y) < 35 && hypot(last.x-r.x,last.y-r.y) < 35
+        let reverse = hypot(last.x-l.x,last.y-l.y) < 35 && hypot(first.x-r.x,first.y-r.y) < 35
+        guard forward || reverse else { notice = "Connect both platform edges."; Haptics.error(); return }
+        // Sample the drawn surface once. A single contact per step avoids snagging
+        // on overlapping endpoint circles at every joint of the drawn polyline.
+        bridgeSegments = zip(bridge,bridge.dropFirst()).filter { hypot($0.1.x-$0.0.x,$0.1.y-$0.0.y) > 0.5 }.map { ToySegment(a:$0.0,b:$0.1) }
+        launched = true; velocity = CGVector(dx:110,dy:0); notice = ""; SoundFX.play(.tap)
+    }
+    private func cut(_ from:CGPoint,_ to:CGPoint) {
+        for i in anchors.indices where ropes[i] {
+            if intersects(from,to,anchors[i],ball) || distance(to,anchors[i],ball) < 12 {
+                ropes[i] = false; launched = true; SoundFX.play(.whoosh); Haptics.tap()
+                let mid = CGPoint(x:(anchors[i].x+ball.x)/2,y:(anchors[i].y+ball.y)/2)
+                burst(at:mid,colors:[.orange,.yellow],count:6,speed:70)
+            }
+        }
+    }
+    func gesture(from:CGPoint,to:CGPoint) {
+        guard active,started,state == .playing,delay == 0 else { return }
+        if mode == .ropeCut { cut(cutLast ?? from,to); cutLast = nil; return }
+        guard !launched,mode != .drawBridge else { return }
+        if mode == .plinko { launched = true; ball.x = min(300,max(20,to.x)); SoundFX.play(.tap); return }
         guard hypot(from.x-ball.x,from.y-ball.y) < 65 else { return }
         let dx = to.x-from.x,dy = to.y-from.y
         guard hypot(dx,dy) > 18 else { return }
-        launched = true; trail = []
+        launched = true; trail = []; flight = 0; SoundFX.play(.whoosh)
         switch mode {
         case .bottleFlip:
             guard dy < -18 else { launched = false; return }
@@ -155,118 +285,177 @@ final class ToyEngine: GameEngine {
             velocity = CGVector(dx:min(100,max(-100,dx*1.2)),dy:-power)
             // Flight time is 2*v/g; swipe strength controls the rotation independently.
             spin = 2.5 + (-dy)*0.045
-        case .miniGolf: velocity = capped(CGVector(dx:-dx*3,dy:-dy*3),limit:530)
-        case .darts:
-            dartStart = ball; dartEnd = CGPoint(x:ball.x-dx*2.4,y:ball.y-dy*2.4)
-        case .ricochet:
-            let length = hypot(dx,dy); velocity = CGVector(dx:dx/length*260,dy:dy/length*260)
-        case .basketShot, .paperToss: velocity = capped(CGVector(dx:-dx*4,dy:-dy*4),limit:580)
+        case .miniGolf: velocity = capped(CGVector(dx:-dx*3,dy:-dy*3),limit:530); strokes += 1
+        case .basketShot: velocity = capped(CGVector(dx:-dx*4,dy:-dy*4),limit:580)
         default: break
         }
     }
     private func capped(_ v:CGVector,limit:CGFloat) -> CGVector {
         let scale = min(1,limit/max(1,hypot(v.dx,v.dy))); return CGVector(dx:v.dx*scale,dy:v.dy*scale)
     }
-    private func finish(_ points:Int) {
+
+    // MARK: - Results and effects
+
+    private func finish(_ points:Int,_ outcome:Outcome,label:String? = nil) {
         guard delay == 0 else { return }
-        score += points; if points > 0 { successes += 1 }
-        attempts += 1; notice = points > 0 ? "Nice shot!" : "Missed!"; delay = 1
-        if points > 0 { Haptics.success() } else { Haptics.error() }
+        switch outcome {
+        case .success:
+            streak += 1; successes += 1
+            let m = multiplier(for:streak),total = points*m
+            score += total
+            popup(m > 1 ? "+\(total)  ×\(m)" : "+\(total)",at:ball,color:.yellow,big:true)
+            if let label { popup(L10n.text(label),at:CGPoint(x:ball.x,y:ball.y-28),color:.white,big:false) }
+            notice = label ?? "Nice shot!"
+            burst(at:ball,colors:[.yellow,.orange,.pink,.cyan,.green],count:26,speed:180)
+            Haptics.success(); SoundFX.play(.coin)
+        case .safe:
+            streak = 0; score += points
+            popup("+\(points)",at:ball,color:.white,big:false); notice = ""
+            Haptics.tap(); SoundFX.play(.point)
+        case .miss:
+            streak = 0; lives -= 1; score += points
+            if points > 0 { popup("+\(points)",at:ball,color:.white.opacity(0.8),big:false) }
+            notice = "Missed!"
+            Haptics.error(); SoundFX.play(.wrong)
+        }
+        delay = 1.1
     }
+    private func popup(_ text:String,at p:CGPoint,color:Color,big:Bool) {
+        popupID += 1
+        let q = CGPoint(x:min(280,max(40,p.x)),y:min(420,max(40,p.y-16)))
+        popups.append(ToyFXPopup(id:popupID,text:text,p:q,color:color,big:big))
+        if popups.count > 6 { popups.removeFirst() }
+    }
+    private func burst(at p:CGPoint,colors:[Color],count:Int,speed:CGFloat) {
+        guard !reduceMotion else { return }
+        for i in 0..<count {
+            let heading = CGFloat.random(in:0...(2 * .pi)),v = speed*CGFloat.random(in:0.4...1)
+            particles.append(ToyFXParticle(p:p,v:CGVector(dx:cos(heading)*v,dy:sin(heading)*v-speed*0.4),
+                                           life:Double.random(in:0.5...0.9),color:colors[i % colors.count],size:CGFloat.random(in:2...4)))
+        }
+        if particles.count > 90 { particles.removeFirst(particles.count-90) }
+    }
+    private func updateFX(_ d:Double) {
+        let step = CGFloat(d)
+        if !particles.isEmpty {
+            for i in particles.indices {
+                particles[i].age += d
+                particles[i].p.x += particles[i].v.dx*step; particles[i].p.y += particles[i].v.dy*step
+                particles[i].v.dy += 380*step
+            }
+            particles.removeAll { $0.age >= $0.life }
+        }
+        if !popups.isEmpty {
+            for i in popups.indices { popups[i].age += d; if !reduceMotion { popups[i].p.y -= 34*step } }
+            popups.removeAll { $0.age >= 1.1 }
+        }
+    }
+
+    // MARK: - Simulation
+
     func advance(_ dt:Double) {
-        guard active,started,state == .playing else { release(); return }
+        guard active,started,state == .playing else { return }
         let d = min(0.08,max(0,dt))
+        updateFX(d)
         if delay > 0 {
             delay = max(0,delay-d)
-            if delay == 0 { if attempts >= 5 { state = .gameOver(won:successes > 0) } else { prepare() } }
+            if delay == 0 { if lives <= 0 { state = .gameOver(won:successes >= 3) } else { prepare() } }
             return
         }
-        if mode == .pinballMini { timeLeft = max(0,timeLeft-d); if timeLeft == 0 { state = .gameOver(won:true); return } }
+        animate(d)
         guard launched || mode == .ropeCut else { return }
         var rest = d
         while rest > 0 && state == .playing && delay == 0 { let step = min(rest,1.0/120); update(step); rest -= step }
     }
+    /// Moving hoops, targets and bars keep moving even before the shot.
+    private func animate(_ d:Double) {
+        guard movingAmplitude > 0 else { return }
+        clock += d
+        switch mode {
+        case .basketShot: target.x = movingBaseX + CGFloat(sin(clock*1.3))*movingAmplitude
+        case .ropeCut: target.x = movingBaseX + CGFloat(sin(clock*1.1))*movingAmplitude
+        case .miniGolf:
+            let x = movingBaseX + CGFloat(sin(clock*1.2))*movingAmplitude
+            movingBar = ToySegment(a:CGPoint(x:x-35,y:340),b:CGPoint(x:x+35,y:340))
+        default: break
+        }
+    }
     private func update(_ dt:Double) {
         let d = CGFloat(dt),previous = ball
-        if launched { flight += dt }; cooldown = max(0,cooldown-dt)
-        if mode == .darts {
-            let t = CGFloat(min(1,flight/0.65)); ball = CGPoint(x:dartStart.x+(dartEnd.x-dartStart.x)*t,y:dartStart.y+(dartEnd.y-dartStart.y)*t)
-            if t == 1 { let r = hypot(ball.x-target.x,ball.y-target.y); finish(r <= 75 ? (r < 12 ? 100 : r < 35 ? 60 : 30) : 0) }; return
-        }
-        if ![.miniGolf,.ricochet].contains(mode) { velocity.dy += (mode == .bottleFlip ? 500 : 400)*d }
-        if mode == .paperToss { velocity.dx += wind*d }
+        if launched { flight += dt }
+
+        if mode != .miniGolf { velocity.dy += (mode == .bottleFlip ? 500 : 400)*d }
+        if mode == .basketShot { velocity.dx += wind*d }
+
         ball.x += velocity.dx*d; ball.y += velocity.dy*d
         angle += spin*d
         trailClock += dt
         if trailClock > 0.035 { trailClock = 0; trail.append(ball); if trail.count > 30 { trail.removeFirst() } }
         switch mode {
-        case .basketShot,.paperToss:
-            if velocity.dy > 0,previous.y <= target.y,ball.y >= target.y,abs(ball.x-target.x) < (mode == .basketShot ? 21 : 25) { finish(100); return }
-            if mode == .basketShot {
-                circleCollision(CGPoint(x:target.x-25,y:target.y),radius:4,restitution:0.6)
-                circleCollision(CGPoint(x:target.x+25,y:target.y),radius:4,restitution:0.6)
-                segmentCollision(CGPoint(x:target.x+30,y:target.y-55),CGPoint(x:target.x+30,y:target.y+8),radius:8,restitution:0.7)
+        case .basketShot:
+            if velocity.dy > 0,previous.y <= target.y,ball.y >= target.y,abs(ball.x-target.x) < 21 {
+                finish(touchedRim ? 100 : 150,.success,label:touchedRim ? nil : "Swish!"); return
             }
-            if ball.y > 470 || ball.x < -30 || ball.x > 350 || flight > 5 { finish(0) }
+            var hit = circleCollision(CGPoint(x:target.x-25,y:target.y),radius:4,restitution:0.6)
+            hit = circleCollision(CGPoint(x:target.x+25,y:target.y),radius:4,restitution:0.6) || hit
+            hit = segmentCollision(CGPoint(x:target.x+30,y:target.y-55),CGPoint(x:target.x+30,y:target.y+8),radius:8,restitution:0.7) || hit
+            if hit { touchedRim = true; SoundFX.play(.bounce) }
+            if ball.y > 470 || ball.x < -30 || ball.x > 350 || flight > 5 { finish(0,.miss) }
         case .bottleFlip:
             if velocity.dy > 0 && ball.y >= 370 {
                 ball.y = 370
                 let difference = abs(atan2(sin(angle),cos(angle)))
-                finish(difference < 0.28 && angle >= 2 * .pi - 0.28 && ball.x > 20 && ball.x < 300 ? 100 : 0)
+                let upright = difference < 0.28 && angle >= 2 * .pi - 0.28 && ball.x > 20 && ball.x < 300
+                if upright {
+                    let double = angle >= 4 * .pi - 0.28
+                    let onPad = abs(ball.x-padX) < padWidth/2
+                    angle = 0
+                    let label: String? = double && onPad ? "Perfect!" : double ? "Double flip!" : onPad ? "Bullseye!" : nil
+                    finish(100 + (double ? 100 : 0) + (onPad ? 75 : 0),.success,label:label)
+                } else {
+                    // Tip the bottle over so the miss reads clearly.
+                    angle = sin(angle) >= 0 ? .pi/2 : -.pi/2; ball.y = 389
+                    burst(at:CGPoint(x:ball.x,y:398),colors:[.white.opacity(0.6)],count:8,speed:60)
+                    finish(0,.miss)
+                }
             }
         case .miniGolf:
             walls(restitution:0.8)
-            segmentCollision(CGPoint(x:100,y:240),CGPoint(x:225,y:240),radius:9,restitution:0.75)
+            var hit = false
+            for s in obstacles { hit = segmentCollision(s.a,s.b,radius:9,restitution:0.75) || hit }
+            if let bar = movingBar { hit = segmentCollision(bar.a,bar.b,radius:9,restitution:0.85) || hit }
+            if hit { SoundFX.play(.bounce) }
             let speed = hypot(velocity.dx,velocity.dy),factor = max(0,1-75*d/max(1,speed)); velocity.dx *= factor; velocity.dy *= factor
-            if hypot(ball.x-target.x,ball.y-target.y) < 13 && speed < 185 { ball = target; finish(100) }
-            else if speed < 4 || flight > 10 { finish(0) }
-        case .pinballMini:
-            if ball.x < 12 { ball.x = 12; velocity.dx = abs(velocity.dx)*0.85 }
-            if ball.x > 308 { ball.x = 308; velocity.dx = -abs(velocity.dx)*0.85 }
-            if ball.y < 20 { ball.y = 20; velocity.dy = abs(velocity.dy)*0.85 }
-            for bumper in bumpers {
-                if circleCollision(bumper,radius:23,restitution:1.05) && cooldown == 0 { score += 10; cooldown = 0.1 }
-            }
-            segmentCollision(CGPoint(x:10,y:300),CGPoint(x:70,y:375),radius:9,restitution:0.6)
-            segmentCollision(CGPoint(x:310,y:300),CGPoint(x:250,y:375),radius:9,restitution:0.6)
-            for left in [true,false] {
-                let oldTip = flipperTip(left: left)
-                let held = left ? leftHeld : rightHeld
-                let lift = left ? leftLift : rightLift
-                let next = min(1,max(0,lift + (held ? 12 : -7)*d))
-                if left { leftLift = next } else { rightLift = next }
-                let a = CGPoint(x:left ? 70 : 250,y:375), b = flipperTip(left: left)
-                let contact = closest(ball,a,b)
-                let fraction = min(1,hypot(contact.x-a.x,contact.y-a.y)/80)
-                let surface = CGVector(dx:(b.x-oldTip.x)/d*fraction,dy:(b.y-oldTip.y)/d*fraction)
-                // Resolve in the moving flipper's frame: only a moving stroke
-                // adds energy; holding a raised flipper does not repeatedly kick.
-                velocity.dx -= surface.dx; velocity.dy -= surface.dy
-                segmentCollision(a,b,radius:14,restitution:0.8)
-                velocity.dx += surface.dx; velocity.dy += surface.dy
-            }
-            velocity = capped(velocity,limit:650)
-            if ball.y > 475 {
-                lives -= 1
-                if lives == 0 { state = .gameOver(won:false) }
-                else { ball = CGPoint(x:275,y:370); velocity = CGVector(dx:-80,dy:-520); trail = []; leftLift = 0; rightLift = 0; release() }
+            if hypot(ball.x-target.x,ball.y-target.y) < 13 && speed < 185 {
+                ball = target
+                finish([300,150,75][min(2,max(0,strokes-1))],.success,label:strokes == 1 ? "Hole in one!" : nil)
+            } else if speed < 4 || flight > 10 {
+                if strokes >= 3 { finish(0,.miss) }
+                else { launched = false; velocity = .zero; flight = 0; trail = []; SoundFX.play(.tick) }
             }
         case .plinko:
             if ball.x < 9 { ball.x = 9; velocity.dx = abs(velocity.dx)*0.7 }
             if ball.x > 311 { ball.x = 311; velocity.dx = -abs(velocity.dx)*0.7 }
-            for peg in pegs {
-                if circleCollision(peg,radius:5,restitution:0.55),abs(velocity.dx) < 8 { velocity.dx += Bool.random() ? 22 : -22 }
+            for (index,peg) in pegs.enumerated() where abs(peg.y-ball.y) < 14 {
+                if circleCollision(peg,radius:5,restitution:0.55) {
+                    if goldPegs.remove(index) != nil {
+                        score += 20; popup("+20",at:peg,color:.yellow,big:false); SoundFX.play(.coin)
+                        burst(at:peg,colors:[.yellow,.orange],count:8,speed:90)
+                    } else { SoundFX.play(.tick) }
+                    if abs(velocity.dx) < 8 { velocity.dx += Bool.random() ? 22 : -22 }
+                }
             }
-            if ball.y > 420 { finish(min(5,max(0,Int(ball.x/(320/6)))) == selectedBin ? 100 : 10) }
-            else if flight > 12 { finish(0) }
-        case .ricochet:
-            walls(restitution:1)
-            if hypot(ball.x-target.x,ball.y-target.y) < 19 { finish(bounces > 0 ? 100 : 0) }
-            else if flight > 8 { finish(0) }
+            if ball.y > 420 {
+                let bin = min(5,max(0,Int(ball.x/(320/6)))),value = binValues[bin]
+                if bin == selectedBin { finish(value,.success,label:"Jackpot!") }
+                else if abs(bin-selectedBin) == 1 { finish(value,.safe) }
+                else { finish(value,.miss) }
+            }
+            else if flight > 12 { finish(0,.miss) }
         case .ropeCut:
             for _ in 0..<4 {
                 for i in anchors.indices where ropes[i] {
-                    let dx = ball.x-anchors[i].x,dy = ball.y-anchors[i].y,length = max(1,hypot(dx,dy)),limit:CGFloat = hypot(85,150)
+                    let dx = ball.x-anchors[i].x,dy = ball.y-anchors[i].y,length = max(1,hypot(dx,dy)),limit = ropeLengths[i]
                     if length > limit {
                         let nx = dx/length,ny = dy/length
                         ball = CGPoint(x:anchors[i].x+nx*limit,y:anchors[i].y+ny*limit)
@@ -275,36 +464,50 @@ final class ToyEngine: GameEngine {
                     }
                 }
             }
-            if ball.y > 390 && ball.y < 425 && abs(ball.x-target.x) < 28 { finish(100) }
-            else if ball.y > 470 || ball.x < -30 || ball.x > 350 || flight > 12 { finish(0) }
+            collectStars()
+            if ball.y > 390 && ball.y < 425 && abs(ball.x-target.x) < targetHalfWidth-2 { finish(100,.success) }
+            else if ball.y > 470 || ball.x < -30 || ball.x > 350 || flight > 12 { finish(0,.miss) }
         case .drawBridge:
-            segmentCollision(CGPoint(x:0,y:200),CGPoint(x:90,y:200),radius:10,restitution:0)
-            segmentCollision(CGPoint(x:230,y:300),CGPoint(x:320,y:300),radius:10,restitution:0)
-            var nearest: (CGPoint, CGPoint)?
+            segmentCollision(CGPoint(x:0,y:leftTop),CGPoint(x:leftEdge,y:leftTop),radius:10,restitution:0)
+            segmentCollision(CGPoint(x:rightEdge,y:rightTop),CGPoint(x:320,y:rightTop),radius:10,restitution:0)
+            var nearest: ToySegment?
             var best: CGFloat = 11
-            for (a,b) in bridgeSegments {
+            for s in bridgeSegments {
+                let a = s.a,b = s.b
                 guard ball.x >= min(a.x,b.x)-11, ball.x <= max(a.x,b.x)+11,
                       ball.y >= min(a.y,b.y)-11, ball.y <= max(a.y,b.y)+11 else { continue }
                 let gap = distance(ball,a,b)
-                if gap < best { best = gap; nearest = (a,b) }
+                if gap < best { best = gap; nearest = s }
             }
-            if let (a,b) = nearest {
-                segmentCollision(a,b,radius:11,restitution:0)
+            if let s = nearest {
+                segmentCollision(s.a,s.b,radius:11,restitution:0)
                 // Preserve rolling momentum over small joints, without pushing
                 // through a steep wall or pulling the ball across a broken bridge.
-                let dx = abs(b.x-a.x), dy = abs(b.y-a.y)
+                let dx = abs(s.b.x-s.a.x), dy = abs(s.b.y-s.a.y)
                 if dx > dy, velocity.dx > 0 { velocity.dx = max(80,velocity.dx) }
             }
-            if hypot(ball.x-target.x,ball.y-target.y) < 23 { finish(100) }
-            else if ball.y > 470 || ball.x > 340 || ball.x < -20 || flight > 10 { finish(0) }
-        case .darts: break
+            collectStars()
+            if hypot(ball.x-target.x,ball.y-target.y) < 23 {
+                let saved = Int((1-inkUsed/max(1,inkMax))*12)*5
+                finish(100+saved,.success,label:saved >= 30 ? "Perfect!" : nil)
+            }
+            else if ball.y > 470 || ball.x > 340 || ball.x < -20 || flight > 10 { finish(0,.miss) }
+        }
+    }
+    private func collectStars() {
+        guard !stars.isEmpty else { return }
+        if let i = stars.firstIndex(where:{ hypot($0.x-ball.x,$0.y-ball.y) < 20 }) {
+            let star = stars.remove(at:i)
+            score += 50; popup("★ +50",at:star,color:.yellow,big:false)
+            burst(at:star,colors:[.yellow,.white],count:12,speed:120)
+            SoundFX.play(.point); Haptics.tap()
         }
     }
     private func walls(restitution:CGFloat) {
-        if ball.x < 10 { ball.x = 10; velocity.dx = abs(velocity.dx)*restitution; bounces += 1 }
-        if ball.x > 310 { ball.x = 310; velocity.dx = -abs(velocity.dx)*restitution; bounces += 1 }
-        if ball.y < 30 { ball.y = 30; velocity.dy = abs(velocity.dy)*restitution; bounces += 1 }
-        if ball.y > 445 { ball.y = 445; velocity.dy = -abs(velocity.dy)*restitution; bounces += 1 }
+        if ball.x < 10 { ball.x = 10; velocity.dx = abs(velocity.dx)*restitution }
+        if ball.x > 310 { ball.x = 310; velocity.dx = -abs(velocity.dx)*restitution }
+        if ball.y < 30 { ball.y = 30; velocity.dy = abs(velocity.dy)*restitution }
+        if ball.y > 445 { ball.y = 445; velocity.dy = -abs(velocity.dy)*restitution }
     }
     @discardableResult private func circleCollision(_ p:CGPoint,radius:CGFloat,restitution:CGFloat) -> Bool {
         let dx = ball.x-p.x,dy = ball.y-p.y,length = max(0.001,hypot(dx,dy)),limit = radius+8

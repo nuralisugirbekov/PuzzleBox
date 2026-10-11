@@ -2,7 +2,7 @@ import SwiftUI
 import Observation
 
 enum PuzzleMode: String {
-    case lightsOut, nonogram, numberConnect, oneLine, unblock, parkingJam, fifteenPuzzle, pipeConnect, dots, sameGame, floodFill, laser, balanceScale, colorLines
+    case lightsOut, nonogram, numberConnect, oneLine, unblock, fifteenPuzzle, pipeConnect, dots, floodFill, laser, colorLines
     var id: GameID {
         switch self {
         case .lightsOut: .lightsOut
@@ -10,14 +10,11 @@ enum PuzzleMode: String {
         case .numberConnect: .numberConnect
         case .oneLine: .oneLine
         case .unblock: .unblock
-        case .parkingJam: .parkingJam
         case .fifteenPuzzle: .fifteenPuzzle
         case .pipeConnect: .pipeConnect
         case .dots: .dots
-        case .sameGame: .sameGame
         case .floodFill: .floodFill
         case .laser: .laser
-        case .balanceScale: .balanceScale
         case .colorLines: .colorLines
         }
     }
@@ -28,14 +25,11 @@ enum PuzzleMode: String {
         case .numberConnect: "Connect matching numbers without crossing. Fill every cell."
         case .oneLine: "Trace every edge once. Tap connected nodes."
         case .unblock: "Slide blocks along their length. Free the red block."
-        case .parkingJam: "Move cars along their lanes. Drive the red car out."
         case .fifteenPuzzle: "Slide tiles into order, with the empty cell last."
         case .pipeConnect: "Rotate pipes to connect IN to OUT through every cell."
         case .dots: "Connect adjacent matching dots, then release or tap Collect."
-        case .sameGame: "Remove groups of at least two matching blocks."
         case .floodFill: "Choose colors to fill the board from the top-left corner."
         case .laser: "Rotate mirrors to guide the beam from the arrow to the star."
-        case .balanceScale: "Find the heavier item in two weighings. Compare equal groups."
         case .colorLines: "Move balls along clear paths. Make lines of five before the board fills."
         }
     }
@@ -68,103 +62,134 @@ final class PuzzleCollectionEngine: GameEngine {
     private(set) var activePath: [Int] = []
     private(set) var pieces: [SlidingPiece] = []
     private(set) var beam: [Int] = []
-    private(set) var weighing = ""
-    private(set) var weighings = 0
-    var guessing = false
-    private var heavy = 0
-    private var history: [([Int], Int)] = []
-    let nodes = [6, 8, 5, 3, 1]
-    let edges = [[6, 8], [8, 5], [5, 3], [3, 6], [3, 1], [1, 5], [6, 5], [8, 3]]
+    private(set) var nodes: [Int] = []
+    private(set) var edges: [[Int]] = []
+    private(set) var level = 1
+    /// Moves an expert needs; drives the star rating.
+    private(set) var par = 0
+    private(set) var colorCount = 5
+    private(set) var nextBalls: [Int] = []
+    private(set) var laserSource = 10
+    private(set) var laserTarget = 15
+    private(set) var pipeEnd = 12
+    private(set) var pipeExit = 4
+    private(set) var loopClosed = false
+    private(set) var combo = 0
 
-    init(mode: PuzzleMode) { self.mode = mode; restart() }
+    private var history: [([Int], Int)] = []
+    static let levelCount = 60
+
+    init(mode: PuzzleMode) {
+        self.mode = mode
+        level = max(1, min(Self.levelCount, UserDefaults.standard.integer(forKey: levelKey)))
+        restart()
+    }
+
+    private var levelKey: String { "puzzleLevel." + mode.rawValue }
+    /// Endless score-attack modes have no level ladder.
+    var hasLevels: Bool { mode != .dots && mode != .colorLines }
+    var hasNextLevel: Bool { hasLevels && level < Self.levelCount }
+    /// 3 stars at or under par, 2 within 50 % over, else 1.
+    var stars: Int { par == 0 ? 3 : moves <= par ? 3 : Double(moves) <= Double(par) * 1.5 ? 2 : 1 }
+
+    func selectLevel(_ value: Int) {
+        guard hasLevels, (1...Self.levelCount).contains(value) else { return }
+        level = value
+        UserDefaults.standard.set(level, forKey: levelKey)
+        restart()
+    }
+    func nextLevel() { selectLevel(level + 1) }
+
     var canUndo: Bool { state == .playing && (!history.isEmpty || !activePath.isEmpty || !paths.isEmpty) }
     private func adjacent(_ a: Int, _ b: Int) -> Bool { abs(a / n - b / n) + abs(a % n - b % n) == 1 }
     private func neighbors(_ i: Int) -> [Int] { [i - n, i + n, i - 1, i + 1].filter { grid.indices.contains($0) && adjacent(i, $0) } }
-    private func win() { score = max(score, max(100, 1000 - moves * 10)); state = .gameOver(won: true); Haptics.success() }
+    private func win() {
+        score = 100 + level * 50 + stars * 100
+        if hasLevels { UserDefaults.standard.set(min(Self.levelCount, level + 1), forKey: levelKey) }
+        state = .gameOver(won: true)
+        Haptics.success()
+    }
     private func save() { history.append((grid, score)) }
+
     func restart() {
         state = .playing; score = 0; moves = 0; selected = nil; marks = []; markMode = false
-        paths = [:]; activePath = []; pieces = []; beam = []; weighing = ""; weighings = 0; guessing = false; history = []
-        n = 5; movesLeft = 25; grid = Array(repeating: 0, count: 25); target = []
+        paths = [:]; activePath = []; pieces = []; beam = []; history = []; loopClosed = false; combo = 0
+        n = 5; movesLeft = 25; grid = Array(repeating: 0, count: 25); target = []; par = 0
+        var random = PuzzleRandom(seed: UInt64(level) &* 7919 &+ UInt64(mode.rawValue.hashValueStable))
+        let l = level
         switch mode {
         case .lightsOut:
-            repeat {
-                grid = Array(repeating: 0, count: 25)
-                for i in Array(0..<25).shuffled().prefix(12) { toggle(i) }
-            } while grid.allSatisfy { $0 == 0 }
+            n = min(7, 3 + (l - 1) / 6)
+            let presses = min(n * n - 2, 2 + (l - 1) % 6 + n / 2)
+            grid = PuzzleGenerators.lightsOut(n: n, presses: presses, random: &random)
+            par = presses
         case .nonogram:
-            // Full rows/columns make each of these small starter pictures unambiguous.
-            let patterns = [
-                [1,1,1,1,1, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 1,1,1,1,1],
-                [1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,1, 1,0,0,0,1, 1,0,0,0,1],
-                [1,1,1,1,1, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,0, 1,1,1,1,1],
-                [1,1,1,1,1, 1,0,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 1,1,1,1,1]
-            ]
-            target = patterns.randomElement()!
+            n = min(9, 5 + (l - 1) / 10)
+            target = PuzzleGenerators.nonogram(n: n, random: &random)
+            grid = Array(repeating: 0, count: n * n)
         case .numberConnect:
-            var route = (0..<5).flatMap { r in (0..<5).map { r * 5 + (r.isMultiple(of: 2) ? $0 : 4 - $0) } }
-            let rotation = Int.random(in: 0..<4)
-            route = route.map { index in var r = index / 5, c = index % 5; for _ in 0..<rotation { let old = r; r = c; c = 4 - old }; return r * 5 + c }
-            var start = 0
-            for (color, count) in [7, 6, 7, 5].enumerated() {
-                let segment = Array(route[start..<(start + count)])
-                grid[segment.first!] = color + 1; grid[segment.last!] = color + 1; start += count
-            }
-        case .oneLine: n = 3; grid = Array(repeating: 0, count: 9)
-        case .unblock, .parkingJam:
+            n = min(8, 5 + (l - 1) / 12)
+            let pairs = min(n + 1, n - 1 + (l - 1) % 12 / 6)
+            grid = PuzzleGenerators.numberConnect(n: n, pairs: min(pairs, 7), random: &random)
+        case .oneLine:
+            let size = l < 8 ? 3 : l < 25 ? 4 : 5
+            n = size
+            let (nodeList, edgeList) = PuzzleGenerators.oneLine(size: size, edgeCount: min(size * size * 2, 6 + l / 2), random: &random)
+            nodes = nodeList; edges = edgeList
+            grid = Array(repeating: 0, count: n * n)
+        case .unblock:
             n = 6; grid = Array(repeating: 0, count: 36)
-            if mode == .unblock {
-                pieces = [SlidingPiece(id: 0, row: 2, col: 0, length: 2, horizontal: true),
-                          SlidingPiece(id: 1, row: 1, col: 2, length: 2, horizontal: false),
-                          SlidingPiece(id: 2, row: 2, col: 4, length: 2, horizontal: false),
-                          SlidingPiece(id: 3, row: 0, col: 3, length: 2, horizontal: true),
-                          SlidingPiece(id: 4, row: 4, col: 0, length: 3, horizontal: true),
-                          SlidingPiece(id: 5, row: 5, col: 3, length: 3, horizontal: true)]
-            } else {
-                pieces = [SlidingPiece(id: 0, row: 2, col: 1, length: 2, horizontal: true),
-                          SlidingPiece(id: 1, row: 0, col: 3, length: 3, horizontal: false),
-                          SlidingPiece(id: 2, row: 1, col: 5, length: 2, horizontal: false),
-                          SlidingPiece(id: 3, row: 0, col: 0, length: 2, horizontal: false),
-                          SlidingPiece(id: 4, row: 4, col: 0, length: 3, horizontal: true)]
-            }
+            pieces = PuzzleGenerators.rushHour(pieceCount: min(12, 6 + l / 6), targetDepth: min(26, 5 + l / 2), random: &random)
+            par = PuzzleGenerators.rushHourDepth(pieces) ?? 0
         case .fifteenPuzzle:
-            n = 4; grid = Array(1...15) + [0]; target = grid
+            n = l < 6 ? 3 : 4
+            grid = Array(1..<(n * n)) + [0]; target = grid
+            let shuffles = n == 3 ? 12 + l * 4 : 30 + l * 6
             var last = -1
-            for _ in 0..<160 {
+            for _ in 0..<shuffles {
                 let empty = grid.firstIndex(of: 0)!, choices = neighbors(empty).filter { $0 != last }
-                let source = choices.randomElement()!; grid.swapAt(source, empty); last = empty
+                let source = choices.randomElement(using: &random)!; grid.swapAt(source, empty); last = empty
             }
-            if grid == target { grid.swapAt(14, 15) }
+            if grid == target { grid.swapAt(grid.count - 2, grid.count - 1); grid.swapAt(grid.count - 3, grid.count - 2) }
+            par = min(shuffles, n == 3 ? 30 : 80)
         case .pipeConnect:
-            n = 4; grid = Array(repeating: 0, count: 16)
-            let route = (0..<4).flatMap { r in (0..<4).map { r * 4 + (r.isMultiple(of: 2) ? $0 : 3 - $0) } }
-            grid[0] = 8; grid[12] = 4
-            for (a, b) in zip(route, route.dropFirst()) {
-                let bit = b == a + 1 ? 2 : b == a - 1 ? 8 : 4
-                grid[a] |= bit; grid[b] |= opposite(bit)
-            }
-            target = grid
-            for i in grid.indices { for _ in 0..<Int.random(in: 0..<4) { grid[i] = rotate(grid[i]) } }
+            n = min(7, 4 + (l - 1) / 8)
+            let (solved, end, exit) = PuzzleGenerators.pipes(n: n, random: &random)
+            target = solved; pipeEnd = end; pipeExit = exit
+            grid = solved
+            for i in grid.indices { for _ in 0..<Int.random(in: 0..<4, using: &random) { grid[i] = rotate(grid[i]) } }
             // Keep the entrance disconnected at the start, without changing solvability.
             while grid[0] & 8 != 0 { grid[0] = rotate(grid[0]) }
+            par = zip(grid, solved).filter { $0 != $1 }.count
             updatePipes()
-        case .dots, .sameGame:
-            n = 6; grid = (0..<36).map { _ in Int.random(in: 1...4) }; movesLeft = 20
+        case .dots:
+            n = 6; colorCount = 4; grid = (0..<36).map { _ in Int.random(in: 1...4) }; movesLeft = 20
             grid[1] = grid[0] // At least one opening move.
         case .floodFill:
-            n = 8; grid = (0..<64).map { _ in Int.random(in: 1...5) }; movesLeft = 30
+            n = min(14, 8 + (l - 1) / 5)
+            colorCount = l < 15 ? 5 : 6
+            grid = (0..<(n * n)).map { _ in Int.random(in: 1...colorCount, using: &random) }
+            let greedy = PuzzleGenerators.floodGreedySteps(grid, n: n, colors: colorCount)
+            movesLeft = greedy + max(0, 4 - l / 6)
+            par = greedy
         case .laser:
-            n = 5; grid = Array(repeating: 0, count: 25)
-            // Known beam: 10→11→12→7→2→3→4→9→14→19→18→17→16→15.
-            for i in [12, 2, 4, 19] { grid[i] = Int.random(in: 1...2) }
+            n = min(8, 5 + (l - 1) / 12)
+            let turns = min(n + 1, 2 + (l - 1) / 5)
+            let (mirrors, source, goal) = PuzzleGenerators.laser(n: n, turns: turns, decoys: min(8, l / 3), random: &random)
+            grid = mirrors; laserSource = source; laserTarget = goal
+            // Flip some mirrors so the beam starts off course.
+            let mirrorCells = grid.indices.filter { grid[$0] > 0 }
+            for i in mirrorCells where Bool.random(using: &random) { grid[i] = 3 - grid[i] }
             updateLaser()
-            if beam.last == 15 { grid[12] = 3 - grid[12]; updateLaser() }
-        case .balanceScale:
-            n = 3; grid = Array(repeating: 0, count: 9); heavy = Int.random(in: 0..<9)
+            if beam.last == laserTarget, let first = mirrorCells.first { grid[first] = 3 - grid[first]; updateLaser() }
+            par = turns
         case .colorLines:
-            n = 9; grid = Array(repeating: 0, count: 81); spawnBalls(5)
+            n = 9; grid = Array(repeating: 0, count: 81); colorCount = 6
+            nextBalls = (0..<3).map { _ in Int.random(in: 1...colorCount) }
+            spawnBalls(5)
         }
     }
+
     func tap(_ i: Int) {
         guard state == .playing, grid.indices.contains(i) else { return }
         switch mode {
@@ -175,51 +200,45 @@ final class PuzzleCollectionEngine: GameEngine {
             if markMode { if !marks.insert(i).inserted { marks.remove(i) }; grid[i] = 0 }
             else { grid[i] = 1 - grid[i]; marks.remove(i) }
             moves += 1
-            let rowsMatch = (0..<n).allSatisfy { r in clues(Array(grid[(r*n)..<(r*n+n)])) == rowClues[r] }
-            let columnsMatch = (0..<n).allSatisfy { c in clues((0..<n).map { grid[$0*n+c] }) == columnClues[c] }
-            if rowsMatch && columnsMatch { win() }
+            if nonogramSolved { win() }
         case .numberConnect: connect(i)
         case .oneLine: trace(i)
-        case .unblock, .parkingJam: selected = pieces.firstIndex { $0.cells.contains(i) }
+        case .unblock: selected = pieces.firstIndex { $0.cells.contains(i) }
         case .fifteenPuzzle:
-            if let empty = grid.firstIndex(of: 0), adjacent(i, empty) {
-                save(); grid.swapAt(i, empty); moves += 1; if grid == target { win() }
-            }
+            guard let empty = grid.firstIndex(of: 0) else { return }
+            // Tapping any tile in the empty cell's row or column slides the whole line.
+            let sameRow = i / n == empty / n, sameColumn = i % n == empty % n
+            guard i != empty, sameRow || sameColumn else { return }
+            save()
+            let step = sameRow ? (i > empty ? 1 : -1) : (i > empty ? n : -n)
+            var hole = empty
+            while hole != i { grid.swapAt(hole, hole + step); hole += step; moves += 1 }
+            if grid == target { win() }
         case .pipeConnect:
             save(); grid[i] = rotate(grid[i]); moves += 1; updatePipes()
-        case .dots:
-            if activePath.isEmpty { activePath = [i] }
-            else if activePath.last == i { return }
-            else if activePath.count > 1, activePath[activePath.count - 2] == i { activePath.removeLast() }
-            else if grid[i] == grid[activePath[0]], adjacent(activePath.last!, i), !activePath.contains(i) { activePath.append(i) }
-            else { activePath = [i] }
-        case .sameGame:
-            guard grid[i] > 0 else { return }
-            let group = region(i)
-            if group.count > 1 {
-                save(); for cell in group { grid[cell] = 0 }; score += group.count * group.count * 5; moves += 1
-                collapse(refill: false)
-                if grid.allSatisfy({ $0 == 0 }) { score += 500; state = .gameOver(won: true) }
-                else if !hasGroups { state = .gameOver(won: false) }
-            }
+        case .dots: extendDots(i)
         case .floodFill: break // Color buttons are the controls for this mode.
         case .laser:
             guard grid[i] > 0 else { return }; save(); grid[i] = 3 - grid[i]; moves += 1; updateLaser()
-            if beam.last == 15 { win() }
-        case .balanceScale:
-            if guessing {
-                if i == heavy { score = max(100, 1000 - weighings * 200); state = .gameOver(won: true) }
-                else { state = .gameOver(won: false) }
-            } else { grid[i] = (grid[i] + 1) % 3 }
+            if beam.last == laserTarget { win() }
         case .colorLines: moveBall(i)
         }
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
+
+    var nonogramSolved: Bool {
+        (0..<n).allSatisfy { r in clues(Array(grid[(r*n)..<(r*n+n)])) == rowClues[r] }
+            && (0..<n).allSatisfy { c in clues((0..<n).map { grid[$0*n+c] }) == columnClues[c] }
+    }
+    /// Rows and columns whose current fill already matches their clue.
+    func rowSolved(_ r: Int) -> Bool { clues(Array(grid[(r*n)..<(r*n+n)])) == rowClues[r] }
+    func columnSolved(_ c: Int) -> Bool { clues((0..<n).map { grid[$0*n+c] }) == columnClues[c] }
+
     private func toggle(_ i: Int) { for index in [i] + neighbors(i) { grid[index] = 1 - grid[index] } }
     func undo() {
         guard state == .playing else { return }
         if mode == .numberConnect { paths = [:]; activePath = []; selected = nil; return }
-        if mode == .oneLine || mode == .dots { if !activePath.isEmpty { activePath.removeLast() }; return }
+        if mode == .oneLine || mode == .dots { if !activePath.isEmpty { activePath.removeLast(); loopClosed = false }; return }
         if let previous = history.popLast() {
             grid = previous.0; score = previous.1; moves += 1
             if mode == .pipeConnect { updatePipes() }
@@ -233,6 +252,7 @@ final class PuzzleCollectionEngine: GameEngine {
     }
     var rowClues: [[Int]] { (0..<n).map { clues(Array(target[($0 * n)..<($0 * n + n)])) } }
     var columnClues: [[Int]] { (0..<n).map { c in clues((0..<n).map { target[$0 * n + c] }) } }
+    var pairCount: Int { Set(grid.filter { $0 > 0 }).count }
     private func connect(_ i: Int) {
         if let color = selected, let last = activePath.last, adjacent(last, i) {
             if activePath.count > 1, activePath[activePath.count - 2] == i {
@@ -243,8 +263,9 @@ final class PuzzleCollectionEngine: GameEngine {
                 activePath.append(i); paths[color] = activePath
                 if grid[i] == color {
                     selected = nil; activePath = []
+                    SoundFX.play(.place)
                     let complete = paths.values.filter { $0.count > 1 && grid[$0.first!] == grid[$0.last!] }.count
-                    if complete == 4, Set(paths.values.flatMap { $0 }).count == 25 { win() }
+                    if complete == pairCount, Set(paths.values.flatMap { $0 }).count == n * n { win() }
                 }
                 return
             }
@@ -271,8 +292,16 @@ final class PuzzleCollectionEngine: GameEngine {
               piece.col + (piece.horizontal ? piece.length : 1) <= 6 else { return }
         let occupied = Set(pieces.filter { $0.id != piece.id }.flatMap(\.cells))
         guard piece.cells.allSatisfy({ !occupied.contains($0) }) else { return }
-        pieces[index] = piece; moves += 1; Haptics.move()
+        pieces[index] = piece; moves += 1; Haptics.move(); SoundFX.play(.place)
         if piece.id == 0, piece.col + piece.length == 6 { win() }
+    }
+    /// Slides the selected piece as far as a drag of `steps` cells allows.
+    func slide(dr: Int, dc: Int, steps: Int) {
+        for _ in 0..<max(1, steps) where state == .playing {
+            let before = moves
+            slide(dr: dr, dc: dc)
+            if moves == before { break }
+        }
     }
     private func rotate(_ mask: Int) -> Int { ((mask << 1) & 15) | (mask >> 3) }
     private func opposite(_ bit: Int) -> Int { bit == 1 ? 4 : bit == 4 ? 1 : bit == 2 ? 8 : 2 }
@@ -288,7 +317,7 @@ final class PuzzleCollectionEngine: GameEngine {
         }
         beam = Array(reached)
         // Each tile has exactly two ports; reaching all cells and the sink makes one sealed route.
-        if reached.count == grid.count, grid[12] & 4 != 0 { win() }
+        if reached.count == grid.count, grid[pipeEnd] & pipeExit != 0 { win() }
     }
     private func region(_ source: Int) -> Set<Int> {
         var found: Set<Int> = [], queue = [source]
@@ -299,44 +328,68 @@ final class PuzzleCollectionEngine: GameEngine {
         }
         return found
     }
+
+    // MARK: Dots
+
+    private func extendDots(_ i: Int) {
+        if activePath.isEmpty { activePath = [i]; loopClosed = false; return }
+        if activePath.last == i { return }
+        if activePath.count > 1, activePath[activePath.count - 2] == i { activePath.removeLast(); loopClosed = false; return }
+        guard !loopClosed else { return }
+        if grid[i] == grid[activePath[0]], adjacent(activePath.last!, i) {
+            if !activePath.contains(i) { activePath.append(i); SoundFX.play(.simon(min(3, activePath.count / 3))) }
+            else if activePath.count >= 4 {
+                // Closing a loop clears every dot of that colour.
+                activePath.append(i); loopClosed = true; Haptics.move(); SoundFX.play(.coin)
+            }
+        } else { activePath = [i] }
+    }
     private var hasGroups: Bool { grid.indices.contains { i in grid[i] > 0 && neighbors(i).contains { grid[$0] == grid[i] } } }
     func collectDots() {
         guard state == .playing, mode == .dots, activePath.count >= 2 else { return }
-        score += activePath.count * activePath.count * 5
-        for i in activePath { grid[i] = 0 }; activePath = []; moves += 1; movesLeft -= 1
-        collapse(refill: true)
+        let color = grid[activePath[0]]
+        let cleared = loopClosed ? Set(grid.indices.filter { grid[$0] == color }) : Set(activePath)
+        score += cleared.count * cleared.count * 5 + (loopClosed ? 100 : 0)
+        for i in cleared { grid[i] = 0 }
+        activePath = []; loopClosed = false; moves += 1; movesLeft -= 1
+        Haptics.move(); SoundFX.play(cleared.count >= 6 ? .clear : .pop)
+        collapse()
         if movesLeft == 0 { state = .gameOver(won: true) }
         else if !hasGroups { grid[1] = grid[0] }
     }
-    private func collapse(refill: Bool) {
+    private func collapse() {
         for c in 0..<n {
             var values = (0..<n).map { grid[$0 * n + c] }.filter { $0 > 0 }
             let empty = n - values.count
-            values = (0..<empty).map { _ in refill ? Int.random(in: 1...4) : 0 } + values
+            values = (0..<empty).map { _ in Int.random(in: 1...colorCount) } + values
             for r in 0..<n { grid[r * n + c] = values[r] }
         }
-        if !refill {
-            let columns = (0..<n).filter { c in (0..<n).contains { grid[$0 * n + c] > 0 } }
-                .map { c in (0..<n).map { grid[$0 * n + c] } }
-            grid = Array(repeating: 0, count: n * n)
-            for (c, values) in columns.enumerated() { for r in 0..<n { grid[r * n + c] = values[r] } }
-        }
     }
+
+    // MARK: Flood fill
+
+    var floodRegionSize: Int { grid.isEmpty ? 0 : region(0).count }
     func flood(_ color: Int) {
         guard mode == .floodFill, state == .playing, color != grid[0] else { return }
+        let before = region(0).count
         let cells = region(0); for i in cells { grid[i] = color }
-        moves += 1; movesLeft -= 1; score = region(0).count * 10
-        if Set(grid).count == 1 { score += movesLeft * 20; state = .gameOver(won: true) }
-        else if movesLeft == 0 { state = .gameOver(won: false) }
+        moves += 1; movesLeft -= 1
+        let gained = region(0).count - before
+        Haptics.tap(); SoundFX.play(gained >= 8 ? .pour : .tap)
+        if Set(grid).count == 1 { win(); score += movesLeft * 50 }
+        else if movesLeft == 0 { score = region(0).count * 5; state = .gameOver(won: false) }
     }
+
+    // MARK: Laser
+
     private func updateLaser() {
-        var cell = 10, dr = 0, dc = 1
+        var cell = laserSource, dr = 0, dc = 1
         var visited: Set<String> = []; beam = []
         while grid.indices.contains(cell) {
             let key = "\(cell):\(dr):\(dc)"
             guard visited.insert(key).inserted else { break }
             beam.append(cell)
-            if cell == 15 { break }
+            if cell == laserTarget { break }
             if grid[cell] == 1 { let old = dr; dr = -dc; dc = -old }
             else if grid[cell] == 2 { let old = dr; dr = dc; dc = old }
             let r = cell / n + dr, c = cell % n + dc
@@ -344,14 +397,9 @@ final class PuzzleCollectionEngine: GameEngine {
             cell = r * n + c
         }
     }
-    func weigh() {
-        guard state == .playing, mode == .balanceScale, weighings < 2 else { return }
-        let left = grid.indices.filter { grid[$0] == 1 }, right = grid.indices.filter { grid[$0] == 2 }
-        guard !left.isEmpty, left.count == right.count else { weighing = "Choose equal groups on both sides."; return }
-        weighings += 1
-        weighing = left.contains(heavy) ? "Left side is heavier" : right.contains(heavy) ? "Right side is heavier" : "Both sides balance"
-        if weighings == 2 { guessing = true }
-    }
+
+    // MARK: Color lines
+
     private func moveBall(_ i: Int) {
         if grid[i] > 0 { selected = i; return }
         guard let from = selected else { return }
@@ -359,13 +407,20 @@ final class PuzzleCollectionEngine: GameEngine {
         while let p = queue.popLast() {
             for next in neighbors(p) where grid[next] == 0 && seen.insert(next).inserted { queue.append(next) }
         }
-        guard seen.contains(i) else { return }
+        guard seen.contains(i) else { SoundFX.play(.wrong); return }
         grid[i] = grid[from]; grid[from] = 0; selected = nil; moves += 1
-        if !clearLines() { spawnBalls(3); _ = clearLines() }
+        if clearLines() {
+            combo += 1
+        } else {
+            combo = 0
+            spawnBalls(3); _ = clearLines()
+        }
         if !grid.contains(0) { state = .gameOver(won: false) }
     }
     private func spawnBalls(_ count: Int) {
-        for i in grid.indices.filter({ grid[$0] == 0 }).shuffled().prefix(count) { grid[i] = Int.random(in: 1...5) }
+        let free = grid.indices.filter { grid[$0] == 0 }.shuffled()
+        for (k, i) in free.prefix(count).enumerated() { grid[i] = k < nextBalls.count ? nextBalls[k] : Int.random(in: 1...colorCount) }
+        nextBalls = (0..<3).map { _ in Int.random(in: 1...colorCount) }
     }
     @discardableResult
     private func clearLines() -> Bool {
@@ -379,7 +434,16 @@ final class PuzzleCollectionEngine: GameEngine {
                 if line.count >= 5 { removed.formUnion(line) }
             }
         }
-        for i in removed { grid[i] = 0 }; score += removed.count * 10
-        return !removed.isEmpty
+        guard !removed.isEmpty else { return false }
+        for i in removed { grid[i] = 0 }
+        // Longer lines and back-to-back clears pay more.
+        score += removed.count * 10 + max(0, removed.count - 5) * 20 + combo * 25
+        Haptics.success(); SoundFX.play(.clear)
+        return true
     }
+}
+
+private extension String {
+    /// Swift's hashValue changes per launch; levels must stay identical.
+    var hashValueStable: Int { unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF } }
 }

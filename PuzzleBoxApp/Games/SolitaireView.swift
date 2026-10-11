@@ -45,7 +45,7 @@ final class SolitaireEngine: GameEngine {
             score = previous.score
             selection = nil
         }
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
 
     init() { deal() }
@@ -89,13 +89,83 @@ final class SolitaireEngine: GameEngine {
                 waste = []
             }
         }
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.card)
     }
 
     func tapWaste() {
         guard state == .playing, !waste.isEmpty else { return }
-        selection = selection == .waste ? nil : .waste
-        Haptics.tap()
+        if selection == .waste {
+            if !autoMoveSelection() { selection = nil }
+            return
+        }
+        selection = .waste
+        Haptics.tap(); SoundFX.play(.tap)
+    }
+
+    /// Moves the current selection to a foundation if possible, otherwise to the
+    /// first tableau column that accepts it. Returns false when nothing fits.
+    @discardableResult
+    func autoMoveSelection() -> Bool {
+        guard selection != nil else { return false }
+        for pile in 0..<4 where moveSelection(toFoundation: pile) { return true }
+        // Prefer building on cards over taking an empty column.
+        let order = (0..<7).sorted { (tableau[$0].isEmpty ? 1 : 0) < (tableau[$1].isEmpty ? 1 : 0) }
+        for col in order where moveSelection(toColumn: col) { return true }
+        return false
+    }
+
+    /// Selects a source that has a useful move; the next tap on it plays the move.
+    func hint() {
+        guard state == .playing else { return }
+        func canPlace(_ card: Card, onFoundation: Bool) -> Bool {
+            foundations.contains { pile in
+                pile.last.map { $0.suit == card.suit && card.rank == $0.rank + 1 } ?? (card.rank == 1)
+            }
+        }
+        func columnAccepts(_ card: Card, except: Int?) -> Bool {
+            tableau.indices.contains { col in
+                col != except && (tableau[col].last.map { $0.faceUp && $0.isRed != card.isRed && $0.rank == card.rank + 1 } ?? false)
+            }
+        }
+        // 1. Anything to a foundation.
+        if let card = waste.last, canPlace(card, onFoundation: true) { selection = .waste; hintFeedback(); return }
+        for col in tableau.indices { if let card = tableau[col].last, card.faceUp, canPlace(card, onFoundation: true) { selection = .tableau(col: col, index: tableau[col].count - 1); hintFeedback(); return } }
+        // 2. A run that uncovers a face-down card.
+        for col in tableau.indices {
+            guard let start = tableau[col].firstIndex(where: \.faceUp), start > 0 else { continue }
+            if columnAccepts(tableau[col][start], except: col) { selection = .tableau(col: col, index: start); hintFeedback(); return }
+        }
+        // 3. The waste card onto the tableau.
+        if let card = waste.last, columnAccepts(card, except: nil) || (card.rank == 13 && tableau.contains(where: \.isEmpty)) { selection = .waste; hintFeedback(); return }
+        // 4. Otherwise draw.
+        selection = nil
+        stockHint += 1
+        Haptics.tap(); SoundFX.play(.tick)
+    }
+    /// Bumped when the best hint is "draw from the stock".
+    private(set) var stockHint = 0
+    private func hintFeedback() { Haptics.tap(); SoundFX.play(.tick) }
+
+    /// All cards are face up and the stock is empty: the rest plays itself.
+    var canAutoComplete: Bool {
+        state == .playing && stock.isEmpty && waste.isEmpty && tableau.allSatisfy { $0.allSatisfy(\.faceUp) }
+            && tableau.contains { !$0.isEmpty }
+    }
+    func autoComplete() async {
+        while canAutoComplete {
+            var moved = false
+            for col in tableau.indices {
+                guard let card = tableau[col].last else { continue }
+                if let pile = foundations.firstIndex(where: { $0.last.map { $0.suit == card.suit && card.rank == $0.rank + 1 } ?? (card.rank == 1) }) {
+                    selection = .tableau(col: col, index: tableau[col].count - 1)
+                    _ = moveSelection(toFoundation: pile)
+                    moved = true
+                    try? await Task.sleep(for: .milliseconds(90))
+                    break
+                }
+            }
+            if !moved { break }
+        }
     }
 
     // MARK: Moves
@@ -140,12 +210,13 @@ final class SolitaireEngine: GameEngine {
         if selection != nil, moveSelection(toColumn: col) { return }
 
         if case .tableau(let c, let i) = selection, c == col, i == index {
-            selection = nil
+            // Tapping the same card again sends it to the best place.
+            if !autoMoveSelection() { selection = nil }
             return
         }
         if let index, tableau[col][index].faceUp {
             selection = .tableau(col: col, index: index)
-            Haptics.tap()
+            Haptics.tap(); SoundFX.play(.tap)
         } else {
             selection = nil
         }
@@ -168,7 +239,7 @@ final class SolitaireEngine: GameEngine {
             tableau[col].append(contentsOf: cards)
         }
         selection = nil
-        Haptics.move()
+        Haptics.move(); SoundFX.play(.card)
         return true
     }
 
@@ -176,12 +247,12 @@ final class SolitaireEngine: GameEngine {
         guard state == .playing else { return }
         if selection == .foundation(pile) {
             selection = nil
-            Haptics.tap()
+            Haptics.tap(); SoundFX.play(.tap)
             return
         }
         if moveSelection(toFoundation: pile) { return }
         selection = foundations[pile].isEmpty ? nil : .foundation(pile)
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
 
     private func moveSelection(toFoundation pile: Int) -> Bool {
@@ -209,7 +280,7 @@ final class SolitaireEngine: GameEngine {
         if foundations.reduce(0, { $0 + $1.count }) == 52 {
             state = .gameOver(won: true)
         } else {
-            Haptics.move()
+            Haptics.move(); SoundFX.play(.card)
         }
         return true
     }
@@ -230,10 +301,29 @@ struct SolitaireView: View {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - 36) / 7
                 VStack(spacing: 16) {
-                    HStack {
+                    HStack(spacing: 10) {
+                        if engine.canAutoComplete {
+                            Button {
+                                Task { await engine.autoComplete() }
+                            } label: {
+                                Label(L10n.text("Auto-complete"), systemImage: "wand.and.stars")
+                                    .font(.subheadline.bold()).foregroundStyle(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(GameTheme.accent, in: Capsule())
+                            }
+                            .transition(.scale.combined(with: .opacity))
+                        }
                         Spacer()
+                        Button { engine.hint() } label: {
+                            Image(systemName: "lightbulb.fill")
+                                .font(.subheadline.bold())
+                                .frame(width: 40, height: 36)
+                                .background(GameTheme.surface, in: Capsule())
+                        }
+                        .accessibilityLabel(L10n.text("Hint"))
                         CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
                     }
+                    .animation(.snappy, value: engine.canAutoComplete)
                     topRow(cardWidth: cardWidth)
                     tableauRow(cardWidth: cardWidth)
                     Spacer(minLength: 0)
@@ -252,6 +342,11 @@ struct SolitaireView: View {
                 } else {
                     CardSlot(width: cardWidth, label: "↻")
                 }
+            }
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: engine.stockHint) { content, scale in
+                content.scaleEffect(scale)
+            } keyframes: { _ in
+                KeyframeTrack { SpringKeyframe(1.12, duration: 0.15); SpringKeyframe(1, duration: 0.2) }
             }
             .onTapGesture { engine.tapStock() }
 

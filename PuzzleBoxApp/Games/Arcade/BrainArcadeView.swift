@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-enum BrainArcadeMode { case reaction, simon, higherLower }
+enum BrainArcadeMode { case reaction, simon }
 
 @MainActor
 @Observable
@@ -25,9 +25,14 @@ final class BrainArcadeEngine: GameEngine {
     private(set) var round = 0
     private(set) var reactionTimes: [Int] = []
     private(set) var falseStarts = 0
-    private(set) var number = 50
-    private(set) var previousNumber = 50
-    private(set) var lives = 3
+    /// Reaction: a yellow decoy flash that must not be tapped.
+    private(set) var decoy = false
+    private(set) var bestTime: Int?
+    /// Simon: one replay of the sequence after a mistake.
+    private(set) var secondChance = true
+    private var decoyIn: Double?
+    private var decoyLeft = 0.0
+
     private(set) var feedback = ""
     private var remaining: Double = 0
     private var readySince: TimeInterval?
@@ -44,13 +49,13 @@ final class BrainArcadeEngine: GameEngine {
 
     init(mode: BrainArcadeMode) { self.mode = mode; restart() }
     var gameID: GameID {
-        switch mode { case .reaction: .reactionTap; case .simon: .simon; case .higherLower: .higherLower }
+        switch mode { case .reaction: .reactionTap; case .simon: .simon; }
     }
     func restart() {
         score = 0; state = .playing; started = false; message = "Tap to start"; ready = false
         highlighted = nil; sequence = []; showingSequence = false; round = 0
-        reactionTimes = []; falseStarts = 0; number = Int.random(in: 10...90); previousNumber = number
-        lives = 3; feedback = ""; remaining = 0; readySince = nil; feedbackRemaining = 0
+        reactionTimes = []; falseStarts = 0; decoy = false; decoyIn = nil; bestTime = nil; secondChance = true
+        feedback = ""; remaining = 0; readySince = nil; feedbackRemaining = 0
         sequenceStep = -1; inputIndex = 0
     }
     func start() {
@@ -59,28 +64,41 @@ final class BrainArcadeEngine: GameEngine {
         switch mode {
         case .reaction: prepareReaction()
         case .simon: addSequence()
-        case .higherLower: message = "Will the next number be higher or lower?"
         }
     }
     private func prepareReaction() {
-        ready = false; readySince = nil; message = "Wait for green…"
+        ready = false; readySince = nil; message = "Wait for green…"; decoy = false
         remaining = Double.random(in: 1.5...4.5)
+        // From the third round on, a yellow decoy may flash before green.
+        decoyIn = round >= 2 && Double.random(in: 0..<1) < 0.45 ? remaining * Double.random(in: 0.3...0.7) : nil
     }
     func tapReaction() {
         guard active, state == .playing else { return }
         if !started { start(); return }
         guard feedbackRemaining <= 0 else { return }
         if !ready {
-            falseStarts += 1; Haptics.error(); feedback = "Too soon!"; feedbackRemaining = 1
+            falseStarts += 1; Haptics.error(); SoundFX.play(.wrong); feedback = "Too soon!"; feedbackRemaining = 1
             if falseStarts >= 3 { state = .gameOver(won: false) }
         } else {
             let now = ProcessInfo.processInfo.systemUptime
             let milliseconds = max(1, Int((now - (readySince ?? now)) * 1000))
-            reactionTimes.append(milliseconds); score += max(0, 1000 - milliseconds)
-            round += 1; ready = false; feedback = ""; feedbackRemaining = 1
+            reactionTimes.append(milliseconds)
+            bestTime = min(bestTime ?? milliseconds, milliseconds)
+            let (rating, bonus) = Self.rating(milliseconds)
+            score += max(0, 1000 - milliseconds) + bonus
+            round += 1; ready = false; feedback = rating; feedbackRemaining = 1.1
             message = "Reaction recorded"
-            Haptics.success()
+            Haptics.success(); SoundFX.play(bonus >= 200 ? .coin : .point)
             if round == 5 { state = .gameOver(won: true) }
+        }
+    }
+    static func rating(_ ms: Int) -> (String, Int) {
+        switch ms {
+        case ..<230: ("Lightning!", 300)
+        case ..<300: ("Super fast!", 200)
+        case ..<380: ("Fast", 100)
+        case ..<500: ("Good", 50)
+        default: ("Slow", 0)
         }
     }
     private func addSequence() {
@@ -89,26 +107,25 @@ final class BrainArcadeEngine: GameEngine {
     }
     func tapColor(_ index: Int) {
         guard active, state == .playing, started, !showingSequence, feedbackRemaining <= 0 else { return }
-        guard sequence[inputIndex] == index else { state = .gameOver(won: false); Haptics.error(); return }
-        highlighted = index; remaining = 0.16; inputIndex += 1; Haptics.tap()
+        guard sequence[inputIndex] == index else {
+            Haptics.error(); SoundFX.play(.wrong)
+            if secondChance {
+                // Replay the same sequence once instead of ending the game.
+                secondChance = false; feedback = "Second chance!"
+                showingSequence = true; sequenceStep = -1; inputIndex = 0; remaining = 1.0; highlighted = nil
+                message = "Watch the sequence"
+            } else {
+                state = .gameOver(won: false)
+            }
+            return
+        }
+        highlighted = index; remaining = 0.16; inputIndex += 1; Haptics.tap(); SoundFX.play(.simon(index))
         if inputIndex == sequence.count {
             score += sequence.count * 10; round += 1; showingSequence = true
             feedbackRemaining = 0.6
         }
     }
-    func guess(higher: Bool) {
-        guard active, state == .playing, started, feedbackRemaining <= 0 else { return }
-        previousNumber = number
-        repeat { number = Int.random(in: 1...100) } while number == previousNumber
-        if (number > previousNumber) == higher {
-            score += 10; feedback = "Correct!"; Haptics.success()
-        } else {
-            lives -= 1; feedback = "Wrong guess"; Haptics.error()
-        }
-        round += 1; feedbackRemaining = 0.8
-        if lives == 0 { state = .gameOver(won: false) }
-        else if round == 10 { state = .gameOver(won: true) }
-    }
+
     func advance(_ dt: Double) {
         guard active, started, state == .playing else { return }
         if feedbackRemaining > 0 {
@@ -118,7 +135,6 @@ final class BrainArcadeEngine: GameEngine {
                 switch mode {
                 case .reaction: prepareReaction()
                 case .simon: addSequence()
-                case .higherLower: break
                 }
             }
             return
@@ -127,20 +143,27 @@ final class BrainArcadeEngine: GameEngine {
         case .reaction:
             if !ready {
                 remaining -= dt
-                if remaining <= 0 { ready = true; readySince = ProcessInfo.processInfo.systemUptime; message = "Tap now!" }
+                if let left = decoyIn {
+                    decoyIn = left - dt
+                    if left - dt <= 0 { decoyIn = nil; decoy = true; decoyLeft = 0.35; SoundFX.play(.tick) }
+                }
+                if decoy { decoyLeft -= dt; if decoyLeft <= 0 { decoy = false } }
+                if remaining <= 0 { ready = true; decoy = false; readySince = ProcessInfo.processInfo.systemUptime; message = "Tap now!"; SoundFX.play(.tap) }
             }
         case .simon:
             remaining -= dt
             if showingSequence, remaining <= 0 {
                 sequenceStep += 1
                 if sequenceStep >= sequence.count * 2 {
-                    showingSequence = false; highlighted = nil; message = "Repeat the sequence"
+                    showingSequence = false; highlighted = nil; message = "Repeat the sequence"; feedback = ""
                 } else {
                     highlighted = sequenceStep.isMultiple(of: 2) ? sequence[sequenceStep / 2] : nil
-                    remaining = sequenceStep.isMultiple(of: 2) ? 0.45 : 0.22
+                    if let highlighted { SoundFX.play(.simon(highlighted)) }
+                    // Playback speeds up as the sequence grows.
+                    let count = Double(sequence.count)
+                    remaining = sequenceStep.isMultiple(of: 2) ? max(0.22, 0.45 - count * 0.015) : max(0.1, 0.22 - count * 0.008)
                 }
             } else if !showingSequence, remaining <= 0 { highlighted = nil }
-        case .higherLower: break
         }
     }
 }
@@ -148,7 +171,8 @@ final class BrainArcadeEngine: GameEngine {
 struct BrainArcadeView: View {
     @State private var engine: BrainArcadeEngine
     @Environment(\.scenePhase) private var scenePhase
-    private let colors: [Color] = [.cyan, .pink, .yellow, .purple]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let colors: [Color] = [.green, .red, .yellow, .blue]
     init(mode: BrainArcadeMode) { _engine = State(initialValue: BrainArcadeEngine(mode: mode)) }
 
     private var summary: String {
@@ -159,54 +183,10 @@ struct BrainArcadeView: View {
     }
     var body: some View {
         GameContainerView(gameID: engine.gameID, engine: engine, resultSummary: summary, centersContent: true) {
-            VStack(spacing: 20) {
-                Text(L10n.text(engine.message)).font(.title3.bold()).multilineTextAlignment(.center)
+            VStack(spacing: 18) {
                 switch engine.mode {
-                case .reaction:
-                    Text(L10n.format("Round %d of %d", min(5, engine.round + 1), 5)).foregroundStyle(GameTheme.textSecondary)
-                    Button { engine.tapReaction() } label: {
-                        VStack(spacing: 14) {
-                            Image(systemName: engine.ready ? "bolt.fill" : "hand.tap.fill").font(.system(size: 48))
-                            Text(L10n.text(engine.feedback.isEmpty ? engine.message : engine.feedback)).font(.title2.bold())
-                        }
-                        .frame(maxWidth: .infinity).frame(height: 250)
-                        .foregroundStyle(engine.ready ? Color.black : GameTheme.ink)
-                        .background(engine.ready ? Color.green : GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 24))
-                    }
-                    if let last = engine.reactionTimes.last { Text(L10n.format("Reaction: %d ms", last)).foregroundStyle(GameTheme.accent) }
-                    Text(L10n.format("False starts: %d/3", engine.falseStarts)).font(.footnote)
-                case .simon:
-                    Text(L10n.format("Sequence: %d", engine.sequence.count)).foregroundStyle(GameTheme.accent)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                        ForEach(0..<4, id: \.self) { index in
-                            Button { engine.tapColor(index) } label: {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 20).fill(colors[index].opacity(engine.highlighted == index ? 1 : 0.28))
-                                    Text(verbatim: ["●", "◆", "▲", "■"][index]).font(.system(size: 36)).foregroundStyle(GameTheme.ink)
-                                }
-                                .aspectRatio(1, contentMode: .fit)
-                                .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(engine.highlighted == index ? .white : .clear, lineWidth: 4) }
-                            }
-                            .disabled(!engine.started || engine.showingSequence)
-                        }
-                    }
-                    if !engine.started { startButton }
-                case .higherLower:
-                    Text(L10n.format("Lives: %d", engine.lives)).foregroundStyle(GameTheme.accent)
-                    Text(verbatim: "\(engine.number)")
-                        .font(.system(size: 90, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity).padding(24).gameCard()
-                    if !engine.feedback.isEmpty {
-                        Text(verbatim: "\(engine.previousNumber) → \(engine.number)").foregroundStyle(GameTheme.textSecondary)
-                        Text(L10n.text(engine.feedback)).font(.headline)
-                    }
-                    if engine.started {
-                        HStack(spacing: 16) {
-                            guessButton("Lower", higher: false)
-                            guessButton("Higher", higher: true)
-                        }
-                        Text(L10n.format("Round %d of %d", min(10, engine.round + 1), 10)).font(.footnote)
-                    } else { startButton }
+                case .reaction: reaction
+                case .simon: simon
                 }
             }
         }
@@ -222,17 +202,139 @@ struct BrainArcadeView: View {
             }
         }
     }
+
+    // MARK: Reaction
+
+    private var padColor: Color {
+        if engine.ready { return .green }
+        if engine.decoy { return .yellow }
+        if engine.feedback == "Too soon!" { return .red }
+        return GameTheme.surfaceHigh
+    }
+
+    private var reaction: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text(L10n.format("Round %d of %d", min(5, engine.round + 1), 5))
+                Spacer()
+                if let best = engine.bestTime {
+                    Label(L10n.format("Best: %d ms", best), systemImage: "trophy.fill").foregroundStyle(.orange)
+                }
+            }
+            .font(.subheadline.weight(.semibold)).foregroundStyle(GameTheme.textSecondary)
+            Button { engine.tapReaction() } label: {
+                VStack(spacing: 14) {
+                    Image(systemName: engine.ready ? "bolt.fill" : engine.decoy ? "exclamationmark.triangle.fill" : "hand.tap.fill")
+                        .font(.system(size: 52, weight: .bold))
+                        .symbolEffect(.pulse, isActive: !engine.ready && engine.started && !reduceMotion)
+                    Text(L10n.text(engine.feedback.isEmpty ? engine.message : engine.feedback)).font(.title.bold())
+                    if let last = engine.reactionTimes.last, !engine.feedback.isEmpty, engine.feedback != "Too soon!" {
+                        Text(L10n.format("Reaction: %d ms", last)).font(.headline.monospacedDigit())
+                    }
+                }
+                .frame(maxWidth: .infinity).frame(height: 280)
+                .foregroundStyle(engine.ready || engine.decoy ? Color.black : GameTheme.ink)
+                .background(padColor.gradient, in: RoundedRectangle(cornerRadius: 28))
+                .animation(.easeOut(duration: 0.08), value: engine.ready)
+            }
+            .buttonStyle(.plain)
+            // One bar per round: shorter is faster.
+            HStack(alignment: .bottom, spacing: 10) {
+                ForEach(0..<5, id: \.self) { i in
+                    let time = i < engine.reactionTimes.count ? engine.reactionTimes[i] : nil
+                    VStack(spacing: 4) {
+                        if let time { Text(verbatim: "\(time)").font(.caption2.monospacedDigit()).foregroundStyle(GameTheme.textSecondary) }
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(time.map { barColor($0) } ?? GameTheme.surfaceHigh)
+                            .frame(height: time.map { CGFloat(max(10, min(70, $0 / 8))) } ?? 10)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 92, alignment: .bottom)
+            .animation(.spring(duration: 0.35), value: engine.reactionTimes.count)
+            Text(L10n.format("False starts: %d/3", engine.falseStarts)).font(.footnote)
+                .foregroundStyle(engine.falseStarts > 0 ? .red : GameTheme.textSecondary)
+            Text(L10n.text("Tap the moment the pad turns green. Yellow is a trick!"))
+                .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
+        }
+    }
+
+    private func barColor(_ ms: Int) -> Color {
+        ms < 300 ? .green : ms < 450 ? .yellow : .orange
+    }
+
+    // MARK: Simon
+
+    private var simon: some View {
+        VStack(spacing: 18) {
+            HStack {
+                Text(L10n.text(engine.feedback.isEmpty ? engine.message : engine.feedback))
+                    .font(.title3.bold())
+                    .foregroundStyle(engine.feedback.isEmpty ? GameTheme.ink : Color.orange)
+                Spacer()
+                Image(systemName: engine.secondChance ? "heart.fill" : "heart")
+                    .foregroundStyle(engine.secondChance ? Color.pink : GameTheme.textSecondary)
+                    .accessibilityLabel(L10n.text("Second chance"))
+            }
+            GeometryReader { geo in
+                let side = min(geo.size.width, geo.size.height)
+                ZStack {
+                    Circle().fill(Color(white: 0.12))
+                    ForEach(0..<4, id: \.self) { index in
+                        let lit = engine.highlighted == index
+                        Button { engine.tapColor(index) } label: {
+                            SimonSegment(index: index)
+                                .fill(colors[index].opacity(lit ? 1 : 0.38).gradient)
+                                .shadow(color: lit ? colors[index] : .clear, radius: lit ? 18 : 0)
+                                .scaleEffect(lit && !reduceMotion ? 1.03 : 1)
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(SimonSegment(index: index))
+                        .disabled(!engine.started || engine.showingSequence)
+                        .accessibilityLabel(Text(verbatim: ["●", "◆", "▲", "■"][index]))
+                    }
+                    Circle().fill(GameTheme.background).frame(width: side * 0.36, height: side * 0.36)
+                        .overlay {
+                            VStack(spacing: 0) {
+                                Text(verbatim: "\(engine.sequence.count)").font(.system(size: side * 0.12, weight: .black, design: .rounded))
+                                Text(L10n.text("steps")).font(.caption).foregroundStyle(GameTheme.textSecondary)
+                            }
+                        }
+                }
+                .frame(width: side, height: side)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.easeOut(duration: 0.12), value: engine.highlighted)
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: 360)
+            if !engine.started { startButton }
+            Text(L10n.text("Repeat the growing sequence. It speeds up as it gets longer. One mistake is forgiven."))
+                .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
+        }
+    }
+
     private var startButton: some View {
         Button { engine.start() } label: {
             Text(L10n.text("Tap to start")).font(.headline).frame(maxWidth: .infinity).padding(18)
                 .foregroundStyle(.white).background(GameTheme.accent, in: RoundedRectangle(cornerRadius: 14))
         }
     }
-    private func guessButton(_ text: String, higher: Bool) -> some View {
-        Button { engine.guess(higher: higher) } label: {
-            Label(L10n.text(text), systemImage: higher ? "arrow.up" : "arrow.down")
-                .font(.headline).frame(maxWidth: .infinity).padding(18)
-                .foregroundStyle(.white).background(GameTheme.accent, in: RoundedRectangle(cornerRadius: 14))
-        }
+}
+
+/// One quarter of the classic round Simon board, with a small gap between pads.
+private struct SimonSegment: Shape {
+    let index: Int
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let outer = min(rect.width, rect.height) / 2 - 6
+        let inner = outer * 0.42
+        let gap = 4.0
+        let start = Double(index) * 90 + 180 + gap, end = start + 90 - gap * 2
+        var path = Path()
+        path.addArc(center: center, radius: outer, startAngle: .degrees(start), endAngle: .degrees(end), clockwise: false)
+        path.addArc(center: center, radius: inner, startAngle: .degrees(end), endAngle: .degrees(start), clockwise: true)
+        path.closeSubpath()
+        return path
     }
 }

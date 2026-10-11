@@ -5,27 +5,22 @@ struct GameTutorial {
     let controls: String
 
     static func forGame(_ id: GameID) -> GameTutorial? {
-        if let mode = LogicMode(rawValue: id.rawValue) {
-            let controls: String
-            switch mode {
-            case .hashi: controls = "Select two islands in the same row or column. Repeat to add a second bridge or remove it."
-            case .kakuro, .futoshiki: controls = "Select an empty cell, then a number below the board. Use × to clear it. Given numbers cannot be changed."
-            case .slitherlink, .masyu: controls = "Tap between dots to toggle a line. Every used dot must have exactly two lines; separate loops do not count."
-            case .takuzu: controls = "Tap a cell to cycle empty → 0 → 1. Avoid triples horizontally and vertically. Given cells stay fixed."
-            case .tents: controls = "Tap an empty cell to place or remove a tent. Each tree needs its own tent on a side, not diagonally."
-            case .nurikabe, .hitori: controls = "Tap a cell to shade it; tap again to restore it. Connections use sides, not corners."
-            }
-            return GameTutorial(rules: mode.hint, controls: controls)
-        }
         switch id {
-        case .nonogram:
-            return GameTutorial(rules: "Numbers show consecutive filled groups in each row and column, in order. Leave at least one empty cell between groups.", controls: "Tap to fill or clear a cell. Switch to × to mark cells that should stay empty.")
+        case .arrowEscape:
+            return GameTutorial(rules: "Clear every arrow from the board. An arrow can leave only when no other arrow blocks the straight line ahead of its tip.", controls: "Tap any part of an arrow to send it out. A blocked arrow turns red and costs a life. You have 3 lives per level, so look before you tap.")
+        case .arrowMaze:
+            return GameTutorial(rules: "The rocket flies forward on its own and speeds up with every star. Collect all the stars, then fly into the green portal. Touching the rocks ends the round.", controls: "Tap the left half of the maze to turn left, or the right half to turn right. Each turn is 90°. Turn near the center of a junction. You can also use the buttons below.")
         case .numberConnect:
             return GameTutorial(rules: PuzzleMode.numberConnect.hint, controls: "Drag from a numbered endpoint through neighboring cells to its matching number. Start from an endpoint again to redraw that path.")
+
+        case .nonogram:
+            return GameTutorial(rules: "Numbers show consecutive filled groups in each row and column, in order. Leave at least one empty cell between groups.", controls: "Tap to fill or clear a cell. Switch to × to mark cells that should stay empty.")
+
         case .sudoku:
             return GameTutorial(rules: "Fill 1–9 once in every row, column and 3×3 box.", controls: "Select a cell, then choose a number. Given numbers cannot be changed.")
+
         case .matchstick:
-            return GameTutorial(rules: VisualMode.matchstick.hint, controls: "Select an orange match, then tap a faint empty slot. Only one match may move; the equals sign stays fixed.")
+            return GameTutorial(rules: VisualMode.matchstick.hint, controls: "Select a match, then tap a faint empty slot. The board shows how many matches you must move; the equals sign stays fixed. Use the reset button to start over.")
         default: return nil
         }
     }

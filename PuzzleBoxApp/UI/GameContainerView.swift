@@ -24,6 +24,12 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     @State private var awardedTimeBonus = 0
     @State private var showingTutorial = false
     @State private var resumeAfterTutorial = false
+    /// A won level with a successor advances by itself instead of asking.
+    @State private var autoAdvancing = false
+    @State private var confetti = 0
+    @State private var contentShown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(SoundFX.enabledKey) private var soundEnabled = true
     private var tutorial: GameTutorial? { GameTutorial.forGame(gameID) }
     private var tutorialKey: String { "gameTutorial.v1." + gameID.rawValue }
     private func showTutorial() {
@@ -72,6 +78,9 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 content()
                     .foregroundStyle(GameTheme.ink)
                     .tint(GameTheme.accent)
+                    // The board settles in when a game or a new level opens.
+                    .scaleEffect(contentShown || reduceMotion ? 1 : 0.95)
+                    .opacity(contentShown ? 1 : 0)
                     .allowsHitTesting(engine.state == .playing)
                     .accessibilityHidden(engine.state != .playing)
                 if centersContent {
@@ -86,10 +95,29 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                  engine.state = .playing
                              },
                              restart: restart,
+                             randomGame: { playRandomGame(source: "pause_random") },
                              exit: { dismiss() })
             }
 
-            if case .gameOver(let won) = engine.state {
+            if autoAdvancing {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 44, weight: .bold))
+                        .symbolEffect(.bounce, value: autoAdvancing)
+                    Text(L10n.text("Level complete!")).font(.title3.bold())
+                    Text(displayedScore, format: .number)
+                        .font(.headline.monospacedDigit()).opacity(0.85)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 20)
+                .background(LinearGradient(colors: [GameTheme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .shadow(color: GameTheme.accent.opacity(0.4), radius: 20, y: 8)
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isStaticText)
+            } else if case .gameOver(let won) = engine.state {
                 GameOverOverlay(won: won,
                                 score: displayedScore,
                                 highScore: stats.highScore(for: gameID),
@@ -98,17 +126,18 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                 resultSummary: summary,
                                 playAgain: restart,
                                 mainMenu: { dismiss() },
-                                randomGame: {
-                                    if let id = GameID.visibleGames.filter({ $0 != gameID }).randomElement() {
-                                        playGame(id, source: "game_over_random")
-                                    }
-                                },
-                                nextLevel: won ? nextLevel : nil)
+                                randomGame: { playRandomGame(source: "game_over_random") })
             }
         }
+        .overlay { ConfettiView(trigger: confetti).ignoresSafeArea() }
         .foregroundStyle(GameTheme.ink)
         .tint(GameTheme.accent)
-        .animation(.easeInOut(duration: 0.25), value: engine.state)
+        .animation(.spring(duration: 0.35, bounce: 0.25), value: engine.state)
+        .animation(.spring(duration: 0.4, bounce: 0.3), value: autoAdvancing)
+        .onAppear {
+            if reduceMotion { contentShown = true }
+            else { withAnimation(.spring(duration: 0.45, bounce: 0.2).delay(0.05)) { contentShown = true } }
+        }
         .onAppear {
             AppAnalytics.screen("game_\(gameID.rawValue)")
             if !hasStartedRound {
@@ -150,6 +179,21 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                       won: won, newRecord: isNewHighScore,
                                       timeBonus: hasCardTimer ? awardedTimeBonus : nil)
                 if won { Haptics.success() } else { Haptics.error() }
+                // Wins and new records get a confetti shower.
+                if won || isNewHighScore { confetti += 1 }
+                SoundFX.play(won ? .win : .lose)
+                if won, let nextLevel {
+                    autoAdvancing = true
+                    Task {
+                        // Let the final move and the banner register before switching.
+                        try? await Task.sleep(for: .milliseconds(1700))
+                        guard case .gameOver(won: true) = engine.state else {
+                            autoAdvancing = false
+                            return
+                        }
+                        nextLevel()
+                    }
+                }
             }
         }
         .task {
@@ -162,8 +206,15 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         }
     }
 
+    private func playRandomGame(source: String) {
+        if let id = GameID.allCases.filter({ $0 != gameID }).randomElement() {
+            playGame(id, source: source)
+        }
+    }
+
     private func restart() {
         Haptics.tap()
+        autoAdvancing = false
         let wasPaused = engine.state == .paused
         let wasCompleted: Bool
         if case .gameOver = engine.state { wasCompleted = true } else { wasCompleted = false }
@@ -193,6 +244,11 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                headerButton(soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                             label: L10n.text(soundEnabled ? "Sound On" : "Sound Off")) {
+                    Haptics.tap()
+                    soundEnabled.toggle()
+                }
                 headerButton("pause.fill", label: L10n.text("Paused")) {
                     if engine.state == .playing {
                         Haptics.tap()
@@ -227,10 +283,12 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 .background(accent ? GameTheme.accent.opacity(0.1) : GameTheme.surfaceHigh, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                Text(value, format: .number)
-                    .font(.title3.bold().monospacedDigit())
-                    .contentTransition(.numericText())
-                    .foregroundStyle(.primary)
+                Group {
+                    if accent { LiveScoreText(value: value) }
+                    else { Text(value, format: .number).contentTransition(.numericText()) }
+                }
+                .font(.title3.bold().monospacedDigit())
+                .foregroundStyle(.primary)
             }
             Spacer(minLength: 0)
         }
@@ -322,6 +380,7 @@ private struct SecondaryButton: View {
 struct PauseOverlay: View {
     let resume: () -> Void
     let restart: () -> Void
+    let randomGame: () -> Void
     let exit: () -> Void
 
     var body: some View {
@@ -337,6 +396,7 @@ struct PauseOverlay: View {
             VStack(spacing: 10) {
                 PrimaryButton(title: L10n.text("Resume"), symbol: "play.fill", action: resume)
                 SecondaryButton(title: L10n.text("Restart"), symbol: "arrow.counterclockwise", action: restart)
+                SecondaryButton(title: L10n.text("Random Game"), symbol: "shuffle", action: randomGame)
                 SecondaryButton(title: L10n.text("Main Menu"), symbol: "house", action: exit)
             }
         }
@@ -345,6 +405,9 @@ struct PauseOverlay: View {
 }
 
 struct GameOverOverlay: View {
+    @State private var shownScore = 0.0
+    @State private var appeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let won: Bool
     let score: Int
     let highScore: Int
@@ -354,15 +417,16 @@ struct GameOverOverlay: View {
     let playAgain: () -> Void
     let mainMenu: () -> Void
     let randomGame: () -> Void
-    var nextLevel: (() -> Void)? = nil
 
     var body: some View {
         OverlayCard {
-            Image(systemName: won ? "trophy.fill" : "flag.checkered")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(GameTheme.accent)
-                .frame(width: 76, height: 76)
-                .background(GameTheme.accent.opacity(0.1), in: Circle())
+            Image(systemName: won ? "trophy.fill" : isNewHighScore ? "star.fill" : "flag.checkered")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundStyle(won || isNewHighScore ? Color.yellow : GameTheme.accent)
+                .frame(width: 80, height: 80)
+                .background((won || isNewHighScore ? Color.orange : GameTheme.accent).opacity(0.15), in: Circle())
+                .symbolEffect(.bounce, value: appeared)
+                .scaleEffect(appeared || reduceMotion ? 1 : 0.4)
             VStack(spacing: 8) {
                 Text(resultTitle ?? L10n.text(won ? "You Win!" : "Game Over"))
                     .font(.largeTitle.bold()).foregroundStyle(.primary)
@@ -372,12 +436,16 @@ struct GameOverOverlay: View {
             }
             VStack(spacing: 8) {
                 Text(L10n.text("Score")).font(.subheadline).foregroundStyle(.secondary)
-                Text(score, format: .number)
+                CountingText(value: shownScore)
                     .font(.system(size: 52, weight: .bold, design: .rounded))
                     .monospacedDigit().foregroundStyle(.primary)
                 if isNewHighScore {
                     Label(L10n.text("New High Score!"), systemImage: "trophy.fill")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(GameTheme.accent)
+                        .font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(LinearGradient(colors: [.orange, .pink], startPoint: .leading, endPoint: .trailing), in: Capsule())
+                        .scaleEffect(appeared || reduceMotion ? 1 : 0.3)
+                        .shadow(color: .orange.opacity(0.5), radius: 8)
                 } else {
                     Text(L10n.format("Best: %d", highScore)).font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -391,9 +459,6 @@ struct GameOverOverlay: View {
                         .font(.title3.bold()).frame(maxWidth: .infinity).padding(.vertical, 22)
                         .foregroundStyle(.white).background(GameTheme.accent, in: Capsule())
                 }.buttonStyle(.plain)
-                if let nextLevel {
-                    SecondaryButton(title: L10n.text("Next level"), symbol: "arrow.right", action: nextLevel)
-                }
                 SecondaryButton(title: L10n.text("Random Game"), symbol: "shuffle", action: randomGame)
                 Button(action: mainMenu) {
                     Label(L10n.text("Home"), systemImage: "house")
@@ -402,5 +467,12 @@ struct GameOverOverlay: View {
             }
         }
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        .onAppear {
+            guard !reduceMotion else { shownScore = Double(score); appeared = true; return }
+            withAnimation(.spring(duration: 0.5, bounce: 0.45).delay(0.15)) { appeared = true }
+            // Count the score up, longer for bigger numbers.
+            withAnimation(.easeOut(duration: min(1.4, 0.5 + Double(score) / 4000)).delay(0.2)) { shownScore = Double(score) }
+        }
+        .onChange(of: score) { _, value in shownScore = Double(value) }
     }
 }

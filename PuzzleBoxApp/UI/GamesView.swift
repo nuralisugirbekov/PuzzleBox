@@ -57,7 +57,7 @@ struct CategoryGamesView: View {
 
     var body: some View {
         ScrollView {
-            GameGrid(games: GameID.visibleGames.filter { $0.info.category == category },
+            GameGrid(games: GameID.allCases.filter { $0.info.category == category },
                      source: "category")
                 .padding(.horizontal)
                 .padding(.bottom)

@@ -166,7 +166,7 @@ extension GameCategory {
     }
 
     var games: [GameID] {
-        GameID.visibleGames.filter { $0.info.category == self }
+        GameID.allCases.filter { $0.info.category == self }
     }
 }
 
@@ -221,12 +221,12 @@ extension GameID {
         let gameKey = "dailyGame.id"
         if defaults.double(forKey: dateKey) == day,
            let raw = defaults.string(forKey: gameKey),
-           let saved = GameID(rawValue: raw), saved.isVisible {
+           let saved = GameID(rawValue: raw) {
             return saved
         }
         let previous = defaults.string(forKey: gameKey)
-        let candidates = visibleGames.filter { $0.rawValue != previous }
-        let selected = candidates.randomElement() ?? visibleGames.randomElement() ?? .bounce
+        let candidates = allCases.filter { $0.rawValue != previous }
+        let selected = candidates.randomElement() ?? allCases.randomElement() ?? .bounce
         defaults.set(selected.rawValue, forKey: gameKey)
         defaults.set(day, forKey: dateKey)
         return selected

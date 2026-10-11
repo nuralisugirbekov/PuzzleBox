@@ -2,58 +2,48 @@ import SwiftUI
 
 struct VisualView:View {
     @State private var engine:VisualEngine
-    @State private var dragOrigin:CGPoint?
     init(mode:VisualMode) { _engine = State(initialValue:VisualEngine(mode:mode)) }
-    private let pieceColors:[Color] = [.cyan,.pink,.orange,.green,.purple,.yellow,.mint]
+    private let pictureColors:[Color] = [.cyan,.pink,.orange,.green,.purple,.yellow,.mint]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body:some View {
-        GameContainerView(gameID:engine.mode.id,engine:engine,centersContent:true,nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil) {
+        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.levelIndex+1),centersContent:true,nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil) {
             VStack(spacing:12) {
-                Menu {
-                    ForEach(0..<engine.levelCount,id: \.self) { level in
-                        Button(L10n.format("Level %d",level+1)) { engine.loadLevel(level) }
-                    }
-                } label: {
-                    Label(L10n.format("Level %d",engine.levelIndex+1),systemImage:"square.grid.2x2")
-                }
-
-                HStack { Text(L10n.format("%d moves",engine.moves)); Spacer(); if engine.mode == .spotDifference { Text("\(engine.marks.count) / \(engine.targets.count)") } }.font(.subheadline.monospacedDigit()).foregroundStyle(GameTheme.accent)
-                GeometryReader { geometry in
-                    Canvas { context,size in context.scaleBy(x:size.width/320,y:size.height/460); draw(&context) }
-                        .background(GameTheme.arena, in: RoundedRectangle(cornerRadius: 24))
-                    .environment(\.colorScheme, .dark).clipShape(RoundedRectangle(cornerRadius:24))
-                        .contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance:0)
-                            .onChanged { v in
-                                if engine.mode == .tangram {
-                                    if dragOrigin == nil { dragOrigin = engine.piecePosition }
-                                    if let origin = dragOrigin { engine.movePiece(CGPoint(x:origin.x+v.translation.width/geometry.size.width*320,y:origin.y+v.translation.height/geometry.size.height*460)) }
-                                }
-                            }
-                            .onEnded { v in
-                                if engine.mode == .tangram { engine.dropPiece(); dragOrigin = nil }
-                                else { interact(CGPoint(x:v.location.x/geometry.size.width*320,y:v.location.y/geometry.size.height*460)) }
-                            })
-                }.aspectRatio(320.0/460,contentMode:.fit).frame(maxWidth:380,maxHeight:460)
-                if engine.mode == .tangram {
-                    HStack(spacing:5) {
-                        ForEach(0..<7,id:\.self) { i in
-                            Button { engine.selectPiece(i) } label: {
-                                Text(engine.marks.contains(i) ? "✓" : String(i+1)).font(.subheadline.bold()).frame(width:28,height:34)
-                                    .background(pieceColors[i].opacity(engine.selected == i ? 0.8 : 0.25),in:RoundedRectangle(cornerRadius:6))
-                            }.disabled(engine.marks.contains(i))
+                HStack(spacing:10) {
+                    Menu {
+                        ForEach(0..<engine.levelCount,id: \.self) { level in
+                            Button(L10n.format("Level %d",level+1)) { engine.loadLevel(level) }
                         }
-                        Button { engine.rotatePiece() } label: { Image(systemName:"rotate.right").frame(width:32,height:34) }.accessibilityLabel(L10n.text("Rotate"))
-                    }.foregroundStyle(GameTheme.ink)
-                }
-                if engine.mode == .pixelPuzzle {
-                    HStack {
-                        ForEach(0...4,id:\.self) { i in
-                            Button { engine.color(i) } label: {
-                                Circle().fill(VisualEngine.palette[i]).frame(width:40,height:40)
-                                    .overlay { if engine.paint == i { Image(systemName:"checkmark").foregroundStyle(i == 0 ? GameTheme.ink : .white) } }
-                            }
-                        }
+                    } label: {
+                        Label(L10n.format("Level %d",engine.levelIndex+1),systemImage:"square.grid.2x2")
                     }
+                    Text(L10n.format("%d moves",engine.moves))
+                    Spacer()
+                    HStack(spacing:1) {
+                        ForEach(0..<3,id:\.self) { i in
+                            Image(systemName:i < engine.stars ? "star.fill" : "star").foregroundStyle(i < engine.stars ? Color.yellow : GameTheme.textSecondary)
+                        }
+                    }.font(.caption)
+                    if engine.mode == .matchstick {
+                        Button { engine.resetMatches() } label: { Image(systemName:"arrow.counterclockwise.circle") }
+                            .accessibilityLabel(L10n.text("Reset"))
+                    }
+                }
+                .font(.subheadline.monospacedDigit()).foregroundStyle(GameTheme.accent)
+                switch engine.mode {
+                case .rotatePuzzle: rotateBoard
+                case .matchstick:
+                    Text(L10n.format(engine.matchesToMove == 1 ? "Move %d match" : "Move %d matches", engine.matchesToMove - engine.matchesMoved))
+                        .font(.headline).foregroundStyle(.orange)
+                    GeometryReader { geometry in
+                        Canvas { context,size in context.scaleBy(x:size.width/320,y:size.height/460); draw(&context) }
+                            .arenaBackground()
+                            .environment(\.colorScheme, .dark).clipShape(RoundedRectangle(cornerRadius:24))
+                            .contentShape(Rectangle())
+                            .gesture(DragGesture(minimumDistance:0)
+                                .onEnded { v in
+                                    interact(CGPoint(x:v.location.x/geometry.size.width*320,y:v.location.y/geometry.size.height*460))
+                                })
+                    }.aspectRatio(320.0/460,contentMode:.fit).frame(maxWidth:380,maxHeight:460)
                 }
                 if !engine.feedback.isEmpty { Text(L10n.text(engine.feedback)).font(.caption).foregroundStyle(.orange) }
                 Text(L10n.text(engine.mode.hint)).font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
@@ -61,28 +51,54 @@ struct VisualView:View {
         }
         .id(engine.levelIndex)
     }
-    private func index(_ p:CGPoint,x:CGFloat,y:CGFloat,cell:CGFloat,n:Int) -> Int? {
-        let dx = p.x-x,dy = p.y-y
-        guard dx >= 0,dy >= 0,dx < CGFloat(n)*cell,dy < CGFloat(n)*cell else { return nil }
-        return Int(dy/cell)*n+Int(dx/cell)
+
+    /// Each tile is its own view so a tap animates a smooth quarter turn.
+    private var rotateBoard: some View {
+        VStack(spacing:14) {
+            Canvas { context,size in picture(rect:CGRect(origin:.zero,size:size),context:&context) }
+                .frame(width:90,height:90).clipShape(RoundedRectangle(cornerRadius:12))
+                .overlay { RoundedRectangle(cornerRadius:12).strokeBorder(.white.opacity(0.4),lineWidth:2) }
+                .accessibilityLabel(L10n.text("Target picture"))
+            GeometryReader { geo in
+                let side = min(geo.size.width,geo.size.height)
+                let n = engine.size
+                let tile = side/CGFloat(n)
+                ZStack(alignment:.topLeading) {
+                    ForEach(engine.cells.indices,id:\.self) { i in
+                        let r = i/n, c = i%n
+                        Canvas { context,_ in
+                            picture(rect:CGRect(x:-CGFloat(c)*tile,y:-CGFloat(r)*tile,width:side,height:side),context:&context)
+                        }
+                        .frame(width:tile,height:tile)
+                        .rotationEffect(.degrees(Double(engine.turns.indices.contains(i) ? engine.turns[i] : 0)*90))
+                        .animation(reduceMotion ? nil : .spring(duration:0.3,bounce:0.25),value:engine.turns.indices.contains(i) ? engine.turns[i] : 0)
+                        .clipShape(Rectangle())
+                        .overlay {
+                            // Tiles already in place lose their seam, a gentle hint of progress.
+                            Rectangle().strokeBorder(engine.isCorrect(i) ? Color.clear : Color.black.opacity(0.35),lineWidth:1)
+                        }
+                        .offset(x:CGFloat(c)*tile,y:CGFloat(r)*tile)
+                        .onTapGesture { engine.tap(i) }
+                    }
+                }
+                .frame(width:side,height:side)
+                .clipShape(RoundedRectangle(cornerRadius:16))
+                .frame(maxWidth:.infinity,maxHeight:.infinity)
+            }
+            .aspectRatio(1,contentMode:.fit).frame(maxWidth:380)
+        }
     }
+
     private func interact(_ p:CGPoint) {
         switch engine.mode {
-        case .spotDifference: if let i = index(p,x:74,y:250,cell:43,n:4) { engine.tap(i) }
-        case .hiddenObject: if let i = index(p,x:4,y:100,cell:52,n:6) { engine.tap(i) }
-        case .rotatePuzzle: if let i = index(p,x:25,y:150,cell:90,n:3) { engine.tap(i) }
-        case .symmetry: if let i = index(p,x:25,y:75,cell:45,n:6) { engine.tap(i) }
-        case .pixelPuzzle: if let i = index(p,x:40,y:165,cell:48,n:5) { engine.tap(i) }
-        case .shadowMatch,.patternMatch,.foldIt:
-            for i in 0..<4 where optionRect(i).contains(p) { engine.tap(i); break }
+        case .rotatePuzzle: break
         case .matchstick:
             let segments = matchSegments()
             let candidates = segments.indices.filter { engine.selectedMatch != nil || engine.cells[$0] == 1 }
             if let i = candidates.min(by: { distance(p,segments[$0]) < distance(p,segments[$1]) }),distance(p,segments[i]) < 13 { engine.tap(i) }
-        case .tangram: break
         }
     }
-    private func optionRect(_ i:Int) -> CGRect { CGRect(x:i%2 == 0 ? 25 : 175,y:i/2 == 0 ? 180 : 320,width:120,height:120) }
+
     private func distance(_ p:CGPoint,_ line:(CGPoint,CGPoint)) -> CGFloat {
         let (a,b) = line,dx = b.x-a.x,dy = b.y-a.y
         let t = min(1,max(0,((p.x-a.x)*dx+(p.y-a.y)*dy)/max(1,dx*dx+dy*dy)))
@@ -96,142 +112,96 @@ struct VisualView:View {
         return digit(16)+[(CGPoint(x:78,y:213),CGPoint(x:108,y:213)),(CGPoint(x:93,y:198),CGPoint(x:93,y:228))]+digit(130)+digit(262)
     }
     private func draw(_ context:inout GraphicsContext) {
-        func icon(_ id:Int,_ rect:CGRect,_ color:Color = .cyan) {
-            var image = context.resolve(Image(systemName:AttentionEngine.symbols[id%AttentionEngine.symbols.count])); image.shading = .color(color); context.draw(image,in:rect)
-        }
-        func box(_ rect:CGRect,_ color:Color) { context.fill(Path(roundedRect:rect,cornerRadius:6),with:.color(color)) }
+
         func line(_ a:CGPoint,_ b:CGPoint,_ color:Color,_ width:CGFloat = 2) {
             var path = Path(); path.move(to:a); path.addLine(to:b); context.stroke(path,with:.color(color),style:StrokeStyle(lineWidth:width,lineCap:.round))
         }
-        func grid(_ values:[Int],n:Int,origin:CGPoint,cell:CGFloat,pixels:Bool = false) {
-            for i in values.indices {
-                let rect = CGRect(x:origin.x+CGFloat(i%n)*cell+1,y:origin.y+CGFloat(i/n)*cell+1,width:cell-2,height:cell-2)
-                box(rect,pixels ? VisualEngine.palette[values[i]] : (values[i] == 1 ? .cyan : GameTheme.surfaceHigh))
-            }
-        }
+
         switch engine.mode {
-        case .spotDifference:
-            for (values,y) in [(engine.reference,CGFloat(20)),(engine.cells,CGFloat(250))] {
-                for i in values.indices {
-                    let rect = CGRect(x:74+CGFloat(i%4)*43,y:y+CGFloat(i/4)*43,width:43,height:43)
-                    icon(values[i],rect.insetBy(dx:8,dy:8))
-                    if y == 250 && engine.marks.contains(i) { context.stroke(Path(roundedRect:rect.insetBy(dx:1,dy:1),cornerRadius:5),with:.color(GameTheme.accent),lineWidth:2) }
-                }
-            }
-            line(CGPoint(x:30,y:225),CGPoint(x:290,y:225),GameTheme.stroke)
-        case .hiddenObject:
-            icon(engine.reference[0],CGRect(x:140,y:20,width:40,height:40),GameTheme.accent)
-            for i in engine.cells.indices { icon(engine.cells[i],CGRect(x:12+CGFloat(i%6)*52,y:108+CGFloat(i/6)*52,width:35,height:35),pieceColors[i%pieceColors.count]) }
-        case .shadowMatch:
-            shape(engine.reference[0],rect:CGRect(x:110,y:25,width:100,height:115),color:.cyan,context:&context)
-            for i in engine.options.indices { let rect = optionRect(i); box(rect,.white.opacity(0.9)); shape(engine.options[i],rect:rect.insetBy(dx:17,dy:17),color:.black,context:&context) }
-        case .rotatePuzzle:
-            picture(rect:CGRect(x:110,y:15,width:100,height:100),context:&context)
-            for i in engine.cells.indices {
-                let rect = CGRect(x:25+CGFloat(i%3)*90,y:150+CGFloat(i/3)*90,width:90,height:90)
-                var tile = context; tile.clip(to:Path(rect.insetBy(dx:1,dy:1)))
-                tile.translateBy(x:rect.midX,y:rect.midY); tile.rotate(by:.degrees(Double(engine.cells[i]*90))); tile.translateBy(x:-rect.midX,y:-rect.midY)
-                picture(rect:CGRect(x:25,y:150,width:270,height:270),context:&tile)
-            }
-        case .symmetry:
-            grid(engine.cells,n:6,origin:CGPoint(x:25,y:75),cell:45)
-            line(CGPoint(x:160,y:65),CGPoint(x:160,y:355),GameTheme.accent,3)
-        case .patternMatch:
-            for i in engine.reference.indices { icon(engine.reference[i],CGRect(x:30+CGFloat(i%4)*70,y:30+CGFloat(i/4)*55,width:30,height:30)) }
-            context.draw(Text("?").font(.title.bold()).foregroundStyle(GameTheme.accent),at:CGPoint(x:160,y:145))
-            for i in engine.options.indices { let rect = optionRect(i); box(rect,GameTheme.surfaceHigh); icon(engine.options[i],rect.insetBy(dx:38,dy:38)) }
-        case .tangram:
-            for piece in 0..<7 {
-                var guide = Path()
-                for (i,q) in engine.targetPoints(piece).enumerated() {
-                    if i == 0 { guide.move(to:q) } else { guide.addLine(to:q) }
-                }
-                guide.closeSubpath()
-                context.fill(guide,with:.color(.white.opacity(0.13)))
-                context.stroke(guide,with:.color(.white.opacity(0.25)),lineWidth:1)
-            }
-            for i in engine.marks.sorted() { drawPiece(i,at:engine.targetCenter(i),turn:engine.targetTurn,context:&context) }
-            if !engine.marks.contains(engine.selected) { drawPiece(engine.selected,at:engine.piecePosition,turn:engine.turns[engine.selected],context:&context) }
-        case .pixelPuzzle:
-            grid(engine.reference,n:5,origin:CGPoint(x:110,y:15),cell:20,pixels:true)
-            grid(engine.cells,n:5,origin:CGPoint(x:40,y:165),cell:48,pixels:true)
-        case .foldIt:
-            for r in 0..<4 { for c in 0..<4 {
-                let active = (engine.foldAxis == 1 || c >= 2) && (engine.foldAxis == 0 || r >= 2)
-                box(CGRect(x:110+CGFloat(c)*25,y:15+CGFloat(r)*25,width:24,height:24),active ? .cyan : GameTheme.surfaceHigh)
-            } }
-            let hole = CGPoint(x:122.5+CGFloat(engine.hole%4)*25,y:27.5+CGFloat(engine.hole/4)*25)
-            context.fill(Path(ellipseIn:CGRect(x:hole.x-5,y:hole.y-5,width:10,height:10)),with:.color(.black))
-            context.draw(Text(engine.foldAxis == 0 ? "→" : engine.foldAxis == 1 ? "↓" : "→ ↓").font(.title).foregroundStyle(GameTheme.accent),at:CGPoint(x:160,y:140))
-            for i in engine.patterns.indices {
-                let rect = optionRect(i); box(rect,.white.opacity(0.9))
-                for j in 0..<16 where engine.patterns[i][j] == 1 {
-                    let p = CGPoint(x:rect.minX+(CGFloat(j%4)+0.5)*30,y:rect.minY+(CGFloat(j/4)+0.5)*30)
-                    context.fill(Path(ellipseIn:CGRect(x:p.x-5,y:p.y-5,width:10,height:10)),with:.color(.black))
-                }
-            }
+        case .rotatePuzzle: break // Drawn by `rotateBoard` as individual tiles.
         case .matchstick:
             for (i,segment) in matchSegments().enumerated() {
-                line(segment.0,segment.1,engine.cells[i] == 1 ? (engine.selectedMatch == i ? GameTheme.accent : .orange) : .white.opacity(engine.selectedMatch == nil ? 0.12 : 0.32),5)
+                if engine.cells[i] == 1 {
+                    line(segment.0,segment.1,engine.selectedMatch == i ? GameTheme.accent.opacity(0.4) : .black.opacity(0.4),11)
+                    line(segment.0,segment.1,engine.selectedMatch == i ? GameTheme.accent : Color(red:0.95,green:0.75,blue:0.45),6)
+                } else {
+                    line(segment.0,segment.1,.white.opacity(engine.selectedMatch == nil ? 0.1 : 0.3),5)
+                }
                 if engine.cells[i] == 1 { context.fill(Path(ellipseIn:CGRect(x:segment.0.x-3,y:segment.0.y-3,width:6,height:6)),with:.color(.red)) }
             }
             line(CGPoint(x:197,y:204),CGPoint(x:229,y:204),.white,4)
             line(CGPoint(x:197,y:223),CGPoint(x:229,y:223),.white,4)
         }
     }
-    private func drawPiece(_ index:Int,at p:CGPoint,turn:Int,context:inout GraphicsContext) {
-        let center = VisualEngine.centroid(index),angle = CGFloat(turn)*CGFloat.pi/2
-        var path = Path()
-        for (i,point) in VisualEngine.pieces[index].enumerated() {
-            let x = (point.x-center.x)*engine.pieceScale,y = (point.y-center.y)*engine.pieceScale
-            let q = CGPoint(x:p.x+x*cos(angle)-y*sin(angle),y:p.y+x*sin(angle)+y*cos(angle))
-            if i == 0 { path.move(to:q) } else { path.addLine(to:q) }
-        }
-        path.closeSubpath(); context.fill(path,with:.color(pieceColors[index])); context.stroke(path,with:.color(GameTheme.background),lineWidth:2)
-    }
-    private func shape(_ id:Int,rect:CGRect,color:Color,context:inout GraphicsContext) {
-        let outlines:[[(CGFloat,CGFloat)]] = [
-            [(0.1,1),(0.1,0.4),(0.5,0),(0.9,0.4),(0.9,1),(0.6,1),(0.6,0.65),(0.4,0.65),(0.4,1)],
-            [(0.5,0),(0.7,0.3),(0.7,0.6),(1,0.9),(0.6,0.85),(0.5,1),(0.4,0.85),(0,0.9),(0.3,0.6),(0.3,0.3)],
-            [(0,0.65),(0.4,0.65),(0.4,0.2),(0.65,0),(0.85,0.1),(0.85,0.25),(1,0.3),(0.8,0.4),(0.8,0.8),(0.5,1),(0.15,0.9)],
-            [(0.1,0.3),(0.3,0.3),(0.3,0),(0.6,0),(0.6,0.3),(0.9,0.3),(0.9,0.6),(0.65,0.6),(0.65,1),(0.35,1),(0.35,0.6),(0.1,0.6)],
-            [(0,0.1),(0.4,0.25),(0.9,0),(1,0.4),(0.7,0.7),(0.5,1),(0.15,0.8),(0.3,0.5)],
-            [(0.1,0.1),(0.45,0.1),(0.45,0.45),(0.9,0.45),(0.9,0.8),(0.6,0.8),(0.6,1),(0.1,1)]
-        ]
-        var path = Path()
-        for (i,point) in outlines[id].enumerated() { let p = CGPoint(x:rect.minX+point.0*rect.width,y:rect.minY+point.1*rect.height); if i == 0 { path.move(to:p) } else { path.addLine(to:p) } }
-        path.closeSubpath(); context.fill(path,with:.color(color))
-    }
+
+    /// Five painted scenes cycle through the levels; a small corner tick on every
+    /// tile region keeps each tile's orientation readable even on plain areas.
     private func picture(rect:CGRect,context:inout GraphicsContext) {
         var c = context; c.translateBy(x:rect.minX,y:rect.minY); c.scaleBy(x:rect.width/300,y:rect.height/300)
-        if engine.levelIndex > 0 {
-            let backgrounds: [Color] = [.indigo,.teal,.purple,.blue,.orange,.pink]
-            c.fill(Path(CGRect(x:0,y:0,width:300,height:300)),with:.color(backgrounds[engine.levelIndex % backgrounds.count].opacity(0.5)))
-            for i in 0..<9 {
-                let x = CGFloat(i%3)*100, y = CGFloat(i/3)*100
-                let symbol = AttentionEngine.symbols[(i+engine.levelIndex*3)%AttentionEngine.symbols.count]
-                var image = c.resolve(Image(systemName:symbol)); image.shading = .color(pieceColors[(i+engine.levelIndex)%pieceColors.count])
-                c.draw(image,in:CGRect(x:x+22,y:y+15,width:56,height:56))
-                var marker = Path(); marker.move(to:CGPoint(x:x+12,y:y+70)); marker.addLine(to:CGPoint(x:x+12,y:y+87)); marker.addLine(to:CGPoint(x:x+40,y:y+87))
-                c.stroke(marker,with:.color(.white.opacity(0.7)),lineWidth:3)
-            }
-            return
+        func fill(_ path:Path,_ color:Color) { c.fill(path,with:.color(color)) }
+        func gradient(_ r:CGRect,_ top:Color,_ bottom:Color) {
+            c.fill(Path(r),with:.linearGradient(Gradient(colors:[top,bottom]),startPoint:CGPoint(x:r.midX,y:r.minY),endPoint:CGPoint(x:r.midX,y:r.maxY)))
         }
-        c.fill(Path(CGRect(x:0,y:0,width:300,height:300)),with:.color(.cyan.opacity(0.45)))
-        c.fill(Path(ellipseIn:CGRect(x:205,y:22,width:65,height:65)),with:.color(.yellow))
-        var mountains = Path(); mountains.move(to:CGPoint(x:0,y:240)); mountains.addLine(to:CGPoint(x:90,y:65)); mountains.addLine(to:CGPoint(x:190,y:240)); mountains.addLine(to:CGPoint(x:235,y:145)); mountains.addLine(to:CGPoint(x:300,y:220)); mountains.addLine(to:CGPoint(x:300,y:300)); mountains.addLine(to:CGPoint(x:0,y:300)); mountains.closeSubpath()
-        c.fill(mountains,with:.color(.indigo))
-        var river = Path(); river.move(to:CGPoint(x:160,y:170)); river.addCurve(to:CGPoint(x:90,y:300),control1:CGPoint(x:250,y:230),control2:CGPoint(x:55,y:240)); c.stroke(river,with:.color(.mint),lineWidth:23)
-        c.fill(Path(CGRect(x:28,y:213,width:43,height:42)),with:.color(.orange))
-        var roof = Path(); roof.move(to:CGPoint(x:20,y:214)); roof.addLine(to:CGPoint(x:50,y:189)); roof.addLine(to:CGPoint(x:80,y:214)); roof.closeSubpath(); c.fill(roof,with:.color(.pink))
-        // Asymmetric motifs make every tile's orientation visually distinguishable.
-        for r in 0..<3 { for col in 0..<3 {
-            let x = CGFloat(col * 100 + 18), y = CGFloat(r * 100 + 30)
-            var motif = Path(); motif.move(to:CGPoint(x:x,y:y+18))
-            motif.addLine(to:CGPoint(x:x+6,y:y)); motif.addLine(to:CGPoint(x:x+20,y:y+9))
-            c.stroke(motif,with:.color(r == 0 ? .white : .green),style:StrokeStyle(lineWidth:3,lineCap:.round))
-            c.fill(Path(ellipseIn:CGRect(x:x+15,y:y+4,width:8,height:8)),with:.color(r == 0 ? .white : .pink))
+        func circle(_ x:CGFloat,_ y:CGFloat,_ r:CGFloat,_ color:Color) { fill(Path(ellipseIn:CGRect(x:x-r,y:y-r,width:r*2,height:r*2)),color) }
+        let full = CGRect(x:0,y:0,width:300,height:300)
+        switch engine.levelIndex % 5 {
+        case 0: // Mountain valley
+            gradient(full,Color(red:0.45,green:0.8,blue:1),Color(red:0.75,green:0.92,blue:1))
+            circle(238,55,32,.yellow)
+            var mountains = Path(); mountains.move(to:CGPoint(x:0,y:240)); mountains.addLine(to:CGPoint(x:90,y:65)); mountains.addLine(to:CGPoint(x:190,y:240)); mountains.addLine(to:CGPoint(x:235,y:145)); mountains.addLine(to:CGPoint(x:300,y:220)); mountains.addLine(to:CGPoint(x:300,y:300)); mountains.addLine(to:CGPoint(x:0,y:300)); mountains.closeSubpath()
+            fill(mountains,.indigo)
+            var snow = Path(); snow.move(to:CGPoint(x:72,y:100)); snow.addLine(to:CGPoint(x:90,y:65)); snow.addLine(to:CGPoint(x:108,y:100)); snow.closeSubpath(); fill(snow,.white)
+            var river = Path(); river.move(to:CGPoint(x:160,y:170)); river.addCurve(to:CGPoint(x:90,y:300),control1:CGPoint(x:250,y:230),control2:CGPoint(x:55,y:240)); c.stroke(river,with:.color(.mint),lineWidth:23)
+            fill(Path(CGRect(x:28,y:213,width:43,height:42)),.orange)
+            var roof = Path(); roof.move(to:CGPoint(x:20,y:214)); roof.addLine(to:CGPoint(x:50,y:189)); roof.addLine(to:CGPoint(x:80,y:214)); roof.closeSubpath(); fill(roof,.pink)
+            for (x,y) in [(30,35),(100,15),(5,125),(255,265)] { fill(Path(ellipseIn:CGRect(x:CGFloat(x),y:CGFloat(y),width:28,height:12)),.white.opacity(0.8)) }
+        case 1: // Night city
+            gradient(full,Color(red:0.05,green:0.05,blue:0.2),Color(red:0.3,green:0.15,blue:0.45))
+            circle(70,60,26,Color(red:1,green:0.95,blue:0.75)); circle(82,52,24,Color(red:0.08,green:0.07,blue:0.25))
+            for k in 0..<25 { circle(CGFloat((k*67)%300),CGFloat((k*41)%150),1.6,.white.opacity(0.8)) }
+            let heights:[CGFloat] = [120,180,95,210,140,165,105]
+            for (k,h) in heights.enumerated() {
+                let x = CGFloat(k)*43
+                fill(Path(CGRect(x:x,y:300-h,width:40,height:h)),Color(red:0.12,green:0.12,blue:0.25))
+                for wy in stride(from:300-h+12,to:290,by:20) { for wx in [x+8,x+24] where (Int(wy)+Int(wx)+k).isMultiple(of:3) { fill(Path(CGRect(x:wx,y:wy,width:8,height:10)),.yellow.opacity(0.85)) } }
+            }
+        case 2: // Sunset sea
+            gradient(CGRect(x:0,y:0,width:300,height:170),Color(red:0.98,green:0.45,blue:0.35),Color(red:1,green:0.8,blue:0.45))
+            circle(150,165,48,Color(red:1,green:0.9,blue:0.4))
+            gradient(CGRect(x:0,y:165,width:300,height:135),Color(red:0.15,green:0.35,blue:0.65),Color(red:0.05,green:0.15,blue:0.35))
+            for k in 0..<6 { fill(Path(roundedRect:CGRect(x:CGFloat(60+k*12),y:CGFloat(185+k*16),width:CGFloat(180-k*24),height:4),cornerRadius:2),.yellow.opacity(0.5)) }
+            var boat = Path(); boat.move(to:CGPoint(x:40,y:230)); boat.addLine(to:CGPoint(x:100,y:230)); boat.addLine(to:CGPoint(x:90,y:245)); boat.addLine(to:CGPoint(x:50,y:245)); boat.closeSubpath(); fill(boat,Color(red:0.3,green:0.15,blue:0.1))
+            var sail = Path(); sail.move(to:CGPoint(x:70,y:228)); sail.addLine(to:CGPoint(x:70,y:180)); sail.addLine(to:CGPoint(x:98,y:228)); sail.closeSubpath(); fill(sail,.white)
+            for (x,y) in [(210,60),(240,75),(225,95)] { var bird = Path(); bird.move(to:CGPoint(x:x-8,y:y)); bird.addQuadCurve(to:CGPoint(x:x,y:y),control:CGPoint(x:x-4,y:y-6)); bird.addQuadCurve(to:CGPoint(x:x+8,y:y),control:CGPoint(x:x+4,y:y-6)); c.stroke(bird,with:.color(.black.opacity(0.6)),lineWidth:2) }
+        case 3: // Flower meadow
+            gradient(full,Color(red:0.6,green:0.88,blue:1),Color(red:0.85,green:0.95,blue:1))
+            fill(Path(ellipseIn:CGRect(x:-60,y:150,width:260,height:200)),Color(red:0.35,green:0.7,blue:0.3))
+            fill(Path(ellipseIn:CGRect(x:120,y:170,width:260,height:200)),Color(red:0.3,green:0.62,blue:0.25))
+            let petals:[Color] = [.pink,.yellow,.purple,.orange,.red,.white]
+            for k in 0..<14 {
+                let x = CGFloat(20+(k*53)%270), y = CGFloat(200+(k*29)%90)
+                c.stroke(Path { $0.move(to:CGPoint(x:x,y:y)); $0.addLine(to:CGPoint(x:x,y:y+22)) },with:.color(.green),lineWidth:2)
+                for a in 0..<5 { let t = CGFloat(a)/5 * .pi*2; circle(x+cos(t)*6,y+sin(t)*6,4.5,petals[k%petals.count]) }
+                circle(x,y,3.5,.yellow)
+            }
+            circle(60,60,30,.yellow)
+            fill(Path(ellipseIn:CGRect(x:170,y:40,width:70,height:24)),.white); fill(Path(ellipseIn:CGRect(x:190,y:28,width:40,height:30)),.white)
+        default: // Space
+            gradient(full,Color(red:0.03,green:0.02,blue:0.12),Color(red:0.12,green:0.05,blue:0.25))
+            for k in 0..<40 { circle(CGFloat((k*73)%300),CGFloat((k*131)%300),k%5 == 0 ? 2 : 1,.white.opacity(0.85)) }
+            circle(110,170,70,Color(red:0.95,green:0.55,blue:0.3))
+            c.stroke(Path(ellipseIn:CGRect(x:20,y:150,width:180,height:40)),with:.color(Color(red:1,green:0.85,blue:0.6)),lineWidth:6)
+            circle(85,150,12,Color(red:0.8,green:0.4,blue:0.2)); circle(130,195,8,Color(red:0.8,green:0.4,blue:0.2))
+            circle(240,70,22,Color(red:0.6,green:0.8,blue:1)); circle(234,64,6,.white.opacity(0.6))
+            var rocket = Path(); rocket.move(to:CGPoint(x:240,y:220)); rocket.addLine(to:CGPoint(x:255,y:250)); rocket.addLine(to:CGPoint(x:225,y:250)); rocket.closeSubpath(); fill(rocket,.white)
+            fill(Path(ellipseIn:CGRect(x:233,y:250,width:14,height:20)),.orange)
+        }
+        // Corner ticks: one per tile region, always at the region's top-left.
+        let n = engine.size, step = 300/CGFloat(n)
+        for r in 0..<n { for col in 0..<n {
+            let x = CGFloat(col)*step+step*0.1, y = CGFloat(r)*step+step*0.1, len = step*0.18
+            var tick = Path(); tick.move(to:CGPoint(x:x,y:y+len)); tick.addLine(to:CGPoint(x:x,y:y)); tick.addLine(to:CGPoint(x:x+len,y:y))
+            c.stroke(tick,with:.color(.white.opacity(0.75)),style:StrokeStyle(lineWidth:max(2,step*0.035),lineCap:.round,lineJoin:.round))
         } }
-        for (x,y) in [(30,35),(100,15),(5,125),(255,265)] { c.fill(Path(ellipseIn:CGRect(x:CGFloat(x),y:CGFloat(y),width:28,height:12)),with:.color(.white.opacity(0.7))) }
     }
 }

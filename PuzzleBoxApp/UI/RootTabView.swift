@@ -47,7 +47,6 @@ struct RootTabView: View {
                 theme.apply()
             }
             .environment(\.playGame, PlayGameAction { id, source in
-                guard id.isVisible else { return }
                 Haptics.tap()
                 AppAnalytics.selectGame(id, source: source)
                 stats.markOpened(id)
@@ -260,7 +259,6 @@ private struct GameSessionView: View {
         gameView(for: currentGame)
             .id(currentGame)
             .environment(\.playGame, PlayGameAction { id, source in
-                guard id.isVisible else { return }
                 AppAnalytics.selectGame(id, source: source)
                 stats.markOpened(id)
                 currentGame = id

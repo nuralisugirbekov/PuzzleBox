@@ -13,6 +13,11 @@ final class QuickMathEngine: GameEngine {
     private(set) var input = ""
     private(set) var wrongAnswer = false
     private(set) var remaining: TimeInterval = 60
+    /// Correct answers in a row without a mistake.
+    private(set) var streak = 0
+    private(set) var lastGain = 0
+    /// Bumped on every correct answer so the view can flash.
+    private(set) var flash = 0
     private var answer = 0
     private var active = false
     private var anchor: TimeInterval?
@@ -29,6 +34,8 @@ final class QuickMathEngine: GameEngine {
         score = 0
         solved = 0
         mistakes = 0
+        streak = 0
+        lastGain = 0
         input = ""
         wrongAnswer = false
         remaining = 60
@@ -69,7 +76,10 @@ final class QuickMathEngine: GameEngine {
         guard hasStarted, active, state == .playing, (0...9).contains(digit) else { return }
         if wrongAnswer { input = ""; wrongAnswer = false }
         guard input.count < 3 else { return }
+        SoundFX.play(.tap)
         input = input == "0" ? String(digit) : input + String(digit)
+        // Answers check themselves once enough digits are typed.
+        if input.count >= String(answer).count { submit() }
     }
 
     func erase() {
@@ -83,33 +93,47 @@ final class QuickMathEngine: GameEngine {
         guard hasStarted, active, state == .playing, let value = Int(input) else { return }
         if value == answer {
             solved += 1
-            score += 10
-            Haptics.success()
+            streak += 1
+            lastGain = 10 * multiplier
+            score += lastGain
+            flash += 1
+            Haptics.success(); SoundFX.play(multiplier > 1 ? .coin : .point)
             nextProblem()
         } else {
             // Keep the same problem, so repeated guessing cannot skip difficult questions.
             mistakes += 1
+            streak = 0
             wrongAnswer = true
             input = ""
-            Haptics.error()
+            Haptics.error(); SoundFX.play(.wrong)
         }
     }
 
+    /// Every five correct answers bumps the multiplier, up to ×4.
+    var multiplier: Int { min(4, 1 + streak / 5) }
+    /// Problems grow as you solve more of them.
+    var tier: Int { min(4, solved / 6) }
+
     private func nextProblem() {
         let previous = expression
+        let top = 10 + tier * 12
         repeat {
-            let a = Int.random(in: 1...20), b = Int.random(in: 1...20)
-            switch Int.random(in: 0..<4) {
+            let a = Int.random(in: 1...top), b = Int.random(in: 1...top)
+            switch Int.random(in: 0..<(tier >= 3 ? 5 : 4)) {
             case 0: expression = "\(a) + \(b)"; answer = a + b
             case 1: expression = "\(max(a, b)) − \(min(a, b))"; answer = abs(a - b)
             case 2:
-                let x = Int.random(in: 2...12), y = Int.random(in: 2...12)
+                let x = Int.random(in: 2...(6 + tier * 2)), y = Int.random(in: 2...(6 + tier * 2))
                 expression = "\(x) × \(y)"; answer = x * y
-            default:
-                let divisor = Int.random(in: 2...12), quotient = Int.random(in: 1...12)
+            case 3:
+                let divisor = Int.random(in: 2...(6 + tier * 2)), quotient = Int.random(in: 1...(6 + tier * 2))
                 expression = "\(divisor * quotient) ÷ \(divisor)"; answer = quotient
+            default:
+                // Two-step problems for the top tiers.
+                let x = Int.random(in: 2...9), y = Int.random(in: 2...9), z = Int.random(in: 1...20)
+                expression = "\(x) × \(y) + \(z)"; answer = x * y + z
             }
-        } while expression == previous
+        } while expression == previous || answer > 999
         input = ""
         wrongAnswer = false
     }
@@ -173,22 +197,51 @@ struct QuickMathView: View {
                 HStack {
                     Label(String(format: "%d:%02d", engine.secondsLeft / 60, engine.secondsLeft % 60), systemImage: "timer")
                         .foregroundStyle(engine.secondsLeft <= 5 ? .red : GameTheme.accent)
+                    if engine.multiplier > 1 {
+                        Label { Text(verbatim: "×\(engine.multiplier)") } icon: { Image(systemName: "flame.fill") }
+                            .foregroundStyle(.orange)
+                            .transition(.scale.combined(with: .opacity))
+                    }
                     Spacer()
                     Text(L10n.format("Solved: %d", engine.solved))
                 }
+                .animation(.snappy, value: engine.multiplier)
                 .font(.headline.monospacedDigit())
                 VStack(spacing: 12) {
                     Text(verbatim: engine.expression + " = ?")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.6).lineLimit(1)
+                        .id(engine.expression)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                        .animation(.snappy(duration: 0.2), value: engine.expression)
+                        .overlay(alignment: .topTrailing) {
+                            if engine.lastGain > 0 {
+                                Text(verbatim: "+\(engine.lastGain)")
+                                    .font(.headline.bold()).foregroundStyle(.green)
+                                    .id(engine.flash)
+                                    .transition(.asymmetric(insertion: .scale, removal: .move(edge: .top).combined(with: .opacity)))
+                                    .offset(y: -18)
+                            }
+                        }
                     Text(verbatim: engine.input.isEmpty ? "…" : engine.input)
                         .font(.system(size: 32, weight: .semibold, design: .rounded))
                         .foregroundStyle(GameTheme.accent)
-                    Text(L10n.text(engine.wrongAnswer ? "Wrong answer — try again" : "Enter the answer and tap Check."))
+                    Text(L10n.text(engine.wrongAnswer ? "Wrong answer — try again" : "Type the answer — it checks itself. Answer in a row to build a multiplier."))
                         .font(.footnote).multilineTextAlignment(.center)
                         .foregroundStyle(engine.wrongAnswer ? .red : GameTheme.textSecondary)
                 }
                 .frame(maxWidth: .infinity).padding(20).gameCard()
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24).strokeBorder(engine.wrongAnswer ? Color.red : Color.clear, lineWidth: 2)
+                }
+                .keyframeAnimator(initialValue: CGFloat(0), trigger: engine.mistakes) { content, x in
+                    content.offset(x: x)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        LinearKeyframe(8, duration: 0.05); LinearKeyframe(-8, duration: 0.05)
+                        LinearKeyframe(5, duration: 0.05); LinearKeyframe(0, duration: 0.05)
+                    }
+                }
                 VStack(spacing: 8) {
                     ForEach(0..<3, id: \.self) { row in
                         HStack(spacing: 8) {

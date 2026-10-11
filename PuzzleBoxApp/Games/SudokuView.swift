@@ -3,88 +3,157 @@ import Observation
 
 // MARK: - Engine
 
+enum SudokuDifficulty: Int, CaseIterable {
+    case easy, medium, hard
+    var title: String {
+        switch self {
+        case .easy: "Easy"
+        case .medium: "Medium"
+        case .hard: "Hard"
+        }
+    }
+    var size: Int { self == .easy ? 6 : 9 }
+    var clues: Int {
+        switch self {
+        case .easy: 14
+        case .medium: 34
+        case .hard: 27
+        }
+    }
+    var bonus: Int { [200, 500, 900][rawValue] }
+}
+
 @MainActor
 @Observable
 final class SudokuEngine: GameEngine {
-    static let size = 6
-    static let blockRows = 2  // each block is 2 rows × 3 columns
-    static let blockCols = 3
+    static let maxMistakes = 3
+    static let hintCount = 3
+    private static let difficultyKey = "sudokuDifficulty"
 
-    private(set) var solution: [[Int]]
-    private(set) var given: [[Bool]]
-    private(set) var board: [[Int?]]
+    private(set) var difficulty: SudokuDifficulty
+    private(set) var solution: [[Int]] = []
+    private(set) var given: [[Bool]] = []
+    private(set) var board: [[Int?]] = []
+    /// Pencil marks per cell.
+    private(set) var notes: [[Set<Int>]] = []
     private(set) var mistakes = 0
+    private(set) var hintsLeft = SudokuEngine.hintCount
+    var notesMode = false
     var state: GameState = .playing
     var selected: GridPos?
 
+    var size: Int { difficulty.size }
+    var blockRows: Int { size == 6 ? 2 : 3 }
+    var blockCols: Int { 3 }
+
     var score: Int {
         var s = 0
-        for r in 0..<Self.size {
-            for c in 0..<Self.size where !given[r][c] && board[r][c] == solution[r][c] {
+        for r in 0..<size {
+            for c in 0..<size where !given[r][c] && board[r][c] == solution[r][c] {
                 s += 10
             }
         }
-        return max(0, s - mistakes * 5)
+        if case .gameOver(won: true) = state { s += difficulty.bonus + hintsLeft * 50 }
+        return max(0, s - mistakes * 20)
     }
 
     init() {
-        let puzzle = Self.generatePuzzle()
-        solution = puzzle.solution
-        given = puzzle.given
-        board = Self.startingBoard(solution: puzzle.solution, given: puzzle.given)
+        difficulty = SudokuDifficulty(rawValue: UserDefaults.standard.integer(forKey: Self.difficultyKey)) ?? .easy
+        newPuzzle()
     }
 
     func restart() {
-        let puzzle = Self.generatePuzzle()
-        solution = puzzle.solution
-        given = puzzle.given
-        board = Self.startingBoard(solution: puzzle.solution, given: puzzle.given)
-        mistakes = 0
-        selected = nil
+        newPuzzle()
         state = .playing
     }
 
-    private static func startingBoard(solution: [[Int]], given: [[Bool]]) -> [[Int?]] {
-        (0..<size).map { r in
-            (0..<size).map { c in given[r][c] ? solution[r][c] : nil }
-        }
+    func setDifficulty(_ value: SudokuDifficulty) {
+        guard value != difficulty else { return }
+        difficulty = value
+        UserDefaults.standard.set(value.rawValue, forKey: Self.difficultyKey)
+        restart()
     }
 
-    /// Builds a fresh valid 6×6 board from a base pattern, then shuffles digits,
-    /// row bands, rows, column stacks, and columns — all validity-preserving.
-    private static func generatePuzzle() -> (solution: [[Int]], given: [[Bool]]) {
-        let n = size
-        var base = [[Int]](repeating: [Int](repeating: 0, count: n), count: n)
-        for r in 0..<n {
-            for c in 0..<n {
-                base[r][c] = (r * blockCols + r / blockRows + c) % n + 1
+    private func newPuzzle() {
+        let puzzle = Self.generatePuzzle(size: size, blockRows: blockRows, clues: difficulty.clues)
+        solution = puzzle.solution
+        given = puzzle.given
+        board = (0..<size).map { r in (0..<size).map { c in given[r][c] ? solution[r][c] : nil } }
+        notes = Array(repeating: Array(repeating: [], count: size), count: size)
+        mistakes = 0
+        hintsLeft = Self.hintCount
+        selected = nil
+        notesMode = false
+    }
+
+    // MARK: Generation
+
+    /// Fills a random complete grid, then removes clues while the solution stays unique.
+    private static func generatePuzzle(size n: Int, blockRows: Int, clues: Int) -> (solution: [[Int]], given: [[Bool]]) {
+        var grid = Array(repeating: 0, count: n * n)
+        _ = solve(&grid, n: n, blockRows: blockRows, randomize: true, limit: 1)
+        let solution = (0..<n).map { r in Array(grid[(r * n)..<(r * n + n)]) }
+        var puzzle = grid
+        var remaining = n * n
+        for cell in (0..<(n * n)).shuffled() where remaining > clues {
+            let saved = puzzle[cell]
+            puzzle[cell] = 0
+            var copy = puzzle
+            if solve(&copy, n: n, blockRows: blockRows, randomize: false, limit: 2) == 1 {
+                remaining -= 1
+            } else {
+                puzzle[cell] = saved
             }
         }
-
-        let digits = Array(1...n).shuffled()
-        var rowOrder: [Int] = []
-        for band in (0..<(n / blockRows)).shuffled() {
-            for r in (0..<blockRows).shuffled() { rowOrder.append(band * blockRows + r) }
-        }
-        var colOrder: [Int] = []
-        for stack in (0..<(n / blockCols)).shuffled() {
-            for c in (0..<blockCols).shuffled() { colOrder.append(stack * blockCols + c) }
-        }
-
-        var solution = base
-        for r in 0..<n {
-            for c in 0..<n {
-                solution[r][c] = digits[base[rowOrder[r]][colOrder[c]] - 1]
-            }
-        }
-
-        var given = [[Bool]](repeating: [Bool](repeating: false, count: n), count: n)
-        let keep = 16
-        for cell in (0..<(n * n)).shuffled().prefix(keep) {
-            given[cell / n][cell % n] = true
-        }
+        let given = (0..<n).map { r in (0..<n).map { c in puzzle[r * n + c] != 0 } }
         return (solution, given)
     }
+
+    /// Backtracking with bitmasks. Returns the number of solutions found, up to `limit`;
+    /// when it returns at least 1, `grid` holds the first solution.
+    private static func solve(_ grid: inout [Int], n: Int, blockRows: Int, randomize: Bool, limit: Int) -> Int {
+        let blockCols = 3
+        var rows = Array(repeating: 0, count: n), cols = Array(repeating: 0, count: n), boxes = Array(repeating: 0, count: n)
+        func box(_ r: Int, _ c: Int) -> Int { (r / blockRows) * (n / blockCols) + c / blockCols }
+        for i in grid.indices where grid[i] != 0 {
+            let bit = 1 << grid[i], r = i / n, c = i % n
+            rows[r] |= bit; cols[c] |= bit; boxes[box(r, c)] |= bit
+        }
+        var found = 0
+        var firstSolution: [Int]?
+        func search() {
+            // Most constrained empty cell first.
+            var best = -1, bestCount = Int.max, bestMask = 0
+            for i in grid.indices where grid[i] == 0 {
+                let r = i / n, c = i % n
+                let used = rows[r] | cols[c] | boxes[box(r, c)]
+                var count = 0
+                for d in 1...n where used & (1 << d) == 0 { count += 1 }
+                if count < bestCount { best = i; bestCount = count; bestMask = used; if count <= 1 { break } }
+            }
+            if best < 0 {
+                found += 1
+                if firstSolution == nil { firstSolution = grid }
+                return
+            }
+            if bestCount == 0 { return }
+            let r = best / n, c = best % n, b = box(r, c)
+            var digits = (1...n).filter { bestMask & (1 << $0) == 0 }
+            if randomize { digits.shuffle() }
+            for d in digits {
+                let bit = 1 << d
+                grid[best] = d; rows[r] |= bit; cols[c] |= bit; boxes[b] |= bit
+                search()
+                grid[best] = 0; rows[r] &= ~bit; cols[c] &= ~bit; boxes[b] &= ~bit
+                if found >= limit { return }
+            }
+        }
+        search()
+        if let firstSolution { grid = firstSolution }
+        return found
+    }
+
+    // MARK: Play
 
     /// Cells whose value duplicates another in its row, column, or block.
     var conflicts: Set<GridPos> {
@@ -98,15 +167,15 @@ final class SudokuEngine: GameEngine {
                 conflicted.formUnion(positions)
             }
         }
-        let n = Self.size
+        let n = size
         for r in 0..<n { check((0..<n).map { GridPos(r: r, c: $0) }) }
         for c in 0..<n { check((0..<n).map { GridPos(r: $0, c: c) }) }
-        for br in 0..<(n / Self.blockRows) {
-            for bc in 0..<(n / Self.blockCols) {
+        for br in 0..<(n / blockRows) {
+            for bc in 0..<(n / blockCols) {
                 var cells: [GridPos] = []
-                for r in 0..<Self.blockRows {
-                    for c in 0..<Self.blockCols {
-                        cells.append(GridPos(r: br * Self.blockRows + r, c: bc * Self.blockCols + c))
+                for r in 0..<blockRows {
+                    for c in 0..<blockCols {
+                        cells.append(GridPos(r: br * blockRows + r, c: bc * blockCols + c))
                     }
                 }
                 check(cells)
@@ -115,34 +184,79 @@ final class SudokuEngine: GameEngine {
         return conflicted
     }
 
+    /// How many more of each digit are still needed on the board.
+    func remaining(_ digit: Int) -> Int {
+        size - board.joined().filter { $0 == digit }.count
+    }
+
     func select(_ pos: GridPos) {
         guard state == .playing else { return }
         selected = selected == pos ? nil : pos
-        Haptics.tap()
+        Haptics.tap(); SoundFX.play(.tap)
     }
 
     /// Enters a digit (or erases with nil) in the selected cell.
     func enter(_ value: Int?) {
         guard state == .playing, let sel = selected, !given[sel.r][sel.c] else { return }
-        if let value {
-            guard board[sel.r][sel.c] != value else { return }
-            board[sel.r][sel.c] = value
-            if value == solution[sel.r][sel.c] {
-                Haptics.move()
-            } else {
-                mistakes += 1
-                Haptics.error()
-            }
-            checkCompletion()
-        } else {
+        guard let value else {
             board[sel.r][sel.c] = nil
-            Haptics.tap()
+            notes[sel.r][sel.c] = []
+            Haptics.tap(); SoundFX.play(.tap)
+            return
         }
+        if notesMode {
+            guard board[sel.r][sel.c] == nil else { return }
+            if notes[sel.r][sel.c].contains(value) { notes[sel.r][sel.c].remove(value) } else { notes[sel.r][sel.c].insert(value) }
+            Haptics.tap(); SoundFX.play(.tap)
+            return
+        }
+        guard board[sel.r][sel.c] != value else { return }
+        board[sel.r][sel.c] = value
+        if value == solution[sel.r][sel.c] {
+            notes[sel.r][sel.c] = []
+            clearNotes(value, around: sel)
+            Haptics.move(); SoundFX.play(.place)
+            celebrateCompletedUnits(at: sel)
+        } else {
+            mistakes += 1
+            Haptics.error(); SoundFX.play(.wrong)
+            if mistakes >= Self.maxMistakes { state = .gameOver(won: false); return }
+        }
+        checkCompletion()
+    }
+
+    /// Fills the selected empty cell (or a random one) with its correct digit.
+    func hint() {
+        guard state == .playing, hintsLeft > 0 else { return }
+        let empties = (0..<size).flatMap { r in (0..<size).map { GridPos(r: r, c: $0) } }
+            .filter { board[$0.r][$0.c] != solution[$0.r][$0.c] }
+        let target = selected.flatMap { sel in empties.contains(sel) ? sel : nil } ?? empties.randomElement()
+        guard let target else { return }
+        hintsLeft -= 1
+        board[target.r][target.c] = solution[target.r][target.c]
+        notes[target.r][target.c] = []
+        clearNotes(solution[target.r][target.c], around: target)
+        selected = target
+        Haptics.move(); SoundFX.play(.coin)
+        checkCompletion()
+    }
+
+    private func clearNotes(_ value: Int, around pos: GridPos) {
+        for r in 0..<size { for c in 0..<size {
+            let sameBox = r / blockRows == pos.r / blockRows && c / blockCols == pos.c / blockCols
+            if r == pos.r || c == pos.c || sameBox { notes[r][c].remove(value) }
+        } }
+    }
+
+    private func celebrateCompletedUnits(at pos: GridPos) {
+        let rowDone = (0..<size).allSatisfy { board[pos.r][$0] == solution[pos.r][$0] }
+        let colDone = (0..<size).allSatisfy { board[$0][pos.c] == solution[$0][pos.c] }
+        if rowDone || colDone { SoundFX.play(.clear) }
     }
 
     private func checkCompletion() {
-        for r in 0..<Self.size {
-            for c in 0..<Self.size where board[r][c] != solution[r][c] {
+        for r in 0..<size {
+            for c in 0..<size where board[r][c] != solution[r][c] {
                 return
             }
         }
@@ -156,18 +270,23 @@ struct SudokuView: View {
     @State private var engine = SudokuEngine()
 
     var body: some View {
-        GameContainerView(gameID: .sudoku, engine: engine) {
-            VStack(spacing: 20) {
-                mistakesBar
+        GameContainerView(gameID: .sudoku, engine: engine,
+                          resultSummary: L10n.text(engine.difficulty.title)) {
+            VStack(spacing: 16) {
+                Picker("", selection: Binding(get: { engine.difficulty }, set: { engine.setDifficulty($0) })) {
+                    ForEach(SudokuDifficulty.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                statusBar
                 board
                 numberPad
             }
         }
     }
 
-    private var mistakesBar: some View {
+    private var statusBar: some View {
         HStack {
-            Label(L10n.format("%d mistakes", engine.mistakes), systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.format("Mistakes: %d/%d", engine.mistakes, SudokuEngine.maxMistakes), systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(engine.mistakes > 0 ? .red : .secondary)
             Spacer()
@@ -177,10 +296,11 @@ struct SudokuView: View {
 
     private var board: some View {
         let conflicts = engine.conflicts
+        let n = engine.size
         return VStack(spacing: 1) {
-            ForEach(0..<SudokuEngine.size, id: \.self) { r in
+            ForEach(0..<n, id: \.self) { r in
                 HStack(spacing: 1) {
-                    ForEach(0..<SudokuEngine.size, id: \.self) { c in
+                    ForEach(0..<n, id: \.self) { c in
                         cell(r: r, c: c, conflicts: conflicts)
                     }
                 }
@@ -194,6 +314,7 @@ struct SudokuView: View {
                 .strokeBorder(Color.primary.opacity(0.6), lineWidth: 2)
         }
         .aspectRatio(1, contentMode: .fit)
+        .id(n)
     }
 
     @ViewBuilder
@@ -205,46 +326,72 @@ struct SudokuView: View {
         let isWrong = !isGiven && value != nil
             && (conflicts.contains(pos) || value != engine.solution[r][c])
         let sameUnit = isInSelectedUnit(pos)
+        let selectedValue = engine.selected.flatMap { engine.board[$0.r][$0.c] }
+        let sameValue = value != nil && value == selectedValue && !isSelected
+        let n = engine.size
 
         ZStack {
             Rectangle()
-                .fill(cellBackground(isSelected: isSelected, isWrong: isWrong, sameUnit: sameUnit))
+                .fill(cellBackground(isSelected: isSelected, isWrong: isWrong, sameUnit: sameUnit, sameValue: sameValue))
             if let value {
                 Text("\(value)")
-                    .font(.system(.title2, design: .rounded).weight(isGiven ? .bold : .medium))
+                    .font(.system(n == 9 ? .title3 : .title2, design: .rounded).weight(isGiven ? .bold : .medium))
                     .foregroundStyle(isWrong ? .red : (isGiven ? GameTheme.ink : GameTheme.accent))
+                    .transition(.scale.combined(with: .opacity))
+            } else if !engine.notes[r][c].isEmpty {
+                // Pencil marks laid out in a small grid matching the digit pad.
+                let columns = 3
+                VStack(spacing: 0) {
+                    ForEach(0..<(n / columns), id: \.self) { row in
+                        HStack(spacing: 0) {
+                            ForEach(1...columns, id: \.self) { col in
+                                let digit = row * columns + col
+                                Text(engine.notes[r][c].contains(digit) ? "\(digit)" : " ")
+                                    .font(.system(size: n == 9 ? 8 : 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(GameTheme.textSecondary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
+                    }
+                }
+                .padding(1)
             }
         }
         .aspectRatio(1, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { engine.select(pos) }
+        .animation(.snappy(duration: 0.15), value: value)
     }
 
     private func isInSelectedUnit(_ pos: GridPos) -> Bool {
         guard let sel = engine.selected, sel != pos else { return false }
-        return sel.r == pos.r || sel.c == pos.c
+        let sameBox = sel.r / engine.blockRows == pos.r / engine.blockRows && sel.c / engine.blockCols == pos.c / engine.blockCols
+        return sel.r == pos.r || sel.c == pos.c || sameBox
     }
 
-    private func cellBackground(isSelected: Bool, isWrong: Bool, sameUnit: Bool) -> Color {
+    private func cellBackground(isSelected: Bool, isWrong: Bool, sameUnit: Bool, sameValue: Bool) -> Color {
         if isSelected { return GameTheme.accent.opacity(0.30) }
         if isWrong { return .red.opacity(0.18) }
+        if sameValue { return GameTheme.accent.opacity(0.2) }
         if sameUnit { return GameTheme.accent.opacity(0.07) }
         return GameTheme.surface
     }
 
-    /// Thick separators outlining the 2×3 blocks.
+    /// Thick separators outlining the blocks (2×3 on 6×6, 3×3 on 9×9).
     private var blockLines: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
+            let n = CGFloat(engine.size)
+            let rowsPerBlock = CGFloat(engine.blockRows), colsPerBlock = CGFloat(engine.blockCols)
             Path { p in
-                p.move(to: CGPoint(x: w / 2, y: 0))
-                p.addLine(to: CGPoint(x: w / 2, y: h))
-                p.move(to: CGPoint(x: 0, y: h / 3))
-                p.addLine(to: CGPoint(x: w, y: h / 3))
-                p.move(to: CGPoint(x: 0, y: 2 * h / 3))
-                p.addLine(to: CGPoint(x: w, y: 2 * h / 3))
+                for k in stride(from: colsPerBlock, to: n, by: colsPerBlock) {
+                    p.move(to: CGPoint(x: w * k / n, y: 0)); p.addLine(to: CGPoint(x: w * k / n, y: h))
+                }
+                for k in stride(from: rowsPerBlock, to: n, by: rowsPerBlock) {
+                    p.move(to: CGPoint(x: 0, y: h * k / n)); p.addLine(to: CGPoint(x: w, y: h * k / n))
+                }
             }
             .stroke(Color.primary.opacity(0.6), lineWidth: 2)
         }
@@ -253,36 +400,50 @@ struct SudokuView: View {
 
     private var numberPad: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                ForEach(1...SudokuEngine.size, id: \.self) { n in
+            HStack(spacing: engine.size == 9 ? 5 : 10) {
+                ForEach(1...engine.size, id: \.self) { n in
+                    let left = engine.remaining(n)
                     Button {
                         engine.enter(n)
                     } label: {
-                        Text("\(n)")
-                            .font(.title2.bold())
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(GameTheme.accent.opacity(0.12),
-                                        in: RoundedRectangle(cornerRadius: 12))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(GameTheme.accent.opacity(0.3), lineWidth: 1)
-                            }
-                            .foregroundStyle(GameTheme.accent)
+                        VStack(spacing: 0) {
+                            Text("\(n)").font(.title2.bold())
+                            Text("\(max(0, left))").font(.caption2.monospacedDigit()).opacity(0.6)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(GameTheme.accent.opacity(engine.notesMode ? 0.05 : 0.12),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(GameTheme.accent.opacity(engine.notesMode ? 0.6 : 0.3), lineWidth: 1)
+                        }
+                        .foregroundStyle(GameTheme.accent)
                     }
+                    .disabled(left <= 0)
+                    .opacity(left <= 0 ? 0.3 : 1)
                 }
             }
-            Button {
-                engine.enter(nil)
-            } label: {
-                Label(L10n.text("Erase"), systemImage: "eraser.fill")
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(GameTheme.surfaceHigh,
-                                in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(GameTheme.ink)
+            HStack(spacing: 10) {
+                toolButton(L10n.text("Erase"), symbol: "eraser.fill", active: false) { engine.enter(nil) }
+                toolButton(L10n.text("Notes"), symbol: engine.notesMode ? "pencil.circle.fill" : "pencil.circle", active: engine.notesMode) {
+                    engine.notesMode.toggle(); Haptics.tap()
+                }
+                toolButton(L10n.format("Hint (%d)", engine.hintsLeft), symbol: "lightbulb.fill", active: false) { engine.hint() }
+                    .disabled(engine.hintsLeft == 0)
             }
+        }
+    }
+
+    private func toolButton(_ title: String, symbol: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.subheadline.bold())
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(active ? GameTheme.accent : GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(active ? Color.white : GameTheme.ink)
         }
     }
 }
