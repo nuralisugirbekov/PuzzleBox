@@ -11,10 +11,9 @@ struct ShelfHeader<Destination: View>: View {
         NavigationLink {
             destination()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text(title)
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.forward")
                     .imageScale(.small)
             }
             .font(.title2.bold())
@@ -72,7 +71,7 @@ struct FeaturedGameCard: View {
             Button {
                 playGame(gameID, source: source)
             } label: {
-                GamePreviewArt(gameID: gameID, artScale: 1.9)
+                GamePreviewArt(gameID: gameID)
                     .frame(height: 220)
                     .overlay(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -96,39 +95,6 @@ struct FeaturedGameCard: View {
                     .padding(12)
             }
         }
-    }
-}
-
-/// Square artwork with title and tagline below — an "album" tile.
-struct ShelfGameTile: View {
-    let gameID: GameID
-    var width: CGFloat = 160
-    var source: String = "shelf"
-
-    @Environment(\.playGame) private var playGame
-
-    var body: some View {
-        let info = gameID.info
-        Button {
-            playGame(gameID, source: source)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                GamePreviewArt(gameID: gameID)
-                    .frame(width: width, height: width)
-                    .clipShape(.rect(cornerRadius: 16))
-                Text(info.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(info.tagline)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(width: width, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
     }
 }
 

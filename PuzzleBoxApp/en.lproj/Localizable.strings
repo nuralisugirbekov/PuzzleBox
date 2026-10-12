@@ -381,3 +381,26 @@
 "Auto-complete" = "Auto-complete";
 "Sudoku" = "Sudoku";
 "6×6 and 9×9 puzzles with notes and hints" = "6×6 and 9×9 puzzles with notes and hints";
+
+/* Card games */
+"Your best" = "Your best";
+"Back" = "Back";
+"Sound" = "Sound";
+"Card" = "Card";
+
+/* Home */
+"Top picks for you" = "Top picks for you";
+"Made for you" = "Made for you";
+"Popular now" = "Popular now";
+"More like" = "More like";
+"Popular games" = "Popular games";
+
+/* Game over */
+"New best!" = "New best!";
+"Close" = "Close";
+
+/* Settings */
+"Haptics" = "Haptics";
+
+/* Pause */
+"Game Paused" = "Game Paused";

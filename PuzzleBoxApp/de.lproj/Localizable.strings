@@ -377,3 +377,26 @@
 "Auto-complete" = "Automatisch beenden";
 "Sudoku" = "Sudoku";
 "6×6 and 9×9 puzzles with notes and hints" = "6×6- und 9×9-Rätsel mit Notizen und Tipps";
+
+/* Card games */
+"Your best" = "Dein Rekord";
+"Back" = "Zurück";
+"Sound" = "Ton";
+"Card" = "Karte";
+
+/* Home */
+"Top picks for you" = "Top-Tipps für dich";
+"Made for you" = "Für dich";
+"Popular now" = "Gerade beliebt";
+"More like" = "Mehr wie";
+"Popular games" = "Beliebte Spiele";
+
+/* Game over */
+"New best!" = "Neuer Rekord!";
+"Close" = "Schließen";
+
+/* Settings */
+"Haptics" = "Haptik";
+
+/* Pause */
+"Game Paused" = "Spiel pausiert";

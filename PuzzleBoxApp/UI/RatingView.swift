@@ -77,7 +77,7 @@ private struct RatingRow: View {
         let best = stats.highScore(for: gameID)
         HStack(spacing: 12) {
             rankBadge
-            GamePreviewArt(gameID: gameID, artScale: 0.45)
+            GamePreviewArt(gameID: gameID, fade: false)
                 .frame(width: 48, height: 48)
                 .clipShape(.rect(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 2) {

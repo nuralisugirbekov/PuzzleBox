@@ -13,7 +13,8 @@ struct ArrowMazeTests {
                     : next.column < current.column ? .west : next.row > current.row ? .north : .south
                 if simulation.heading != desired {
                     let turn: ArrowMazeTurn = simulation.heading.turned(.left) == desired ? .left : .right
-                    #expect(simulation.turn(turn))
+                    let turned = simulation.turn(turn)
+                    #expect(turned)
                 }
                 let target = level.center(of: next)
                 let unit = desired.unit
@@ -51,7 +52,8 @@ struct ArrowMazeTests {
         #expect(simulation.outcome == .crashed)
         let position = simulation.position
         simulation.step(1)
-        #expect(!simulation.turn(.left))
+        let turnedAfterCrash = simulation.turn(.left)
+        #expect(!turnedAfterCrash)
         #expect(simulation.position == position)
     }
 

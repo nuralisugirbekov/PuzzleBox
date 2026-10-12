@@ -216,29 +216,21 @@ struct SpiderView: View {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - CGFloat(SpiderEngine.columns - 1) * 4) / CGFloat(SpiderEngine.columns)
                 VStack(spacing: 12) {
-                    HStack(spacing: 10) {
-                        Picker("", selection: Binding(get: { engine.suitCount }, set: { engine.setSuitCount($0) })) {
-                            Text(L10n.text("1 suit")).tag(1)
-                            Text(L10n.text("2 suits")).tag(2)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 180)
-                        Spacer()
-                        Button { engine.hint() } label: {
-                            Image(systemName: "lightbulb.fill")
-                                .font(.subheadline.bold())
-                                .frame(width: 40, height: 36)
-                                .background(GameTheme.surface, in: Capsule())
-                        }
-                        .accessibilityLabel(L10n.text("Hint"))
-                        CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
+                    Picker("", selection: Binding(get: { engine.suitCount }, set: { engine.setSuitCount($0) })) {
+                        Text(L10n.text("1 suit")).tag(1)
+                        Text(L10n.text("2 suits")).tag(2)
                     }
+                    .pickerStyle(.segmented)
                     statusBar
-                    tableauRow(cardWidth: cardWidth)
+                    // Leave room for the 50pt controls pinned to the bottom.
+                    tableauRow(cardWidth: cardWidth,
+                               maxHeight: geo.size.height - 32 - 12 - 36 - 12 - 50 - CardGameControls.bottomInset - 16)
                     Spacer(minLength: 0)
                 }
+                .overlay(alignment: .bottom) {
+                    CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
+                }
             }
-            .frame(height: 560)
         }
     }
 
@@ -268,17 +260,18 @@ struct SpiderView: View {
         }
     }
 
-    private func tableauRow(cardWidth: CGFloat) -> some View {
+    private func tableauRow(cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 4) {
             ForEach(0..<SpiderEngine.columns, id: \.self) { col in
-                column(col, cardWidth: cardWidth)
+                column(col, cardWidth: cardWidth, maxHeight: maxHeight)
             }
         }
     }
 
-    private func column(_ col: Int, cardWidth: CGFloat) -> some View {
+    private func column(_ col: Int, cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
         let cards = engine.tableau[col]
-        let offsets = Self.offsets(for: cards)
+        let offsets = CardFan.offsets(for: cards, cardHeight: cardWidth * CardView.aspectRatio,
+                                      maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth)
                 .onTapGesture { engine.tapColumn(col, index: nil) }
@@ -290,15 +283,5 @@ struct SpiderView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
-    }
-
-    private static func offsets(for cards: [Card]) -> [CGFloat] {
-        var out: [CGFloat] = []
-        var y: CGFloat = 0
-        for card in cards {
-            out.append(y)
-            y += card.faceUp ? 17 : 7
-        }
-        return out
     }
 }

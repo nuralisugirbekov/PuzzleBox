@@ -377,3 +377,26 @@
 "Auto-complete" = "자동 완성";
 "Sudoku" = "스도쿠";
 "6×6 and 9×9 puzzles with notes and hints" = "메모와 힌트가 있는 6×6, 9×9 퍼즐";
+
+/* Card games */
+"Your best" = "최고 기록";
+"Back" = "뒤로";
+"Sound" = "사운드";
+"Card" = "카드";
+
+/* Home */
+"Top picks for you" = "추천 게임";
+"Made for you" = "맞춤 추천";
+"Popular now" = "지금 인기";
+"More like" = "비슷한 게임";
+"Popular games" = "인기 게임";
+
+/* Game over */
+"New best!" = "새 최고 기록!";
+"Close" = "닫기";
+
+/* Settings */
+"Haptics" = "햅틱";
+
+/* Pause */
+"Game Paused" = "일시정지됨";

@@ -296,12 +296,23 @@ final class SolitaireEngine: GameEngine {
 struct SolitaireView: View {
     @State private var engine = SolitaireEngine()
 
+    /// Figma gaps: 4pt between piles, 32pt between the top row and the tableau.
+    private static let gap: CGFloat = 4
+
     var body: some View {
         GameContainerView(gameID: .solitaire, engine: engine) {
             GeometryReader { geo in
-                let cardWidth = (geo.size.width - 36) / 7
-                VStack(spacing: 16) {
-                    HStack(spacing: 10) {
+                let cardWidth = (geo.size.width - 6 * Self.gap) / 7
+                let cardHeight = cardWidth * CardView.aspectRatio
+                // Height left for the tableau once the top row and controls are placed.
+                let tableauHeight = geo.size.height - cardHeight - 32 - 16 - 50 - CardGameControls.bottomInset - 16
+                VStack(spacing: 32) {
+                    topRow(cardWidth: cardWidth)
+                    tableauRow(cardWidth: cardWidth, maxHeight: tableauHeight)
+                    Spacer(minLength: 0)
+                }
+                .overlay(alignment: .bottom) {
+                    VStack(spacing: 16) {
                         if engine.canAutoComplete {
                             Button {
                                 Task { await engine.autoComplete() }
@@ -313,28 +324,36 @@ struct SolitaireView: View {
                             }
                             .transition(.scale.combined(with: .opacity))
                         }
-                        Spacer()
-                        Button { engine.hint() } label: {
-                            Image(systemName: "lightbulb.fill")
-                                .font(.subheadline.bold())
-                                .frame(width: 40, height: 36)
-                                .background(GameTheme.surface, in: Capsule())
-                        }
-                        .accessibilityLabel(L10n.text("Hint"))
-                        CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
+                        CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
                     }
                     .animation(.snappy, value: engine.canAutoComplete)
-                    topRow(cardWidth: cardWidth)
-                    tableauRow(cardWidth: cardWidth)
-                    Spacer(minLength: 0)
                 }
             }
-            .frame(height: 540)
         }
     }
 
     private func topRow(cardWidth: CGFloat) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Self.gap) {
+            ForEach(0..<4, id: \.self) { pile in
+                Group {
+                    if let top = engine.foundations[pile].last {
+                        CardView(card: top, width: cardWidth,
+                                 highlighted: engine.selection == .foundation(pile))
+                    } else {
+                        CardSlot(width: cardWidth, label: "A")
+                            .contentShape(Rectangle())
+                    }
+                }
+                .onTapGesture { engine.tapFoundation(pile) }
+            }
+
+            Spacer(minLength: 0)
+
+            // Waste, fanned 10pt per card like the design.
+            wasteFan(cardWidth: cardWidth)
+                .onTapGesture { engine.tapWaste() }
+                .padding(.trailing, 10 * cardWidth / 50)
+
             // Stock
             Group {
                 if let top = engine.stock.last {
@@ -349,45 +368,38 @@ struct SolitaireView: View {
                 KeyframeTrack { SpringKeyframe(1.12, duration: 0.15); SpringKeyframe(1, duration: 0.2) }
             }
             .onTapGesture { engine.tapStock() }
-
-            // Waste
-            Group {
-                if let top = engine.waste.last {
-                    CardView(card: top, width: cardWidth, highlighted: engine.selection == .waste)
-                } else {
-                    CardSlot(width: cardWidth)
-                }
-            }
-            .onTapGesture { engine.tapWaste() }
-
-            Spacer(minLength: 4)
-
-            ForEach(0..<4, id: \.self) { pile in
-                Group {
-                    if let top = engine.foundations[pile].last {
-                        CardView(card: top, width: cardWidth,
-                                 highlighted: engine.selection == .foundation(pile))
-                    } else {
-                        CardSlot(width: cardWidth, label: "A")
-                            .contentShape(Rectangle())
-                    }
-                }
-                .onTapGesture { engine.tapFoundation(pile) }
-            }
         }
     }
 
-    private func tableauRow(cardWidth: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: 6) {
+    private func wasteFan(cardWidth: CGFloat) -> some View {
+        let shown = Array(engine.waste.suffix(3))
+        let step = 10 * cardWidth / 50
+        return ZStack(alignment: .leading) {
+            if shown.isEmpty {
+                CardSlot(width: cardWidth)
+            }
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, card in
+                CardView(card: card, width: cardWidth,
+                         highlighted: i == shown.count - 1 && engine.selection == .waste)
+                    .offset(x: CGFloat(i) * step)
+            }
+        }
+        .frame(width: cardWidth + CGFloat(max(shown.count - 1, 0)) * step, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func tableauRow(cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: Self.gap) {
             ForEach(0..<7, id: \.self) { col in
-                column(col, cardWidth: cardWidth)
+                column(col, cardWidth: cardWidth, maxHeight: maxHeight)
             }
         }
     }
 
-    private func column(_ col: Int, cardWidth: CGFloat) -> some View {
+    private func column(_ col: Int, cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
         let cards = engine.tableau[col]
-        let offsets = Self.offsets(for: cards)
+        let offsets = CardFan.offsets(for: cards, cardHeight: cardWidth * CardView.aspectRatio,
+                                      maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth, label: cards.isEmpty ? "K" : "")
                 // The outlined placeholder must accept taps across its empty interior.
@@ -401,15 +413,5 @@ struct SolitaireView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
-    }
-
-    private static func offsets(for cards: [Card]) -> [CGFloat] {
-        var out: [CGFloat] = []
-        var y: CGFloat = 0
-        for card in cards {
-            out.append(y)
-            y += card.faceUp ? 22 : 10
-        }
-        return out
     }
 }

@@ -269,23 +269,24 @@ struct FreeCellView: View {
     var body: some View {
         GameContainerView(gameID: .freecell, engine: engine) {
             GeometryReader { geo in
-                let cardWidth = (geo.size.width - 7 * 5) / 8
-                VStack(spacing: 16) {
-                    HStack {
-                        Spacer()
-                        CardUndoButton(isEnabled: engine.canUndo, action: engine.undo)
-                    }
+                let cardWidth = (geo.size.width - 7 * 4) / 8
+                let cardHeight = cardWidth * CardView.aspectRatio
+                VStack(spacing: 32) {
                     topRow(cardWidth: cardWidth)
-                    cascadesRow(cardWidth: cardWidth)
+                    cascadesRow(cardWidth: cardWidth,
+                                maxHeight: geo.size.height - cardHeight - 32 - 50 - CardGameControls.bottomInset - 16)
                     Spacer(minLength: 0)
                 }
+                .overlay(alignment: .bottom) {
+                    CardGameControls(canUndo: engine.canUndo, undo: engine.undo)
+                }
             }
-            .frame(height: 540)
         }
     }
 
     private func topRow(cardWidth: CGFloat) -> some View {
-        HStack(spacing: 5) {
+        // Two groups of four with the same 4pt gaps as the cascades below.
+        HStack(spacing: 4) {
             ForEach(0..<4, id: \.self) { i in
                 Group {
                     if let card = engine.freeCells[i] {
@@ -297,7 +298,6 @@ struct FreeCellView: View {
                 }
                 .onTapGesture { engine.tapFreeCell(i) }
             }
-            Spacer(minLength: 2)
             ForEach(0..<4, id: \.self) { pile in
                 Group {
                     if let top = engine.foundations[pile].last {
@@ -312,23 +312,25 @@ struct FreeCellView: View {
         }
     }
 
-    private func cascadesRow(cardWidth: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: 5) {
+    private func cascadesRow(cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 4) {
             ForEach(0..<8, id: \.self) { col in
-                column(col, cardWidth: cardWidth)
+                column(col, cardWidth: cardWidth, maxHeight: maxHeight)
             }
         }
     }
 
-    private func column(_ col: Int, cardWidth: CGFloat) -> some View {
+    private func column(_ col: Int, cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
         let cards = engine.cascades[col]
+        let offsets = CardFan.offsets(for: cards, cardHeight: cardWidth * CardView.aspectRatio,
+                                      maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth)
                 .onTapGesture { engine.tapCascade(col, index: nil) }
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,
                          highlighted: engine.isSelected(col: col, index: i))
-                    .offset(y: CGFloat(i) * 20)
+                    .offset(y: offsets[i])
                     .onTapGesture { engine.tapCascade(col, index: i) }
             }
         }

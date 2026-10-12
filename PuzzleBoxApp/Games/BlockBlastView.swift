@@ -16,24 +16,30 @@ struct BBPiece: Identifiable, Equatable {
 @Observable
 final class BlockBlastEngine: GameEngine {
     static let size = 8
-    static let colors: [Color] = [.orange, .pink, .teal, .purple, .blue, .yellow]
+    /// Figma accents; the system colours adapt to light and dark mode.
+    static let colors: [Color] = [Color(.systemIndigo), Color(.systemGreen), Color(.systemPurple),
+                                  Color(.systemPink), Color(.systemYellow)]
 
+    /// The Figma piece sheet: squares, I4, and every rotation of T, L, J,
+    /// the five-cell corner, S and Z. Rows are drawn top to bottom, `#` = block.
     static let shapes: [[GridPos]] = [
-        [GridPos(r: 0, c: 0)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1)],
-        [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 0, c: 2)],
-        [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 2, c: 0)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 0, c: 2), GridPos(r: 0, c: 3)],
-        [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 2, c: 0), GridPos(r: 3, c: 0)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)],
-        [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)],
-        [GridPos(r: 0, c: 1), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 1, c: 1)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 1, c: 0)],
-        [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 2, c: 0), GridPos(r: 2, c: 1)],
-        [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 0, c: 2), GridPos(r: 1, c: 0)],
-    ]
+        ["###", "###", "###"],                          // 3×3 square
+        ["##", "##"],                                    // 2×2 square
+        ["####"], ["#", "#", "#", "#"],                  // I4
+        ["###", ".#."], ["#.", "##", "#."], [".#.", "###"], [".#", "##", ".#"],   // T
+        ["#.", "#.", "##"], ["..#", "###"], ["##", ".#", ".#"], ["###", "#.."],   // L
+        [".#", ".#", "##"], ["###", "..#"], ["##", "#.", "#."], ["#..", "###"],   // J
+        ["###", "..#", "..#"], ["###", "#..", "#.."],                             // corner
+        ["#..", "#..", "###"], ["..#", "..#", "###"],
+        ["##.", ".##"], [".#", "##", "#."],                                       // Z
+        [".##", "##."], ["#.", "##", ".#"],                                       // S
+    ].map(cells)
+
+    private static func cells(_ rows: [String]) -> [GridPos] {
+        rows.enumerated().flatMap { r, row in
+            row.enumerated().compactMap { c, mark in mark == "#" ? GridPos(r: r, c: c) : nil }
+        }
+    }
 
     private(set) var grid: [[Int?]]
     private(set) var tray: [BBPiece?] = []
@@ -45,6 +51,13 @@ final class BlockBlastEngine: GameEngine {
     private(set) var flashCells: [GridPos: Int] = [:]
     var state: GameState = .playing
     let popups = ClassicFXPopupFeed()
+
+    /// Board snapshots before each placement, for "Revert".
+    private struct Snapshot {
+        let grid: [[Int?]], tray: [BBPiece?], score: Int, combo: Int, comboGraceLeft: Int
+    }
+    private var history: [Snapshot] = []
+    var canUndo: Bool { state == .playing && !history.isEmpty }
     static let comboGrace = 3
 
     init() {
@@ -59,8 +72,22 @@ final class BlockBlastEngine: GameEngine {
         comboGraceLeft = 0
         flashCells = [:]
         popups.clear()
+        history = []
         refillTray()
         state = .playing
+    }
+
+    /// Takes back the last placement, including any lines it cleared.
+    func undo() {
+        guard canUndo, let previous = history.popLast() else { return }
+        grid = previous.grid
+        tray = previous.tray
+        score = previous.score
+        combo = previous.combo
+        comboGraceLeft = previous.comboGraceLeft
+        flashCells = [:]
+        Haptics.tap()
+        SoundFX.play(.tap)
     }
 
     /// Deals three random pieces, re-rolling a few times so at least one fits.
@@ -118,6 +145,8 @@ final class BlockBlastEngine: GameEngine {
               let piece = tray[trayIndex],
               canPlace(piece, at: origin) else { return false }
 
+        history.append(Snapshot(grid: grid, tray: tray, score: score,
+                                combo: combo, comboGraceLeft: comboGraceLeft))
         for cell in piece.cells {
             grid[origin.r + cell.r][origin.c + cell.c] = piece.colorIndex
         }
@@ -193,50 +222,25 @@ struct BlockBlastView: View {
     private static let space = "blockblast"
     /// The dragged piece floats above the finger so it stays visible.
     private static let lift: CGFloat = 60
+    /// Figma: 4pt gaps and padding on the board, 8pt between tray slots.
+    private static let gap: CGFloat = 4
 
     var body: some View {
         GameContainerView(gameID: .blockBlast, engine: engine) {
-            VStack(spacing: 20) {
-                comboBar
+            // Figma spaces these 32pt apart; 24pt keeps the board full width
+            // below the score row on a 6.3" screen.
+            VStack(spacing: 24) {
+                Spacer(minLength: 0)
                 boardView
                 trayView
+                revertButton
+                Spacer(minLength: 0)
             }
             .coordinateSpace(name: Self.space)
             // Overlay so the dragged piece never affects layout — the board
             // must not move while a drag is in progress.
             .overlay { floatingPiece }
         }
-    }
-
-    // MARK: Combo
-
-    private var comboBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "flame.fill")
-                .foregroundStyle(engine.combo > 0 ? Color.orange : GameTheme.textSecondary)
-                .symbolEffect(.bounce, value: engine.combo)
-            Text(engine.combo > 0 ? L10n.format("Combo ×%d", engine.combo) : L10n.text("Clear lines in a row for a combo"))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(engine.combo > 0 ? GameTheme.ink : GameTheme.textSecondary)
-                .contentTransition(.numericText())
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Spacer(minLength: 4)
-            if engine.combo > 0 {
-                HStack(spacing: 4) {
-                    ForEach(0..<BlockBlastEngine.comboGrace, id: \.self) { i in
-                        Capsule()
-                            .fill(i < engine.comboGraceLeft ? Color.orange : GameTheme.surfaceHigh)
-                            .frame(width: 14, height: 6)
-                    }
-                }
-                .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, 14)
-        .frame(minHeight: 40)
-        .gameCard(cornerRadius: 14)
-        .animation(.snappy, value: engine.combo)
-        .animation(.snappy, value: engine.comboGraceLeft)
     }
 
     // MARK: Drop target math
@@ -263,9 +267,9 @@ struct BlockBlastView: View {
 
     private var boardView: some View {
         let target = dropTarget
-        return VStack(spacing: 2) {
+        return VStack(spacing: Self.gap) {
             ForEach(0..<BlockBlastEngine.size, id: \.self) { r in
-                HStack(spacing: 2) {
+                HStack(spacing: Self.gap) {
                     ForEach(0..<BlockBlastEngine.size, id: \.self) { c in
                         boardCell(r: r, c: c, target: target)
                     }
@@ -280,11 +284,8 @@ struct BlockBlastView: View {
         }
         .onPreferenceChange(GridFrameKey.self) { gridFrame = $0 }
         .overlay { ClassicFXPopupLayer(feed: engine.popups) }
-        .padding(6)
-        .background(
-            LinearGradient(colors: [Color(red: 0.16, green: 0.20, blue: 0.36), Color(red: 0.10, green: 0.12, blue: 0.24)],
-                           startPoint: .top, endPoint: .bottom),
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(Self.gap)
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 8))
         .aspectRatio(1, contentMode: .fit)
     }
 
@@ -300,15 +301,13 @@ struct BlockBlastView: View {
             if let colorIndex {
                 BlockBlastCell(color: BlockBlastEngine.colors[colorIndex])
             } else if isPreview, let previewColor, target?.valid == true {
-                BlockBlastCell(color: BlockBlastEngine.colors[previewColor]).opacity(0.55)
+                BlockBlastCell(color: BlockBlastEngine.colors[previewColor]).opacity(0.5)
             } else {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(isPreview ? Color.red.opacity(0.35) : Color.white.opacity(0.07))
+                BlockBlastCell(color: isPreview ? Color.red.opacity(0.35) : Color(.tertiarySystemBackground))
             }
             if willClear {
                 RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(Color.white, lineWidth: 2)
-                    .shadow(color: .white, radius: 4)
+                    .strokeBorder(Color.primary, lineWidth: 2)
             }
             if let flash = engine.flashCells[pos] {
                 BlockBlastCell(color: BlockBlastEngine.colors[flash])
@@ -323,34 +322,33 @@ struct BlockBlastView: View {
 
     // MARK: Tray
 
+    /// Figma: three square slots, 8pt apart and 8pt in from the board edges.
     private var trayView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ForEach(0..<3, id: \.self) { index in
                 traySlot(index)
             }
         }
-        .frame(height: 92)
+        .padding(.horizontal, 8)
     }
 
     @ViewBuilder
     private func traySlot(_ index: Int) -> some View {
         let piece = engine.tray.indices.contains(index) ? engine.tray[index] : nil
-        ZStack {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(GameTheme.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(GameTheme.stroke, lineWidth: 1)
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color(.secondarySystemBackground))
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let piece, dragIndex != index {
+                    // Figma tray blocks: 24pt cells, 2pt apart (scaled down for the 3×3).
+                    PieceView(piece: piece, cellSize: piece.width > 3 || piece.height > 3 ? 18 : 24, spacing: 2)
+                        .opacity(engine.canPlaceAnywhere(piece) ? 1 : 0.3)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity))
                 }
-            if let piece, dragIndex != index {
-                PieceView(piece: piece, cellSize: 16, spacing: 2)
-                    .opacity(engine.canPlaceAnywhere(piece) ? 1 : 0.3)
-                    .transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity))
             }
-        }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .gesture(dragGesture(for: index), including: piece == nil ? .none : .all)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(dragGesture(for: index), including: piece == nil ? .none : .all)
     }
 
     private func dragGesture(for index: Int) -> some Gesture {
@@ -371,13 +369,35 @@ struct BlockBlastView: View {
             }
     }
 
+    // MARK: Revert
+
+    /// Figma "Revert": a 50pt glass undo button over a Title 1 label.
+    private var revertButton: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) { engine.undo() }
+        } label: {
+            VStack(spacing: 0) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.title3)
+                    .frame(width: 50, height: 50)
+                    .glassCircle()
+                Text(L10n.text("Revert"))
+                    .font(.title)
+            }
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+        .disabled(!engine.canUndo)
+        .opacity(engine.canUndo ? 1 : 0.4)
+    }
+
     @ViewBuilder
     private var floatingPiece: some View {
         if let index = dragIndex,
            engine.tray.indices.contains(index),
            let piece = engine.tray[index],
            gridFrame != .zero {
-            PieceView(piece: piece, cellSize: cellPitch - 2, spacing: 2)
+            PieceView(piece: piece, cellSize: cellPitch - Self.gap, spacing: Self.gap)
                 .position(x: dragLocation.x, y: dragLocation.y - Self.lift)
                 .allowsHitTesting(false)
                 .shadow(radius: 8, y: 4)
@@ -396,7 +416,7 @@ struct PieceView: View {
         let pitch = cellSize + spacing
         ZStack(alignment: .topLeading) {
             ForEach(Array(piece.cells.enumerated()), id: \.offset) { _, cell in
-                BlockBlastCell(color: BlockBlastEngine.colors[piece.colorIndex], cornerRadius: cellSize * 0.2)
+                BlockBlastCell(color: BlockBlastEngine.colors[piece.colorIndex])
                     .frame(width: cellSize, height: cellSize)
                     .offset(x: CGFloat(cell.c) * pitch, y: CGFloat(cell.r) * pitch)
             }
@@ -407,23 +427,13 @@ struct PieceView: View {
     }
 }
 
-/// A glossy bevelled block.
+/// A flat block with a 4pt corner, as in the Figma board.
 struct BlockBlastCell: View {
     let color: Color
     var cornerRadius: CGFloat = 4
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(color.gradient)
-            .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(LinearGradient(colors: [.white.opacity(0.45), .white.opacity(0)],
-                                         startPoint: .top, endPoint: .center))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(Color.black.opacity(0.18), lineWidth: 1)
-            }
+        RoundedRectangle(cornerRadius: cornerRadius).fill(color)
     }
 }
 

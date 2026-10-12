@@ -7,12 +7,17 @@ final class ArrowEscapePuzzleEngine: GameEngine {
     private(set) var score = 0
     private(set) var levelIndex = 0
     private(set) var puzzle = ArrowEscapePuzzle.make(level: 0)
+    /// Arrows still drawn: those on the board plus those flying off it.
     private(set) var remaining: Set<Int> = []
-    private(set) var movingID: Int?
-    private(set) var progress: Double = 0
+    /// Arrows flying off, with the seconds since each was launched. Several
+    /// can be in flight at once; each frees its cells the moment it launches.
+    private(set) var moving: [Int: Double] = [:]
     private(set) var blockedID: Int?
     private(set) var mistakes = 0
     static let maxLives = 3
+    /// How long a launched arrow is kept for the view to fly it off screen.
+    static let flightDuration: Double = 1.4
+    static let reducedMotionDuration: Double = 0.2
     /// Blind tapping costs a life, so the board has to be read, not brute-forced.
     var lives: Int { max(0, Self.maxLives - mistakes) }
     private(set) var animationToken = 0
@@ -21,6 +26,8 @@ final class ArrowEscapePuzzleEngine: GameEngine {
 
     init() { resetBoard() }
     var hasNextLevel: Bool { levelIndex + 1 < ArrowEscapePuzzle.levelCount }
+    /// Arrows not yet launched.
+    var onBoardCount: Int { remaining.count - moving.count }
 
     func restart() { resetBoard() }
     func selectLevel(_ index: Int) {
@@ -34,45 +41,54 @@ final class ArrowEscapePuzzleEngine: GameEngine {
         active = value
         if !value && state == .playing { state = .paused }
     }
+
+    /// Launches the arrow in `cell`. Arrows already flying don't block, so
+    /// the player can keep tapping without waiting for them to leave.
     func tap(_ cell: EscapeCell) {
-        guard active, state == .playing, movingID == nil, let id = occupancy[cell] else { return }
+        guard active, state == .playing, let id = occupancy[cell] else { return }
         let arrow = puzzle.arrows[id]
         if !puzzle.canRemove(arrow, occupancy: occupancy) {
             blockedID = id
             mistakes += 1
             Haptics.error()
             if lives == 0 {
-                movingID = nil
                 state = .gameOver(won: false)
             } else {
                 SoundFX.play(.wrong)
             }
             return
         }
-        blockedID = nil
-        movingID = id
-        progress = 0
+        if blockedID == id { blockedID = nil }
+        for cell in arrow.cells { occupancy.removeValue(forKey: cell) }
+        moving[id] = 0
+        score = (puzzle.arrows.count - onBoardCount) * 10
         animationToken += 1
         Haptics.tap()
         SoundFX.play(.whoosh)
     }
+
     func advanceAnimation(_ dt: Double, reduceMotion: Bool) {
-        guard active, state == .playing, let id = movingID else { return }
-        progress = min(1, progress + min(max(dt, 0), 1.0 / 15) / (reduceMotion ? 0.2 : 0.9))
-        guard progress >= 1 else { return }
-        for cell in puzzle.arrows[id].cells { occupancy.removeValue(forKey: cell) }
-        remaining.remove(id)
-        movingID = nil
-        score = (puzzle.arrows.count - remaining.count) * 10
+        guard active, state == .playing, !moving.isEmpty else { return }
+        let step = min(max(dt, 0), 1.0 / 15)
+        let duration = reduceMotion ? Self.reducedMotionDuration : Self.flightDuration
+        for (id, elapsed) in moving {
+            let next = elapsed + step
+            if next >= duration {
+                moving.removeValue(forKey: id)
+                remaining.remove(id)
+            } else {
+                moving[id] = next
+            }
+        }
         if remaining.isEmpty {
             score += 200 + lives * 150
             state = .gameOver(won: true)
         }
     }
+
     private func resetBoard() {
         animationToken += 1
-        movingID = nil
-        progress = 0
+        moving = [:]
         blockedID = nil
         mistakes = 0
         score = 0

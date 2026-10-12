@@ -180,6 +180,10 @@ struct SettingsToolbarButton: ToolbarContent {
                 showingSettings = true
             } label: {
                 Image(systemName: "gear")
+                    // The toolbar pads this to its 44pt glass circle; the frame makes
+                    // that whole circle, not only the glyph, take the tap.
+                    .frame(width: 32, height: 32)
+                    .contentShape(.circle)
             }
             .accessibilityLabel(L10n.text("Settings"))
             .sheet(isPresented: $showingSettings) {
@@ -194,6 +198,8 @@ struct SettingsView: View {
     @Environment(StatsStore.self) private var stats
     @AppStorage(L10n.languageKey) private var languageCode = ""
     @AppStorage(AppTheme.storageKey) private var theme: AppTheme = .system
+    @AppStorage(SoundFX.enabledKey) private var soundEnabled = true
+    @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -228,6 +234,19 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                 }
+                Section {
+                    Toggle(isOn: $soundEnabled) {
+                        Label(L10n.text("Sound"), systemImage: soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    }
+                    Toggle(isOn: $hapticsEnabled) {
+                        Label(L10n.text("Haptics"), systemImage: hapticsEnabled ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                    }
+                    .onChange(of: hapticsEnabled) { _, enabled in
+                        // Confirm the switch on, the one moment a buzz is expected.
+                        if enabled { Haptics.tap() }
+                        AppAnalytics.log("haptics_toggled", parameters: ["enabled": enabled])
+                    }
+                }
                 Section(L10n.text("Statistics")) {
                     LabeledContent(L10n.text("Games played"), value: "\(stats.totalPlayed)")
                     LabeledContent(L10n.text("Favorites"), value: "\(stats.favoriteGames.count)")
@@ -241,6 +260,10 @@ struct SettingsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "checkmark")
+                            // The toolbar pads this to its 44pt glass circle; the frame makes
+                            // that whole circle, not only the glyph, take the tap.
+                            .frame(width: 32, height: 32)
+                            .contentShape(.circle)
                     }
                     .accessibilityLabel(L10n.text("Done"))
                 }

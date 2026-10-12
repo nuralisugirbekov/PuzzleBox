@@ -17,16 +17,18 @@ struct DiscoverView: View {
                             ShelfHeader(title: L10n.text(category.rawValue)) {
                                 CategoryGamesView(category: category)
                             }
-                            Shelf(items: category.games) { id in
-                                ShelfGameTile(gameID: id, source: "discover_\(category.rawValue.lowercased())")
+                            Shelf(items: category.games, spacing: GameCard.spacing) { id in
+                                GameCard(gameID: id, source: "discover_\(category.rawValue.lowercased())")
+                                    .frame(width: GameCard.width)
                             }
                         }
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("Quick and Easy"))
-                        Shelf(items: GameID.allCases.filter { $0.info.difficulty == .easy }) { id in
-                            ShelfGameTile(gameID: id, width: 130, source: "discover_easy")
+                        Shelf(items: GameID.allCases.filter { $0.info.difficulty == .easy }, spacing: GameCard.spacing) { id in
+                            GameCard(gameID: id, source: "discover_easy")
+                                .frame(width: GameCard.width)
                         }
                     }
 

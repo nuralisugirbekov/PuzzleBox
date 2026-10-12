@@ -381,3 +381,26 @@
 "Auto-complete" = "Аяқтау";
 "Sudoku" = "Судоку";
 "6×6 and 9×9 puzzles with notes and hints" = "Белгілер мен кеңестері бар 6×6 және 9×9 алаңдар";
+
+/* Card games */
+"Your best" = "Сіздің рекордыңыз";
+"Back" = "Артқа";
+"Sound" = "Дыбыс";
+"Card" = "Карта";
+
+/* Home */
+"Top picks for you" = "Сіз үшін таңдалғандар";
+"Made for you" = "Арнайы сіз үшін";
+"Popular now" = "Қазір танымал";
+"More like" = "Ұқсас ойындар:";
+"Popular games" = "Танымал ойындар";
+
+/* Game over */
+"New best!" = "Жаңа рекорд!";
+"Close" = "Жабу";
+
+/* Settings */
+"Haptics" = "Діріл";
+
+/* Pause */
+"Game Paused" = "Ойын кідіртілді";

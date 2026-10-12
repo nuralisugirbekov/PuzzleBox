@@ -39,15 +39,32 @@ struct ArrowEscapePuzzleTests {
     @Test func pauseAndRestartCannotCompleteAnOldRemoval() {
         let engine = ArrowEscapePuzzleEngine()
         engine.tap(engine.puzzle.arrows[0].head)
-        #expect(engine.movingID == 0)
+        #expect(engine.moving[0] == 0)
         engine.state = .paused
         engine.advanceAnimation(1, reduceMotion: false)
-        #expect(engine.progress == 0)
+        #expect(engine.moving[0] == 0)
         let token = engine.animationToken
         engine.restart()
         #expect(engine.animationToken != token)
         engine.advanceAnimation(1, reduceMotion: false)
         #expect(engine.remaining.count == engine.puzzle.arrows.count)
         #expect(engine.score == 0)
+    }
+
+    @Test func severalArrowsCanFlyAtOnceAndUnblockTheBoard() {
+        let engine = ArrowEscapePuzzleEngine()
+        let order = engine.puzzle.solution
+        // Launch the first two solution arrows back to back, without waiting.
+        engine.tap(engine.puzzle.arrows[order[0]].head)
+        engine.tap(engine.puzzle.arrows[order[1]].head)
+        #expect(engine.moving.count == 2)
+        #expect(engine.mistakes == 0)
+        // A flying arrow is no longer on the board, so tapping its cell again does nothing.
+        engine.tap(engine.puzzle.arrows[order[0]].head)
+        #expect(engine.moving.count == 2)
+        // Both stay drawn until their flight ends.
+        for _ in 0..<40 { engine.advanceAnimation(1.0 / 15, reduceMotion: false) }
+        #expect(engine.moving.isEmpty)
+        #expect(engine.remaining.count == engine.puzzle.arrows.count - 2)
     }
 }

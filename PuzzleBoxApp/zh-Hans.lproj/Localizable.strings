@@ -377,3 +377,26 @@
 "Auto-complete" = "自动完成";
 "Sudoku" = "数独";
 "6×6 and 9×9 puzzles with notes and hints" = "6×6 和 9×9 数独，支持笔记和提示";
+
+/* Card games */
+"Your best" = "最佳成绩";
+"Back" = "返回";
+"Sound" = "声音";
+"Card" = "纸牌";
+
+/* Home */
+"Top picks for you" = "为你精选";
+"Made for you" = "为你推荐";
+"Popular now" = "当前热门";
+"More like" = "更多类似";
+"Popular games" = "热门游戏";
+
+/* Game over */
+"New best!" = "新纪录！";
+"Close" = "关闭";
+
+/* Settings */
+"Haptics" = "触感反馈";
+
+/* Pause */
+"Game Paused" = "游戏已暂停";

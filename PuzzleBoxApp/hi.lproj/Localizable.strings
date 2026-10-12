@@ -377,3 +377,26 @@
 "Auto-complete" = "स्वतः पूरा करें";
 "Sudoku" = "सुडोकू";
 "6×6 and 9×9 puzzles with notes and hints" = "नोट्स और संकेतों के साथ 6×6 और 9×9 पहेलियाँ";
+
+/* Card games */
+"Your best" = "आपका सर्वश्रेष्ठ";
+"Back" = "वापस";
+"Sound" = "ध्वनि";
+"Card" = "पत्ता";
+
+/* Home */
+"Top picks for you" = "आपके लिए खास";
+"Made for you" = "आपके लिए";
+"Popular now" = "अभी लोकप्रिय";
+"More like" = "इसके जैसे और";
+"Popular games" = "लोकप्रिय गेम";
+
+/* Game over */
+"New best!" = "नया रिकॉर्ड!";
+"Close" = "बंद करें";
+
+/* Settings */
+"Haptics" = "हैप्टिक्स";
+
+/* Pause */
+"Game Paused" = "गेम रुका हुआ है";

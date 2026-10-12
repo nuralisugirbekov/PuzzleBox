@@ -392,9 +392,26 @@ func gameView(for id: GameID) -> some View {
 
 @MainActor
 enum Haptics {
-    static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func move() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-    static func heavy() { UIImpactFeedbackGenerator(style: .heavy).impactOccurred() }
-    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-    static func error() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+    /// Settings toggle; on by default.
+    static let enabledKey = "hapticsEnabled"
+
+    static var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
+    }
+
+    static func tap() { impact(.light) }
+    static func move() { impact(.medium) }
+    static func heavy() { impact(.heavy) }
+    static func success() { notify(.success) }
+    static func error() { notify(.error) }
+
+    private static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        guard isEnabled else { return }
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    private static func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        guard isEnabled else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
 }

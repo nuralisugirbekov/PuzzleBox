@@ -35,15 +35,15 @@ struct MyGamesView: View {
     }
 }
 
-/// Two-column grid of `GameCard`s, 8pt apart.
+/// Two-column grid of `GameCard`s.
 struct GameGrid: View {
     let games: [GameID]
     var source: String = "grid"
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8),
-                            GridItem(.flexible(), spacing: 8)],
-                  spacing: 8) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: GameCard.spacing),
+                            GridItem(.flexible(), spacing: GameCard.spacing)],
+                  spacing: GameCard.rowSpacing) {
             ForEach(games) { id in
                 GameCard(gameID: id, source: source)
             }
@@ -64,5 +64,22 @@ struct CategoryGamesView: View {
         }
         .background(Color(.systemBackground))
         .navigationTitle(L10n.text(category.rawValue))
+    }
+}
+
+/// A titled grid of games, pushed from a Home shelf header.
+struct GameCollectionView: View {
+    let title: String
+    let games: [GameID]
+    var source: String = "collection"
+
+    var body: some View {
+        ScrollView {
+            GameGrid(games: games, source: source)
+                .padding(.horizontal)
+                .padding(.bottom)
+        }
+        .background(Color(.systemBackground))
+        .navigationTitle(title)
     }
 }

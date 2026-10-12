@@ -27,6 +27,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     /// A won level with a successor advances by itself instead of asking.
     @State private var autoAdvancing = false
     @State private var confetti = 0
+    /// The game-over alert was closed with its ✕ to look at the final board.
+    @State private var gameOverHidden = false
     @State private var contentShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SoundFX.enabledKey) private var soundEnabled = true
@@ -36,6 +38,14 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         resumeAfterTutorial = engine.state == .playing
         if resumeAfterTutorial { engine.state = .paused }
         showingTutorial = true
+    }
+
+    /// Games drawn in the Figma game chrome (back, title, pause, prominent
+    /// restart, score and best), rather than the original header.
+    private var usesFigmaChrome: Bool { hasCardTimer || gameID == .blockBlast }
+
+    private var isGameOver: Bool {
+        if case .gameOver = engine.state { true } else { false }
     }
 
     private var hasCardTimer: Bool {
@@ -59,30 +69,24 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             GameTheme.background.ignoresSafeArea()
 
             VStack(spacing: 16) {
-                header
-                if hasCardTimer {
-                    HStack {
-                        Label(cardClock.formattedTime, systemImage: "timer")
-                            .monospacedDigit()
-                        Spacer()
-                        Text(L10n.format("Win bonus: +%d", cardClock.victoryBonus))
-                            .multilineTextAlignment(.trailing)
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(GameTheme.textSecondary)
-                    .padding(12)
-                    .gameCard(cornerRadius: 18)
+                if usesFigmaChrome {
+                    cardHeader
+                } else {
+                    header
+                    // An optional matching lower spacer centers the play area below the header.
+                    Spacer(minLength: 0)
                 }
-                // An optional matching lower spacer centers the play area below the header.
-                Spacer(minLength: 0)
                 content()
                     .foregroundStyle(GameTheme.ink)
                     .tint(GameTheme.accent)
                     // The board settles in when a game or a new level opens.
                     .scaleEffect(contentShown || reduceMotion ? 1 : 0.95)
                     .opacity(contentShown ? 1 : 0)
+                    // Only a live round takes input. After game over the board stays
+                    // visible (and readable by VoiceOver once the result alert is
+                    // closed) so the player can review it, but it can't be played.
                     .allowsHitTesting(engine.state == .playing)
-                    .accessibilityHidden(engine.state != .playing)
+                    .accessibilityHidden(engine.state == .paused || (isGameOver && !gameOverHidden))
                 if centersContent {
                     Spacer(minLength: 0)
                 }
@@ -90,13 +94,12 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             .padding()
 
             if engine.state == .paused {
-                PauseOverlay(resume: {
-                                 roundAnalytics.event("game_resume", score: engine.score)
-                                 engine.state = .playing
-                             },
-                             restart: restart,
-                             randomGame: { playRandomGame(source: "pause_random") },
-                             exit: { dismiss() })
+                PauseAlert(resume: {
+                               roundAnalytics.event("game_resume", score: engine.score)
+                               engine.state = .playing
+                           },
+                           restart: restart,
+                           exit: { dismiss() })
             }
 
             if autoAdvancing {
@@ -117,7 +120,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 .transition(.scale(scale: 0.6).combined(with: .opacity))
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isStaticText)
-            } else if case .gameOver(let won) = engine.state {
+            } else if case .gameOver(let won) = engine.state, !gameOverHidden {
                 GameOverOverlay(won: won,
                                 score: displayedScore,
                                 highScore: stats.highScore(for: gameID),
@@ -125,8 +128,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                 resultTitle: resultTitle,
                                 resultSummary: summary,
                                 playAgain: restart,
-                                mainMenu: { dismiss() },
-                                randomGame: { playRandomGame(source: "game_over_random") })
+                                home: { dismiss() },
+                                close: { gameOverHidden = true })
             }
         }
         .overlay { ConfettiView(trigger: confetti).ignoresSafeArea() }
@@ -206,15 +209,10 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         }
     }
 
-    private func playRandomGame(source: String) {
-        if let id = GameID.allCases.filter({ $0 != gameID }).randomElement() {
-            playGame(id, source: source)
-        }
-    }
-
     private func restart() {
         Haptics.tap()
         autoAdvancing = false
+        gameOverHidden = false
         let wasPaused = engine.state == .paused
         let wasCompleted: Bool
         if case .gameOver = engine.state { wasCompleted = true } else { wasCompleted = false }
@@ -232,6 +230,80 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         if gameID != .checkmate && gameID != .quickMath {
             roundAnalytics.start(gameID, active: scenePhase == .active && engine.state == .playing)
         }
+    }
+
+    // MARK: Card-game chrome (Figma "Solitare")
+
+    /// Back, centred title, pause and a prominent restart; then score,
+    /// best score and the round timer.
+    private var cardHeader: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                headerButton("chevron.left", label: L10n.text("Back")) { dismiss() }
+                Spacer(minLength: 0)
+                headerButton("pause", label: L10n.text("Paused")) {
+                    if engine.state == .playing {
+                        Haptics.tap()
+                        engine.state = .paused
+                    }
+                }
+                .disabled(engine.state != .playing)
+                Button(action: restart) {
+                    Image(systemName: Self.restartSymbol)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .prominentGlassCircle()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Restart"))
+            }
+            .overlay {
+                Text(info.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 112)
+            }
+            .padding(.bottom, 10)
+
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.text("Score")).font(.caption)
+                    LiveScoreText(value: displayedScore)
+                        .font(.title2.bold().monospacedDigit())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(L10n.text("Your best")).font(.caption)
+                    Text(stats.highScore(for: gameID), format: .number)
+                        .font(.title2.bold().monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .foregroundStyle(.primary)
+            .accessibilityElement(children: .combine)
+
+            if hasCardTimer {
+                HStack(spacing: 8) {
+                    Text(cardClock.formattedTime)
+                        .font(.title2.bold().monospacedDigit())
+                    Image(systemName: "timer")
+                        .font(.title3.weight(.semibold))
+                }
+                .foregroundStyle(.primary)
+                .padding(.top, 20)
+                .padding(.bottom, 22)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// The design's restart glyph (SF Symbols 6), with an older fallback.
+    private static var restartSymbol: String {
+        let preferred = "arrow.trianglehead.counterclockwise.rotate.90"
+        return UIImage(systemName: preferred) == nil ? "arrow.counterclockwise" : preferred
     }
 
     private var header: some View {
@@ -314,99 +386,109 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
 // MARK: - Overlay chrome
 
-private struct OverlayCard<CardContent: View>: View {
-    @ViewBuilder let content: () -> CardContent
 
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black.opacity(0.35).ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture { } // Block taps to the paused board.
-                ScrollView {
-                    VStack(spacing: 24, content: content)
-                        .multilineTextAlignment(.center)
-                        .padding(28)
-                        .frame(maxWidth: 360)
-                        .background(GameTheme.surface, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 30, y: 12)
-                        .padding(20)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: geometry.size.height)
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-        .accessibilityAddTraits(.isModal)
-    }
-}
 
-private struct PrimaryButton: View {
-    let title: String
-    let symbol: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(GameTheme.accent, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct SecondaryButton: View {
-    let title: String
-    let symbol: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(GameTheme.surfaceHigh, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct PauseOverlay: View {
+/// Figma "Solitare. Paused": an iOS alert with a title and three stacked
+/// actions over a dimmed board. Shared by every game.
+struct PauseAlert: View {
     let resume: () -> Void
     let restart: () -> Void
-    let randomGame: () -> Void
     let exit: () -> Void
 
     var body: some View {
-        OverlayCard {
-            Image(systemName: "pause.fill")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(GameTheme.accent)
-                .frame(width: 72, height: 72)
-                .background(GameTheme.accent.opacity(0.1), in: Circle())
-            Text(L10n.text("Paused"))
-                .font(.largeTitle.bold())
-                .foregroundStyle(.primary)
-            VStack(spacing: 10) {
-                PrimaryButton(title: L10n.text("Resume"), symbol: "play.fill", action: resume)
-                SecondaryButton(title: L10n.text("Restart"), symbol: "arrow.counterclockwise", action: restart)
-                SecondaryButton(title: L10n.text("Random Game"), symbol: "shuffle", action: randomGame)
-                SecondaryButton(title: L10n.text("Main Menu"), symbol: "house", action: exit)
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { } // Block taps to the paused board.
+            VStack(spacing: 0) {
+                // Figma "Game Paused": a 41pt blue pause glyph over a Title 2 heading.
+                VStack(spacing: 0) {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 41, weight: .semibold))
+                        .foregroundStyle(GameTheme.accent)
+                        .frame(height: 49)
+                        .accessibilityHidden(true)
+                    Text(L10n.text("Game Paused"))
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                VStack(spacing: 8) {
+                    AlertActionButton(title: L10n.text("Resume"), symbol: "play.fill",
+                                      prominent: true, action: resume)
+                    AlertActionButton(title: L10n.text("Restart"), symbol: "arrow.counterclockwise",
+                                      action: restart)
+                    AlertActionButton(title: L10n.text("Home"), symbol: "house.fill",
+                                      action: exit)
+                }
             }
+            .padding(14)
+            .frame(width: 300)
+            .alertSurface(cornerRadius: 34)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
         }
         .transition(.opacity)
     }
 }
 
+private struct AlertActionButton: View {
+    let title: String
+    let symbol: String
+    var prominent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.headline)
+                .foregroundStyle(prominent ? Color.white : Color.primary)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(prominent ? AnyShapeStyle(GameTheme.accent)
+                                      : AnyShapeStyle(Color(.tertiarySystemFill)),
+                            in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension View {
+    /// Liquid Glass alert background on iOS 26, a thick material before.
+    @ViewBuilder
+    func alertSurface(cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(.thickMaterial, in: shape)
+        }
+    }
+
+    /// Accent-tinted glass circle for the prominent toolbar action; the
+    /// whole circle is tappable.
+    func prominentGlassCircle() -> some View {
+        contentShape(.circle).prominentGlassSurface()
+    }
+
+    @ViewBuilder
+    private func prominentGlassSurface() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.tint(GameTheme.accent).interactive(), in: .circle)
+        } else {
+            background(GameTheme.accent, in: Circle())
+        }
+    }
+}
+
+/// Figma "Game over" / "New best": the pause alert's glass card with a
+/// checkered flag, the score and best, Play again / Home, and a ✕ that
+/// closes the alert to show the final board.
 struct GameOverOverlay: View {
     @State private var shownScore = 0.0
-    @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let won: Bool
     let score: Int
@@ -415,61 +497,76 @@ struct GameOverOverlay: View {
     var resultTitle: String? = nil
     var resultSummary: String? = nil
     let playAgain: () -> Void
-    let mainMenu: () -> Void
-    let randomGame: () -> Void
+    let home: () -> Void
+    let close: () -> Void
 
     var body: some View {
-        OverlayCard {
-            Image(systemName: won ? "trophy.fill" : isNewHighScore ? "star.fill" : "flag.checkered")
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(won || isNewHighScore ? Color.yellow : GameTheme.accent)
-                .frame(width: 80, height: 80)
-                .background((won || isNewHighScore ? Color.orange : GameTheme.accent).opacity(0.15), in: Circle())
-                .symbolEffect(.bounce, value: appeared)
-                .scaleEffect(appeared || reduceMotion ? 1 : 0.4)
-            VStack(spacing: 8) {
-                Text(resultTitle ?? L10n.text(won ? "You Win!" : "Game Over"))
-                    .font(.largeTitle.bold()).foregroundStyle(.primary)
-                if let resultSummary {
-                    Text(resultSummary).font(.subheadline).foregroundStyle(.secondary)
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { } // Block taps to the finished board.
+            VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    Image(systemName: "flag.pattern.checkered")
+                        .font(.system(size: 41, weight: .semibold))
+                        .foregroundStyle(GameTheme.accent)
+                        .frame(height: 49)
+                    Text(resultTitle ?? L10n.text(won ? "You Win!" : "Game Over"))
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(16)
+
+                VStack(spacing: 0) {
+                    Text(L10n.text("Score"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    CountingText(value: shownScore)
+                        .font(.title2.bold().monospacedDigit())
+                        .foregroundStyle(.primary)
+                    Text(isNewHighScore ? L10n.text("New best!") : L10n.format("Best: %d", highScore))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    if let resultSummary {
+                        Text(resultSummary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 16)
+
+                VStack(spacing: 8) {
+                    AlertActionButton(title: L10n.text("Play Again"), symbol: "arrow.counterclockwise",
+                                      prominent: true, action: playAgain)
+                    AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: home)
                 }
             }
-            VStack(spacing: 8) {
-                Text(L10n.text("Score")).font(.subheadline).foregroundStyle(.secondary)
-                CountingText(value: shownScore)
-                    .font(.system(size: 52, weight: .bold, design: .rounded))
-                    .monospacedDigit().foregroundStyle(.primary)
-                if isNewHighScore {
-                    Label(L10n.text("New High Score!"), systemImage: "trophy.fill")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(LinearGradient(colors: [.orange, .pink], startPoint: .leading, endPoint: .trailing), in: Capsule())
-                        .scaleEffect(appeared || reduceMotion ? 1 : 0.3)
-                        .shadow(color: .orange.opacity(0.5), radius: 8)
-                } else {
-                    Text(L10n.format("Best: %d", highScore)).font(.subheadline).foregroundStyle(.secondary)
+            .padding(14)
+            .frame(width: 300)
+            .overlay(alignment: .topTrailing) {
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .glassCircle()
                 }
+                .buttonStyle(.plain)
+                .padding(14)
+                .accessibilityLabel(L10n.text("Close"))
             }
-            .frame(maxWidth: .infinity)
-            .padding(20)
-            .background(GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 24))
-            VStack(spacing: 10) {
-                Button(action: playAgain) {
-                    Label(L10n.text("Play Again"), systemImage: "arrow.counterclockwise")
-                        .font(.title3.bold()).frame(maxWidth: .infinity).padding(.vertical, 22)
-                        .foregroundStyle(.white).background(GameTheme.accent, in: Capsule())
-                }.buttonStyle(.plain)
-                SecondaryButton(title: L10n.text("Random Game"), symbol: "shuffle", action: randomGame)
-                Button(action: mainMenu) {
-                    Label(L10n.text("Home"), systemImage: "house")
-                        .font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
-                }.buttonStyle(.plain)
-            }
+            .alertSurface(cornerRadius: 34)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
         .onAppear {
-            guard !reduceMotion else { shownScore = Double(score); appeared = true; return }
-            withAnimation(.spring(duration: 0.5, bounce: 0.45).delay(0.15)) { appeared = true }
+            guard !reduceMotion else { shownScore = Double(score); return }
             // Count the score up, longer for bigger numbers.
             withAnimation(.easeOut(duration: min(1.4, 0.5 + Double(score) / 4000)).delay(0.2)) { shownScore = Double(score) }
         }

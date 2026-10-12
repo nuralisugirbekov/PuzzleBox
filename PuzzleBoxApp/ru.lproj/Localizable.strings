@@ -381,3 +381,26 @@
 "Auto-complete" = "Доиграть";
 "Sudoku" = "Судоку";
 "6×6 and 9×9 puzzles with notes and hints" = "Поля 6×6 и 9×9 с заметками и подсказками";
+
+/* Card games */
+"Your best" = "Ваш рекорд";
+"Back" = "Назад";
+"Sound" = "Звук";
+"Card" = "Карта";
+
+/* Home */
+"Top picks for you" = "Лучшее для вас";
+"Made for you" = "Специально для вас";
+"Popular now" = "Сейчас популярно";
+"More like" = "Похоже на";
+"Popular games" = "Популярные игры";
+
+/* Game over */
+"New best!" = "Новый рекорд!";
+"Close" = "Закрыть";
+
+/* Settings */
+"Haptics" = "Виброотклик";
+
+/* Pause */
+"Game Paused" = "Игра на паузе";

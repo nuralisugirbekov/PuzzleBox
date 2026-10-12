@@ -18,9 +18,9 @@ struct ArrowEscapePuzzleView: View {
                         Label(L10n.format("Level %d of %d", engine.levelIndex + 1, ArrowEscapePuzzle.levelCount), systemImage: "square.grid.3x3")
                     }
                     Spacer()
-                    Text("\(engine.remaining.count)/\(engine.puzzle.arrows.count)")
+                    Text("\(engine.onBoardCount)/\(engine.puzzle.arrows.count)")
                         .monospacedDigit()
-                        .accessibilityLabel(L10n.format("Arrows remaining: %d", engine.remaining.count))
+                        .accessibilityLabel(L10n.format("Arrows remaining: %d", engine.onBoardCount))
                 }.font(.subheadline.weight(.semibold))
                 GeometryReader { geometry in
                     let size = fittedCellSize(in: geometry.size)
@@ -31,8 +31,9 @@ struct ArrowEscapePuzzleView: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, minHeight: 240, maxHeight: .infinity)
-                .background(GameTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
+                // Not clipped: launched arrows fly over everything until they leave the screen.
+                .background(GameTheme.surface, in: RoundedRectangle(cornerRadius: 20))
+                .zIndex(1)
                 HStack {
                     Spacer()
                     HStack(spacing: 6) {
@@ -60,12 +61,12 @@ struct ArrowEscapePuzzleView: View {
         .onDisappear { engine.setActive(false) }
         .onChange(of: scenePhase) { _, phase in engine.setActive(phase == .active) }
         .task(id: engine.animationToken) {
-            // Only keep a clock while an arrow is leaving. Cancellation on restart,
+            // Only keep a clock while arrows are leaving. Cancellation on restart,
             // level change or dismissal cannot remove an arrow from a new board.
             // Step by real elapsed time: sleep overshoots, and a fixed 16 ms step stutters.
             let clock = ContinuousClock()
             var last = clock.now
-            while engine.movingID != nil && !Task.isCancelled {
+            while !engine.moving.isEmpty && !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(8)) } catch { return }
                 guard !Task.isCancelled else { return }
                 let now = clock.now
@@ -77,10 +78,11 @@ struct ArrowEscapePuzzleView: View {
         }
     }
 
-    /// Gentle start that speeds up as the arrow leaves; the end is off-board anyway.
-    private static func easeIn(_ t: Double) -> Double {
-        let t = min(max(t, 0), 1)
-        return t * t * (0.35 + 0.65 * t) + 0.35 * t * (1 - t) * (1 - t)
+    /// Flight distance in points after `t` seconds: a quick start that keeps
+    /// accelerating, so even a long arrow clears the screen within
+    /// `ArrowEscapePuzzleEngine.flightDuration`.
+    private static func flightDistance(_ t: Double) -> CGFloat {
+        CGFloat(450 * t + 900 * t * t)
     }
 
     private func fittedCellSize(in size: CGSize) -> CGFloat {
@@ -88,43 +90,49 @@ struct ArrowEscapePuzzleView: View {
                   size.height / CGFloat(engine.puzzle.rows)))
     }
 
+    /// Arrows are shapes rather than a Canvas, which would clip them to the board.
     private func board(cellSize: CGFloat) -> some View {
-        Canvas { context, _ in
-            let palette: [Color] = [.primary, .blue, .indigo, .teal]
-            for arrow in engine.puzzle.arrows where engine.remaining.contains(arrow.id) {
-                let moving = engine.movingID == arrow.id
-                let fraction = moving && !reduceMotion ? Self.easeIn(engine.progress) : 0
-                let points = visiblePoints(for: arrow, progress: fraction, cellSize: cellSize)
-                guard let head = points.last, let first = points.first else { continue }
-                var path = Path()
-                path.move(to: first)
-                for point in points.dropFirst() { path.addLine(to: point) }
+        let palette: [Color] = [.primary, .blue, .indigo, .teal]
+        let lineWidth = max(2.5, cellSize * 0.22)
+        return ZStack(alignment: .topLeading) {
+            ForEach(engine.puzzle.arrows.filter { engine.remaining.contains($0.id) }) { arrow in
+                let elapsed = engine.moving[arrow.id]
+                let travel = elapsed.map { reduceMotion ? 0 : Self.flightDistance($0) / cellSize } ?? 0
                 let color = engine.blockedID == arrow.id ? Color.red : palette[arrow.id % palette.count]
-                var layer = context
-                if moving && reduceMotion { layer.opacity = 1 - engine.progress }
-                layer.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: max(2.5, cellSize * 0.22), lineCap: .round, lineJoin: .round))
-                let dx = CGFloat(arrow.direction.dx), dy = CGFloat(arrow.direction.dy)
-                let size = cellSize * 0.34
-                var tip = Path()
-                tip.move(to: CGPoint(x: head.x - dx * size - dy * size * 0.7,
-                                     y: head.y - dy * size + dx * size * 0.7))
-                tip.addLine(to: head)
-                tip.addLine(to: CGPoint(x: head.x - dx * size + dy * size * 0.7,
-                                       y: head.y - dy * size - dx * size * 0.7))
-                layer.stroke(tip, with: .color(color), style: StrokeStyle(lineWidth: max(2.5, cellSize * 0.22), lineCap: .round, lineJoin: .round))
+                arrowShape(arrow, travel: travel, cellSize: cellSize)
+                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                    .opacity(reduceMotion && elapsed != nil
+                             ? 1 - elapsed! / ArrowEscapePuzzleEngine.reducedMotionDuration : 1)
             }
         }
-        .clipped()
         .contentShape(Rectangle())
         .onTapGesture { location in
             engine.tap(EscapeCell(x: Int(floor(location.x / cellSize)), y: Int(floor(location.y / cellSize))))
         }
+        .accessibilityElement()
         .accessibilityLabel(L10n.text("Arrow Escape"))
+    }
+
+    /// Body and tip of one arrow, `travel` cells along its exit route.
+    private func arrowShape(_ arrow: EscapeArrow, travel: CGFloat, cellSize: CGFloat) -> Path {
+        let points = visiblePoints(for: arrow, travel: travel, cellSize: cellSize)
+        var path = Path()
+        guard let first = points.first, let head = points.last else { return path }
+        path.move(to: first)
+        for point in points.dropFirst() { path.addLine(to: point) }
+        let dx = CGFloat(arrow.direction.dx), dy = CGFloat(arrow.direction.dy)
+        let size = cellSize * 0.34
+        path.move(to: CGPoint(x: head.x - dx * size - dy * size * 0.7,
+                              y: head.y - dy * size + dx * size * 0.7))
+        path.addLine(to: head)
+        path.addLine(to: CGPoint(x: head.x - dx * size + dy * size * 0.7,
+                                 y: head.y - dy * size - dx * size * 0.7))
+        return path
     }
 
     /// The tail follows the original winding path while the head extends along
     /// its exit ray. Translating the entire bent shape would cross other arrows.
-    private func visiblePoints(for arrow: EscapeArrow, progress: Double, cellSize: CGFloat) -> [CGPoint] {
+    private func visiblePoints(for arrow: EscapeArrow, travel: CGFloat, cellSize: CGFloat) -> [CGPoint] {
         var points = arrow.cells.map { CGPoint(x: CGFloat($0.x) + 0.5, y: CGFloat($0.y) + 0.5) }
         let dx = CGFloat(arrow.direction.dx), dy = CGFloat(arrow.direction.dy)
         if points.count == 1 {
@@ -132,9 +140,10 @@ struct ArrowEscapePuzzleView: View {
         }
         let length = arrow.cells.count == 1 ? CGFloat(0.6) : CGFloat(arrow.cells.count - 1)
         let head = points[points.count - 1]
-        let extensionLength = CGFloat(max(engine.puzzle.columns, engine.puzzle.rows) + 2)
+        // Long enough that the whole arrow can travel past any screen edge.
+        let extensionLength = length + Self.flightDistance(ArrowEscapePuzzleEngine.flightDuration) / cellSize
         points.append(CGPoint(x: head.x + dx * extensionLength, y: head.y + dy * extensionLength))
-        let start = CGFloat(progress) * (length + extensionLength)
+        let start = travel
         let end = start + length
         var distance: CGFloat = 0
         var result: [CGPoint] = []
