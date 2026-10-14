@@ -8,7 +8,7 @@ import SwiftUI
 enum SoundFX {
     enum Sound: CaseIterable {
         case tap, jump, point, coin, bounce, whoosh, pop, hit, lose, win
-        case place, card, wrong, merge, clear, pour, tick
+        case place, card, wrong, merge, clear, pour, tick, bell, gallop
         case simon0, simon1, simon2, simon3
 
         static func simon(_ index: Int) -> Self { [.simon0, .simon1, .simon2, .simon3][index % 4] }
@@ -166,6 +166,14 @@ private enum Synth {
             return sequence([783.99, 1_046.5, 1_318.5, 1_568].map { tone($0, $0 * 1.01, duration: 0.06, wave: .sine, volume: 0.35, decay: 2) })
         case .pour:
             return sequence([700, 560, 640, 480, 540].map { tone(Double($0), Double($0) * 0.8, duration: 0.045, wave: .sine, volume: 0.35, decay: 3) })
+        case .bell:
+            return mix(tone(1_568, 1_568, duration: 0.9, wave: .sine, volume: 0.45, decay: 2.2),
+                       mix(tone(2_349, 2_349, duration: 0.7, wave: .sine, volume: 0.2, decay: 3),
+                           tone(3_136, 3_136, duration: 0.45, wave: .sine, volume: 0.1, decay: 4)))
+        case .gallop:
+            return sequence([tone(140, 90, duration: 0.05, wave: .sine, volume: 0.5, decay: 5),
+                             tone(1, 1, duration: 0.03, wave: .noise, volume: 0.0, decay: 1),
+                             tone(150, 95, duration: 0.05, wave: .sine, volume: 0.45, decay: 5)])
         case .tick:
             return tone(2_000, 1_800, duration: 0.02, wave: .triangle, volume: 0.2, decay: 6)
         case .simon0, .simon1, .simon2, .simon3:

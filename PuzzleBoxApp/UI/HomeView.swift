@@ -26,7 +26,7 @@ struct HomeView: View {
 
     private var popular: [GameID] {
         func rank(_ id: GameID) -> Int { Self.curated.firstIndex(of: id) ?? Self.curated.count }
-        return GameID.allCases.sorted {
+        return GameID.visible.sorted {
             let lhs = stats.gamesPlayed(for: $0), rhs = stats.gamesPlayed(for: $1)
             return lhs != rhs ? lhs > rhs : rank($0) < rank($1)
         }
@@ -85,7 +85,7 @@ struct HomeView: View {
             .onAppear {
                 if pickSelection.isEmpty {
                     let today = GameID.gameOfTheDay
-                    pickSelection = Array(GameID.allCases.filter { $0 != today }.shuffled().prefix(4))
+                    pickSelection = Array(GameID.visible.filter { $0 != today }.shuffled().prefix(4))
                 }
             }
         }
@@ -117,7 +117,7 @@ struct HomeView: View {
     /// Figma "Random game": a full-width row with a glass chevron.
     private var randomGameCard: some View {
         Button {
-            if let game = GameID.allCases.randomElement() {
+            if let game = GameID.visible.randomElement() {
                 playGame(game, source: "random")
             }
         } label: {

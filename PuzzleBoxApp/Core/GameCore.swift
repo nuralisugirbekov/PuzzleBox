@@ -30,7 +30,6 @@ protocol GameEngine: AnyObject, Observable {
 
 enum GameCategory: String, CaseIterable, Identifiable {
     case logic = "Logic"
-    case casual = "Casual"
     case arcade = "Arcade"
     case cards = "Cards"
     case attention = "Attention"
@@ -128,7 +127,18 @@ enum GameID: String, CaseIterable, Identifiable {
     case freecell
     case minesweeper
     case checkmate
+    case crossword
+    case asyk
+    case togyzkumalak
+    case altybakan
+    case kokpar
+    case baige
     var id: String { rawValue }
+
+    /// Games that stay in the code (and keep saved progress) but are not shown in the app yet.
+    static let hidden: Set<GameID> = [.crossword]
+    /// Everything the catalogue, search, home picks and random buttons may offer.
+    static var visible: [GameID] { allCases.filter { !hidden.contains($0) } }
 
     var info: GameInfo {
         switch self {
@@ -324,6 +334,48 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .yellow,
                      category: .logic,
                      difficulty: .hard)
+        case .crossword:
+            GameInfo(title: L10n.text("Crossword"),
+                     tagline: L10n.text("Fill the grid from the clues"),
+                     symbol: "character.textbox",
+                     tint: .indigo,
+                     category: .logic,
+                     difficulty: .medium)
+        case .togyzkumalak:
+            GameInfo(title: L10n.text("Togyzkumalak"),
+                     tagline: L10n.text("The Kazakh strategy game of nine pebbles"),
+                     symbol: "circle.grid.2x2.fill",
+                     tint: .brown,
+                     category: .logic,
+                     difficulty: .hard)
+        case .altybakan:
+            GameInfo(title: L10n.text("Altybakan"),
+                     tagline: L10n.text("Swing higher and ring the bells"),
+                     symbol: "bell.fill",
+                     tint: .yellow,
+                     category: .reaction,
+                     difficulty: .medium)
+        case .kokpar:
+            GameInfo(title: L10n.text("Kokpar"),
+                     tagline: L10n.text("Ride, dodge rivals, deliver the serke"),
+                     symbol: "hare.fill",
+                     tint: .green,
+                     category: .arcade,
+                     difficulty: .medium)
+        case .baige:
+            GameInfo(title: L10n.text("Baige"),
+                     tagline: L10n.text("Gallop, jump, collect, win the race"),
+                     symbol: "figure.equestrian.sports",
+                     tint: .orange,
+                     category: .arcade,
+                     difficulty: .medium)
+        case .asyk:
+            GameInfo(title: L10n.text("Asyk"),
+                     tagline: L10n.text("Knock the asyks out of the ring"),
+                     symbol: "scope",
+                     tint: .orange,
+                     category: .physics,
+                     difficulty: .medium)
         }
     }
 }
@@ -385,6 +437,12 @@ func gameView(for id: GameID) -> some View {
     case .freecell: FreeCellView()
     case .minesweeper: MinesweeperView()
     case .checkmate: CheckmateView()
+    case .crossword: CrosswordView()
+    case .asyk: AsykView()
+    case .togyzkumalak: TogyzView()
+    case .altybakan: AltybakanView()
+    case .kokpar: KokparView()
+    case .baige: BaigeView()
     }
 }
 

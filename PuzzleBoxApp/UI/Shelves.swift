@@ -104,7 +104,6 @@ extension GameCategory {
     var symbol: String {
         switch self {
         case .logic: "brain.head.profile"
-        case .casual: "sparkles"
         case .arcade: "arcade.stick"
         case .cards: "suit.spade.fill"
         case .attention: "eye.fill"
@@ -119,7 +118,6 @@ extension GameCategory {
     var tint: Color {
         switch self {
         case .logic: .indigo
-        case .casual: .pink
         case .arcade: .green
         case .cards: .teal
         case .attention: .cyan
@@ -132,7 +130,7 @@ extension GameCategory {
     }
 
     var games: [GameID] {
-        GameID.allCases.filter { $0.info.category == self }
+        GameID.visible.filter { $0.info.category == self }
     }
 }
 
@@ -191,8 +189,8 @@ extension GameID {
             return saved
         }
         let previous = defaults.string(forKey: gameKey)
-        let candidates = allCases.filter { $0.rawValue != previous }
-        let selected = candidates.randomElement() ?? allCases.randomElement() ?? .bounce
+        let candidates = visible.filter { $0.rawValue != previous }
+        let selected = candidates.randomElement() ?? visible.randomElement() ?? .bounce
         defaults.set(selected.rawValue, forKey: gameKey)
         defaults.set(day, forKey: dateKey)
         return selected
