@@ -93,6 +93,12 @@ struct GameArtwork: View {
         case .freecell: FreeCellArt()
         case .minesweeper: MinesweeperArt()
         case .checkmate: CheckmateArt()
+        case .crossword: CrosswordArt()
+        case .asyk: AsykArt()
+        case .togyzkumalak: TogyzArt()
+        case .altybakan: AltybakanArt()
+        case .kokpar: KokparArt()
+        case .baige: BaigeArt()
         }
     }
 }
@@ -1283,6 +1289,131 @@ private struct CheckmateArt: View {
             Text("♚").font(.system(size: 64)).foregroundStyle(Ink.night).at(98, 70)
             Text("♛").font(.system(size: 48)).foregroundStyle(Ink.rose).at(44, 60)
             Circle().stroke(Ink.rose, lineWidth: 4).frame(width: 60, height: 60).at(98, 76)
+        }
+    }
+}
+
+private struct CrosswordArt: View {
+    // "PUZZLE" across, "PLAY" down from the P, "ZEN" down from the second Z.
+    private let letters: [String: String] = ["1,0": "P", "1,1": "U", "1,2": "Z", "1,3": "Z", "1,4": "L", "1,5": "E",
+                                             "2,0": "L", "3,0": "A", "4,0": "Y", "2,3": "E", "3,3": "N"]
+    var body: some View {
+        ArtCanvas(colors: [Ink.grape, Ink.ocean]) {
+            Cells(rows: 6, columns: 6, size: 22, gap: 3, origin: .init(x: 7, y: 10)) { r, c in
+                if let letter = letters["\(r),\(c)"] {
+                    box(r == 1 ? Ink.sun : Ink.cream, 22, 22, 4)
+                        .overlay { label(letter, 13, Ink.night) }
+                } else {
+                    box(Ink.cream.opacity(0.08), 22, 22, 4)
+                }
+            }
+            label("1", 7, Ink.night, weight: .bold).at(12, 41)
+        }
+    }
+}
+
+private struct TogyzArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Color(0xC98A4B), Ink.bark]) {
+            box(Color(0x6E4220).opacity(0.55), 144, 98, 18).at(80, 80)
+            // Two rows of five pits with pebbles; the top row is the opponent's.
+            ForEach(0..<10, id: \.self) { i in
+                let row = i / 5, col = i % 5
+                let center = CGPoint(x: 28 + CGFloat(col) * 26, y: 56 + CGFloat(row) * 50)
+                dot(Color(0x2A1608), 22).at(center.x, center.y)
+                ForEach(0..<[5, 3, 6, 2, 4, 7, 3, 5, 4, 6][i], id: \.self) { k in
+                    let a = CGFloat(k) / CGFloat([5, 3, 6, 2, 4, 7, 3, 5, 4, 6][i]) * .pi * 2
+                    dot(Ink.cream.opacity(0.9), 5).at(center.x + cos(a) * 6.5, center.y + sin(a) * 6.5)
+                }
+            }
+            // The tuzdyk star.
+            label("★", 14, Ink.sun).at(80 + 26, 56)
+            box(Ink.sun, 40, 8, 4).at(48, 128)
+            box(Ink.sky, 40, 8, 4).at(112, 128)
+        }
+    }
+}
+
+private struct AltybakanArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.sky, Color(0xFFD9A0)]) {
+            dot(Ink.sun, 26).at(124, 36)
+            // A-frame and the swing.
+            stroke(Ink.bark, 7) { p in
+                p.move(to: .init(x: 80, y: 26)); p.addLine(to: .init(x: 34, y: 140))
+                p.move(to: .init(x: 80, y: 26)); p.addLine(to: .init(x: 126, y: 140))
+            }
+            stroke(Ink.cream, 2.5) { p in
+                p.move(to: .init(x: 76, y: 28)); p.addLine(to: .init(x: 52, y: 110))
+                p.move(to: .init(x: 84, y: 28)); p.addLine(to: .init(x: 70, y: 110))
+            }
+            box(Ink.bark, 34, 7, 3).rotationEffect(.degrees(-18)).at(61, 113)
+            dot(Ink.rose, 12).at(56, 98); dot(Ink.ocean, 12).at(68, 98)
+            // Bells on the arc.
+            ForEach(0..<3, id: \.self) { i in
+                label("🔔", 15, Ink.sun).at(118 - CGFloat(i) * 6, 70 + CGFloat(i) * 22)
+            }
+            Rectangle().fill(Ink.leaf).frame(width: 160, height: 22).at(80, 150)
+        }
+    }
+}
+
+private struct KokparArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Color(0x4FA33A), Color(0x2F7A2B)]) {
+            ForEach(0..<4, id: \.self) { i in
+                Rectangle().fill(Color.white.opacity(i.isMultiple(of: 2) ? 0.07 : 0)).frame(width: 160, height: 40).at(80, 20 + CGFloat(i) * 40)
+            }
+            // The kazan at the top.
+            dot(Color.white.opacity(0.4), 70).at(80, 34)
+            dot(Ink.night, 40).at(80, 34)
+            Circle().stroke(Ink.sun, lineWidth: 5).frame(width: 40, height: 40).at(80, 34)
+            // A rival rider and the player carrying the serke.
+            Capsule().fill(Color(0x5C5C66)).frame(width: 18, height: 42).at(44, 76)
+            dot(Ink.ocean, 14).at(44, 76)
+            Capsule().fill(Ink.bark).frame(width: 20, height: 46).at(96, 118)
+            dot(Ink.rose, 16).at(96, 120)
+            dot(Ink.sun, 11).at(96, 114)
+            Capsule().fill(Color(0xA8743A)).frame(width: 12, height: 26).rotationEffect(.degrees(70)).at(112, 118)
+        }
+    }
+}
+
+private struct BaigeArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.sky, Color(0xFFDCA8)]) {
+            dot(Ink.sun, 28).at(122, 34)
+            Rectangle().fill(Ink.leaf).frame(width: 160, height: 40).at(80, 142)
+            // Fence and coins.
+            box(Ink.bark, 5, 28, 2).at(104, 112); box(Ink.bark, 5, 28, 2).at(124, 112); box(Ink.bark, 26, 5, 2).at(114, 104)
+            ForEach(0..<3, id: \.self) { i in dot(Ink.sun, 9).at(70 + CGFloat(i) * 18, 62 + (i == 1 ? -8 : 0)) }
+            // Horse and rider mid-jump.
+            Capsule().fill(Ink.bark).frame(width: 54, height: 22).rotationEffect(.degrees(-14)).at(54, 100)
+            Capsule().fill(Ink.bark).frame(width: 12, height: 26).rotationEffect(.degrees(40)).at(80, 84)
+            Capsule().fill(Ink.bark).frame(width: 22, height: 10).rotationEffect(.degrees(20)).at(90, 74)
+            Capsule().fill(Ink.night).frame(width: 30, height: 4).rotationEffect(.degrees(-30)).at(28, 100)
+            dot(Ink.ocean, 14).at(52, 82); dot(Ink.sun, 9).at(60, 72)
+            Capsule().fill(Ink.night).frame(width: 4, height: 18).rotationEffect(.degrees(-20)).at(38, 118)
+            Capsule().fill(Ink.night).frame(width: 4, height: 18).rotationEffect(.degrees(25)).at(70, 116)
+        }
+    }
+}
+
+private struct AsykArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.sand, Ink.peach]) {
+            Circle().stroke(Ink.bark, lineWidth: 4).frame(width: 128, height: 128).at(80, 72)
+            ForEach(0..<5, id: \.self) { i in
+                Capsule().fill([Ink.cream, Ink.rose, Ink.sky, Ink.mint, Ink.grape][i]).frame(width: 18, height: 12)
+                    .overlay { Capsule().stroke(Ink.night.opacity(0.25), lineWidth: 1) }
+                    .rotationEffect(.degrees(90))
+                    .at(44 + CGFloat(i) * 18, 72)
+            }
+            Capsule().fill(Ink.coral).frame(width: 28, height: 18)
+                .overlay { Capsule().stroke(Ink.sun, lineWidth: 2) }
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+                .at(40, 136)
+            stroke(Ink.cream, 3, dash: [5, 5]) { p in p.move(to: .init(x: 46, y: 124)); p.addLine(to: .init(x: 62, y: 86)) }
         }
     }
 }
