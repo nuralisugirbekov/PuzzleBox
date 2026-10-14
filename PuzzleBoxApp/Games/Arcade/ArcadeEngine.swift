@@ -585,3 +585,30 @@ final class ArcadeEngine: GameEngine {
         if bodies.contains(where: { $0.rect.intersects(rect) }) { lose(at: player, color: GameTheme.accent) }
     }
 }
+
+// MARK: - Saved round
+
+extension ArcadeEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let level: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, score > 0 || level > 1 else { return nil }
+        return encodeSession(Session(score: score, level: level))
+    }
+
+    /// Endless runs keep their score on a fresh course; Knife Spin returns
+    /// to the start of the saved level. The player taps to start again.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data) else { return false }
+        restart()
+        score = s.score
+        if mode == .knifeSpin {
+            level = max(1, s.level)
+            setupKnifeLevel()
+        }
+        return true
+    }
+}

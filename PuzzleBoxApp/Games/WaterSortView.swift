@@ -313,3 +313,34 @@ struct WaterSortView: View {
         .onTapGesture { engine.tap(index) }
     }
 }
+
+// MARK: - Saved round
+
+extension WaterSortEngine: ResumableGame {
+    private struct Session: Codable {
+        let level: Int
+        let tubes: [[Int]]
+        let moves: Int
+        let extraTubeUsed: Bool
+        let history: [[[Int]]]
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, moves > 0 || extraTubeUsed else { return nil }
+        return encodeSession(Session(level: level, tubes: tubes, moves: moves,
+                                     extraTubeUsed: extraTubeUsed, history: history))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data),
+              (1...Self.levelCount).contains(session.level) else { return false }
+        level = session.level
+        tubes = session.tubes
+        moves = session.moves
+        extraTubeUsed = session.extraTubeUsed
+        history = session.history
+        selected = nil
+        state = .playing
+        return true
+    }
+}

@@ -35,7 +35,7 @@ enum PuzzleMode: String {
     }
 }
 
-struct SlidingPiece: Identifiable {
+struct SlidingPiece: Identifiable, Codable {
     let id: Int
     var row: Int
     var col: Int
@@ -446,4 +446,61 @@ final class PuzzleCollectionEngine: GameEngine {
 private extension String {
     /// Swift's hashValue changes per launch; levels must stay identical.
     var hashValueStable: Int { unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF } }
+}
+
+// MARK: - Saved round
+
+extension PuzzleCollectionEngine: ResumableGame {
+    private struct Step: Codable { let grid: [Int]; let score: Int }
+
+    private struct Session: Codable {
+        let level: Int
+        let score: Int
+        let n: Int
+        let grid: [Int]
+        let target: [Int]
+        let marks: Set<Int>
+        let moves: Int
+        let movesLeft: Int
+        let paths: [Int: [Int]]
+        let activePath: [Int]
+        let pieces: [SlidingPiece]
+        let beam: [Int]
+        let nodes: [Int]
+        let edges: [[Int]]
+        let par: Int
+        let colorCount: Int
+        let nextBalls: [Int]
+        let laserSource: Int
+        let laserTarget: Int
+        let pipeEnd: Int
+        let pipeExit: Int
+        let loopClosed: Bool
+        let combo: Int
+        let history: [Step]
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused,
+              moves > 0 || !history.isEmpty || !paths.isEmpty || !activePath.isEmpty else { return nil }
+        return encodeSession(Session(
+            level: level, score: score, n: n, grid: grid, target: target, marks: marks, moves: moves,
+            movesLeft: movesLeft, paths: paths, activePath: activePath, pieces: pieces, beam: beam,
+            nodes: nodes, edges: edges, par: par, colorCount: colorCount, nextBalls: nextBalls,
+            laserSource: laserSource, laserTarget: laserTarget, pipeEnd: pipeEnd, pipeExit: pipeExit,
+            loopClosed: loopClosed, combo: combo, history: history.map { Step(grid: $0.0, score: $0.1) }))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data) else { return false }
+        level = s.level; score = s.score; n = s.n; grid = s.grid; target = s.target; marks = s.marks
+        moves = s.moves; movesLeft = s.movesLeft; paths = s.paths; activePath = s.activePath
+        pieces = s.pieces; beam = s.beam; nodes = s.nodes; edges = s.edges; par = s.par
+        colorCount = s.colorCount; nextBalls = s.nextBalls; laserSource = s.laserSource
+        laserTarget = s.laserTarget; pipeEnd = s.pipeEnd; pipeExit = s.pipeExit
+        loopClosed = s.loopClosed; combo = s.combo; history = s.history.map { ($0.grid, $0.score) }
+        selected = nil; markMode = false
+        state = .playing
+        return true
+    }
 }

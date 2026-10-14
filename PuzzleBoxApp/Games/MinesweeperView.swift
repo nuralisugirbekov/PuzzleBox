@@ -3,7 +3,7 @@ import Observation
 
 // MARK: - Engine
 
-enum MinesweeperDifficulty: Int, CaseIterable {
+enum MinesweeperDifficulty: Int, CaseIterable, Codable {
     case easy, medium, hard
     var title: String { ["Easy", "Medium", "Hard"][rawValue] }
     var size: Int { [9, 12, 14][rawValue] }
@@ -16,7 +16,7 @@ enum MinesweeperDifficulty: Int, CaseIterable {
 final class MinesweeperEngine: GameEngine {
     private static let difficultyKey = "minesweeperDifficulty"
 
-    struct Cell {
+    struct Cell: Codable {
         var isMine = false
         var revealed = false
         var flagged = false
@@ -276,5 +276,37 @@ struct MinesweeperView: View {
         .contentShape(Rectangle())
         .onTapGesture { engine.tap(pos) }
         .onLongPressGesture(minimumDuration: 0.3) { engine.toggleFlag(pos) }
+    }
+}
+
+// MARK: - Saved round
+
+extension MinesweeperEngine: ResumableGame {
+    private struct Session: Codable {
+        let difficulty: MinesweeperDifficulty
+        let grid: [[Cell]]
+        let revealedCount: Int
+        /// Seconds played so far; the clock carries on from here.
+        let elapsed: TimeInterval
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, minesPlaced else { return nil }
+        return encodeSession(Session(difficulty: difficulty, grid: grid, revealedCount: revealedCount,
+                                     elapsed: startDate.map { Date().timeIntervalSince($0) } ?? 0))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        difficulty = session.difficulty
+        grid = session.grid.map { row in row.map { var cell = $0; cell.wave = 0; return cell } }
+        revealedCount = session.revealedCount
+        minesPlaced = true
+        exploded = nil
+        finishSeconds = nil
+        flagMode = false
+        startDate = Date().addingTimeInterval(-session.elapsed)
+        state = .playing
+        return true
     }
 }

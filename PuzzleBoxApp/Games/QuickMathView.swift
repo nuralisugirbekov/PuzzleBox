@@ -140,7 +140,7 @@ final class QuickMathEngine: GameEngine {
 }
 
 struct QuickMathView: View {
-    @State private var engine = QuickMathEngine()
+    @State private var engine = QuickMathEngine.resumable()
     @State private var duration = 60
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -277,5 +277,39 @@ struct QuickMathView: View {
                 .background(highlighted ? GameTheme.accent : GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 12))
         }
         .accessibilityLabel(accessibility ?? title)
+    }
+}
+
+extension QuickMathEngine: ResumableGame {
+    private struct Session: Codable {
+        var remaining: TimeInterval
+        var score, solved, mistakes, streak, answer: Int
+        var expression: String
+    }
+
+    func saveSession() -> Data? {
+        tick()
+        guard hasStarted, state == .playing || state == .paused, remaining > 0 else { return nil }
+        return encodeSession(Session(remaining: remaining, score: score, solved: solved, mistakes: mistakes,
+                                     streak: streak, answer: answer, expression: expression))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), s.remaining > 0 else { return false }
+        anchor = nil
+        remaining = s.remaining
+        score = s.score; solved = s.solved; mistakes = s.mistakes; streak = s.streak
+        expression = s.expression; answer = s.answer
+        input = ""; wrongAnswer = false; lastGain = 0
+        hasStarted = true
+        return true
+    }
+
+    /// An engine already holding a saved round, so the view opens on the board
+    /// (where the container asks to continue) instead of the setup screen.
+    static func resumable() -> QuickMathEngine {
+        let engine = QuickMathEngine()
+        if let session = GameSessionStore.load(.quickMath) { _ = engine.restoreSession(session.payload) }
+        return engine
     }
 }

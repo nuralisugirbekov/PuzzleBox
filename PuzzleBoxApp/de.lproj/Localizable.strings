@@ -400,3 +400,8 @@
 
 /* Pause */
 "Game Paused" = "Spiel pausiert";
+
+/* Resume */
+"Continue previous game?" = "Letztes Spiel fortsetzen?";
+"If you restart, you’ll lose your progress" = "Beim Neustart geht dein Fortschritt verloren";
+"Start over" = "Neu beginnen";

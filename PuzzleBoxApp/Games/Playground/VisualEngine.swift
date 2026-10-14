@@ -146,3 +146,36 @@ private struct LevelRandom: RandomNumberGenerator {
         return value ^ (value >> 31)
     }
 }
+
+// MARK: - Saved round
+
+extension VisualEngine: ResumableGame {
+    private struct Session: Codable {
+        let levelIndex: Int
+        let cells: [Int]
+        let turns: [Int]
+        let moves: Int
+        let size: Int
+        let par: Int
+        let matchesToMove: Int
+        let matchesMoved: Int
+        let startCells: [Int]
+    }
+
+    func saveSession() -> Data? {
+        // Later levels are worth keeping even before the first move.
+        guard state == .playing || state == .paused, moves > 0 || levelIndex > 0 else { return nil }
+        return encodeSession(Session(levelIndex: levelIndex, cells: cells, turns: turns, moves: moves,
+                                     size: size, par: par, matchesToMove: matchesToMove,
+                                     matchesMoved: matchesMoved, startCells: startCells))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), (0..<levelCount).contains(s.levelIndex) else { return false }
+        levelIndex = s.levelIndex
+        restart()  // Re-seeds the level, then the saved board replaces the fresh one.
+        cells = s.cells; turns = s.turns; moves = s.moves; size = s.size; par = s.par
+        matchesToMove = s.matchesToMove; matchesMoved = s.matchesMoved; startCells = s.startCells
+        return true
+    }
+}

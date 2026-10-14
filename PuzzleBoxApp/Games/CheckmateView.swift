@@ -491,7 +491,7 @@ final class CheckmateEngine: GameEngine {
 // MARK: - View
 
 struct CheckmateView: View {
-    @State private var engine = CheckmateEngine()
+    @State private var engine = CheckmateEngine.resumable()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDuration = 60
@@ -716,5 +716,36 @@ struct CheckmateView: View {
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { engine.tap(index) }
+    }
+}
+
+/// The clock, score and streak carry over; play continues on a fresh puzzle.
+extension CheckmateEngine: ResumableGame {
+    private struct Session: Codable {
+        var remainingTime: TimeInterval
+        var score, solvedCount, streak: Int
+    }
+
+    func saveSession() -> Data? {
+        tick()
+        guard hasStarted, state == .playing || state == .paused, remainingTime > 0 else { return nil }
+        return encodeSession(Session(remainingTime: remainingTime, score: score,
+                                     solvedCount: solvedCount, streak: streak))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), s.remainingTime > 0 else { return false }
+        if hasStarted { restart() }
+        remainingTime = s.remainingTime
+        score = s.score; solvedCount = s.solvedCount; streak = s.streak
+        hasStarted = true
+        clockAnchor = nil
+        return true
+    }
+
+    static func resumable() -> CheckmateEngine {
+        let engine = CheckmateEngine()
+        if let session = GameSessionStore.load(.checkmate) { _ = engine.restoreSession(session.payload) }
+        return engine
     }
 }

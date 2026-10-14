@@ -5,7 +5,7 @@ import Observation
 // MARK: - Shared primitives
 
 /// A cell position on any game grid. Row 0 is the top row.
-struct GridPos: Hashable {
+struct GridPos: Hashable, Codable {
     var r: Int
     var c: Int
 }

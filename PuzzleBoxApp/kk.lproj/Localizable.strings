@@ -404,3 +404,8 @@
 
 /* Pause */
 "Game Paused" = "Ойын кідіртілді";
+
+/* Resume */
+"Continue previous game?" = "Алдыңғы ойынды жалғастырасыз ба?";
+"If you restart, you’ll lose your progress" = "Қайта бастасаңыз, прогресс жоғалады";
+"Start over" = "Қайта бастау";

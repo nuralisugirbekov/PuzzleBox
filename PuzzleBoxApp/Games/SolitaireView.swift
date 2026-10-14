@@ -20,14 +20,14 @@ final class SolitaireEngine: GameEngine {
     var selection: Selection?
     var state: GameState = .playing
 
-    private struct Snapshot {
+    fileprivate struct Snapshot: Codable {
         let stock: [Card]
         let waste: [Card]
         let foundations: [[Card]]
         let tableau: [[Card]]
         let score: Int
     }
-    private var history: [Snapshot] = []
+    fileprivate var history: [Snapshot] = []
     var canUndo: Bool { state == .playing && !history.isEmpty }
 
     private func saveForUndo() {
@@ -413,5 +413,34 @@ struct SolitaireView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Saved round
+
+extension SolitaireEngine: ResumableGame {
+    private struct Session: Codable {
+        let board: Snapshot
+        let history: [Snapshot]
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, !history.isEmpty else { return nil }
+        return encodeSession(Session(board: Snapshot(stock: stock, waste: waste, foundations: foundations,
+                                                     tableau: tableau, score: score),
+                                     history: history))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        stock = session.board.stock
+        waste = session.board.waste
+        foundations = session.board.foundations
+        tableau = session.board.tableau
+        score = session.board.score
+        history = session.history
+        selection = nil
+        state = .playing
+        return true
     }
 }

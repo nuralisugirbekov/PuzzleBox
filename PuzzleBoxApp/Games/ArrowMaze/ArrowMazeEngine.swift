@@ -77,3 +77,23 @@ final class ArrowMazeEngine: GameEngine {
         }
     }
 }
+
+// MARK: - Saved round
+
+extension ArrowMazeEngine: ResumableGame {
+    private struct Session: Codable { let levelIndex: Int }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started || levelIndex > 0 else { return nil }
+        return encodeSession(Session(levelIndex: levelIndex))
+    }
+
+    /// Returns to the start of the saved maze.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data),
+              ArrowMazeLevel.all.indices.contains(s.levelIndex) else { return false }
+        levelIndex = s.levelIndex
+        restart()
+        return true
+    }
+}

@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-struct Game2048Tile: Identifiable, Equatable {
+struct Game2048Tile: Identifiable, Equatable, Codable {
     let id: Int
     var value: Int
     var row: Int
@@ -310,5 +310,39 @@ private struct Game2048TileView: View {
                     SpringKeyframe(1, duration: 0.14)
                 }
             }
+    }
+}
+
+// MARK: - Saved round
+
+extension Game2048Engine: ResumableGame {
+    private struct Session: Codable {
+        let tiles: [Game2048Tile]
+        let score: Int
+        let bestTile: Int
+        let undosLeft: Int
+        let nextID: Int
+    }
+
+    func saveSession() -> Data? {
+        // A board with only the two opening tiles has no progress to keep.
+        guard state == .playing || state == .paused, score > 0 else { return nil }
+        purgeVanished()
+        return encodeSession(Session(tiles: tiles, score: score, bestTile: bestTile,
+                                     undosLeft: undosLeft, nextID: nextID))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        tiles = session.tiles.filter { !$0.isVanishing }
+        score = session.score
+        bestTile = session.bestTile
+        undosLeft = session.undosLeft
+        nextID = session.nextID
+        undoSnapshot = nil
+        undoAvailable = false
+        popups.clear()
+        state = .playing
+        return true
     }
 }

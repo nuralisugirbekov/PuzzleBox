@@ -3,7 +3,7 @@ import Observation
 
 // MARK: - Engine
 
-enum SnakeDirection {
+enum SnakeDirection: Codable {
     case up, down, left, right
 
     var dr: Int {
@@ -203,6 +203,40 @@ final class SnakeEngine: GameEngine {
             stop()
             state = .gameOver(won: true)  // board completely filled
         }
+    }
+}
+
+// MARK: - Saved round
+
+extension SnakeEngine: ResumableGame {
+    private struct Session: Codable {
+        let snake: [GridPos]
+        let food: GridPos
+        let golden: GridPos?
+        let goldenTicksLeft: Int
+        let rocks: Set<GridPos>
+        let score: Int
+        let eaten: Int
+        let combo: Int
+        let level: Int
+        let direction: SnakeDirection
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, eaten > 0 else { return nil }
+        return encodeSession(Session(snake: snake, food: food, golden: golden, goldenTicksLeft: goldenTicksLeft,
+                                     rocks: rocks, score: score, eaten: eaten, combo: combo, level: level,
+                                     direction: direction))
+    }
+
+    /// Restores the board exactly; the snake moves once the player continues.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), !s.snake.isEmpty else { return false }
+        snake = s.snake; food = s.food; golden = s.golden; goldenTicksLeft = s.goldenTicksLeft
+        rocks = s.rocks; score = s.score; eaten = s.eaten; combo = s.combo; level = s.level
+        direction = s.direction; queued = []; ticksSinceFood = 0
+        popups.clear()
+        return true
     }
 }
 

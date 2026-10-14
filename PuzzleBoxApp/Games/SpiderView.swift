@@ -19,12 +19,12 @@ final class SpiderEngine: GameEngine {
 
     var score: Int { completedRuns * (suitCount == 2 ? 160 : 100) }
 
-    private struct Snapshot {
+    fileprivate struct Snapshot: Codable {
         let tableau: [[Card]]
         let stock: [[Card]]
         let completedRuns: Int
     }
-    private var history: [Snapshot] = []
+    fileprivate var history: [Snapshot] = []
     var canUndo: Bool { state == .playing && !history.isEmpty }
 
     init() { deal() }
@@ -283,5 +283,34 @@ struct SpiderView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Saved round
+
+extension SpiderEngine: ResumableGame {
+    private struct Session: Codable {
+        let board: Snapshot
+        let history: [Snapshot]
+        let suitCount: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, !history.isEmpty else { return nil }
+        return encodeSession(Session(board: Snapshot(tableau: tableau, stock: stock, completedRuns: completedRuns),
+                                     history: history, suitCount: suitCount))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        suitCount = session.suitCount
+        tableau = session.board.tableau
+        stock = session.board.stock
+        completedRuns = session.board.completedRuns
+        history = session.history
+        message = ""
+        selection = nil
+        state = .playing
+        return true
     }
 }

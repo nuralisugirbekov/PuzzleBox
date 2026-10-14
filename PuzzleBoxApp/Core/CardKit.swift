@@ -2,15 +2,15 @@ import SwiftUI
 
 // Shared playing-card model and rendering used by the card mini-games.
 
-enum Suit: Int, CaseIterable {
+enum Suit: Int, CaseIterable, Codable {
     case spades, hearts, diamonds, clubs
 
     var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
     var isRed: Bool { self == .hearts || self == .diamonds }
 }
 
-struct Card: Identifiable, Equatable {
-    let id = UUID()
+struct Card: Identifiable, Equatable, Codable {
+    var id = UUID()
     let suit: Suit
     let rank: Int  // 1 = ace ... 13 = king
     var faceUp = true
@@ -80,29 +80,29 @@ struct CardView: View {
         .accessibilityLabel(card.faceUp ? "\(card.rankLabel) \(card.suit.symbol)" : L10n.text("Card"))
     }
 
-    private static let rankSize: CGFloat = 16
-    private static let cornerPipScale: CGFloat = 1.2
+    /// Figma `_card` › top-left, at a 50×72 card: a 14pt bold rank whose
+    /// centre sits 10pt below the top edge, 3pt in from the left; the small pip
+    /// is pinned to the top-right corner by its own offsets.
+    private static let rankSize: CGFloat = 14
 
     private var corner: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Enlarged from the design's 12pt so ranks read at a glance; it still
-            // fits the 16pt strip left visible in a fanned column.
+        ZStack(alignment: .topLeading) {
             Text(card.rankLabel)
                 .font(.system(size: Self.rankSize * scale, weight: .bold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .fixedSize()
                 .foregroundStyle(ink)
-                .frame(height: 13 * scale)
-                .padding(.top, 1.5 * scale)
-            Spacer(minLength: 0)
+                .frame(height: 14 * scale, alignment: .center)
+                .offset(x: 3 * scale, y: 3 * scale)
             Image(card.suit.assetName(small: true))
                 .resizable()
-                .frame(width: card.suit.smallSize.width * Self.cornerPipScale * scale,
-                       height: card.suit.smallSize.height * Self.cornerPipScale * scale)
-                .padding(.top, 3 * scale)
+                .frame(width: card.suit.smallSize.width * scale,
+                       height: card.suit.smallSize.height * scale)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, card.suit.smallInset.trailing * scale)
+                .padding(.top, card.suit.smallInset.top * scale)
         }
-        .padding(.leading, 3 * scale)
-        .padding(.trailing, 5.25 * scale)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var centerPip: some View {
@@ -149,10 +149,16 @@ extension Suit {
     fileprivate var smallSize: CGSize {
         switch self {
         case .hearts: CGSize(width: 9.75, height: 9)
-        case .diamonds: CGSize(width: 7, height: 9)
+        case .diamonds: CGSize(width: 7.82, height: 10.17)
         case .spades, .clubs: CGSize(width: 9.75, height: 9.75)
         }
     }
+
+    /// Small pip's distance from the card's top and trailing edges.
+    fileprivate var smallInset: (top: CGFloat, trailing: CGFloat) {
+        self == .diamonds ? (5.5, 6.18) : (6, 5.25)
+    }
+
 
     /// Vertical offset of the large pip's centre from the card centre.
     fileprivate var largeCenterOffset: CGFloat {
@@ -220,11 +226,11 @@ struct CardSlot: View {
 }
 
 /// Vertical offsets for a fanned tableau column. Face-up cards step by the
-/// design's 16.25pt per 72pt card; the fan tightens when it would run past
+/// design's 20pt per 72pt card; the fan tightens when it would run past
 /// `maxHeight`.
 enum CardFan {
     static func offsets(for cards: [Card], cardHeight: CGFloat, maxHeight: CGFloat) -> [CGFloat] {
-        let faceUp = cardHeight * 16.25 / 72
+        let faceUp = cardHeight * 20 / 72
         let faceDown = cardHeight * 0.12
         let steps = cards.dropLast().map { $0.faceUp ? faceUp : faceDown }
         let natural = steps.reduce(0, +)

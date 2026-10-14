@@ -412,3 +412,29 @@ final class ActionCollectionEngine: GameEngine {
         [Color.cyan, .pink, .yellow, .mint, .orange][kind % 5]
     }
 }
+
+// MARK: - Saved round
+
+extension ActionCollectionEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let timeLeft: Double
+        let lives: Int
+        let progress: Int
+        let level: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, score > 0 || progress > 0 || level > 1 else { return nil }
+        return encodeSession(Session(score: score, timeLeft: timeLeft, lives: lives, progress: progress, level: level))
+    }
+
+    /// Resumes score, clock, lives and level; the player taps to start again.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), s.lives > 0, s.timeLeft > 0 else { return false }
+        restart()
+        score = s.score; timeLeft = s.timeLeft; lives = s.lives; progress = s.progress; level = s.level
+        if mode == .chainReaction { setupChainLevel() }
+        return true
+    }
+}

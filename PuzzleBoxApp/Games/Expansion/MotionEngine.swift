@@ -395,3 +395,22 @@ final class MotionEngine: GameEngine {
         Haptics.tap()
     }
 }
+
+// MARK: - Saved round
+
+extension MotionEngine: ResumableGame {
+    private struct Session: Codable { let score: Int }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, score > 0 else { return nil }
+        return encodeSession(Session(score: score))
+    }
+
+    /// Keeps the score on a fresh run; the player taps to start again.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data) else { return false }
+        restart()
+        score = s.score
+        return true
+    }
+}

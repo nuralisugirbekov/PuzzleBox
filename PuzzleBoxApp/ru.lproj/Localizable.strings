@@ -404,3 +404,8 @@
 
 /* Pause */
 "Game Paused" = "Игра на паузе";
+
+/* Resume */
+"Continue previous game?" = "Продолжить прошлую игру?";
+"If you restart, you’ll lose your progress" = "Если начать заново, прогресс будет потерян";
+"Start over" = "Начать заново";
