@@ -536,3 +536,28 @@ final class ToyEngine: GameEngine {
         return cross(a,b,c)*cross(a,b,d) <= 0 && cross(c,d,a)*cross(c,d,b) <= 0
     }
 }
+
+// MARK: - Saved round
+
+extension ToyEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let successes: Int
+        let lives: Int
+        let streak: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, successes > 0 || score > 0 else { return nil }
+        return encodeSession(Session(score: score, successes: successes, lives: lives, streak: streak))
+    }
+
+    /// Resumes at the saved level with a fresh shot.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), s.lives > 0 else { return false }
+        restart()
+        score = s.score; successes = s.successes; lives = s.lives; streak = s.streak
+        prepare()
+        return true
+    }
+}

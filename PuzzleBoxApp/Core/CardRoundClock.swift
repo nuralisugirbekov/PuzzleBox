@@ -17,6 +17,12 @@ struct CardRoundClock {
         anchor = active ? ProcessInfo.processInfo.systemUptime : nil
     }
 
+    /// Continues a saved round from `elapsed` seconds.
+    mutating func resume(from elapsed: TimeInterval, active: Bool) {
+        self.elapsed = elapsed
+        anchor = active ? ProcessInfo.processInfo.systemUptime : nil
+    }
+
     mutating func reset(active: Bool) {
         elapsed = 0
         anchor = active ? ProcessInfo.processInfo.systemUptime : nil

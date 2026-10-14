@@ -3,8 +3,8 @@ import Observation
 
 // MARK: - Engine
 
-struct BBPiece: Identifiable, Equatable {
-    let id = UUID()
+struct BBPiece: Identifiable, Equatable, Codable {
+    var id = UUID()
     let cells: [GridPos]  // normalized: min row/col is 0
     let colorIndex: Int
 
@@ -53,10 +53,10 @@ final class BlockBlastEngine: GameEngine {
     let popups = ClassicFXPopupFeed()
 
     /// Board snapshots before each placement, for "Revert".
-    private struct Snapshot {
+    fileprivate struct Snapshot: Codable {
         let grid: [[Int?]], tray: [BBPiece?], score: Int, combo: Int, comboGraceLeft: Int
     }
-    private var history: [Snapshot] = []
+    fileprivate var history: [Snapshot] = []
     var canUndo: Bool { state == .playing && !history.isEmpty }
     static let comboGrace = 3
 
@@ -217,11 +217,15 @@ struct BlockBlastView: View {
     @State private var gridFrame: CGRect = .zero
     @State private var dragIndex: Int?
     @State private var dragLocation: CGPoint = .zero
+    @State private var dragStart: CGPoint = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let space = "blockblast"
     /// The dragged piece floats above the finger so it stays visible.
-    private static let lift: CGFloat = 60
+    private static let lift: CGFloat = 90
+    /// Upward finger travel is amplified by this much, so the top rows are
+    /// reachable without stretching across the whole board.
+    private static let reach: CGFloat = 1.8
     /// Figma: 4pt gaps and padding on the board, 8pt between tray slots.
     private static let gap: CGFloat = 4
 
@@ -256,11 +260,21 @@ struct BlockBlastView: View {
               engine.tray.indices.contains(index),
               let piece = engine.tray[index],
               gridFrame != .zero else { return nil }
-        let x = (dragLocation.x - gridFrame.minX) / cellPitch - CGFloat(piece.width) / 2
-        let y = (dragLocation.y - Self.lift - gridFrame.minY) / cellPitch - CGFloat(piece.height) / 2
+        let center = pieceCenter(for: piece)
+        let x = (center.x - gridFrame.minX) / cellPitch - CGFloat(piece.width) / 2
+        let y = (center.y - gridFrame.minY) / cellPitch - CGFloat(piece.height) / 2
         let origin = GridPos(r: Int(y.rounded()), c: Int(x.rounded()))
         let cells = Set(piece.cells.map { GridPos(r: origin.r + $0.r, c: origin.c + $0.c) })
         return (origin, engine.canPlace(piece, at: origin), cells, engine.linesCompleted(by: piece, at: origin))
+    }
+
+    /// Where the dragged piece is drawn: above the finger, pulling further
+    /// ahead the higher the finger moves, but never past the top row.
+    private func pieceCenter(for piece: BBPiece) -> CGPoint {
+        let climbed = max(0, dragStart.y - dragLocation.y)
+        let y = dragLocation.y - Self.lift - climbed * (Self.reach - 1)
+        let topRow = gridFrame.minY + CGFloat(piece.height) * cellPitch / 2
+        return CGPoint(x: dragLocation.x, y: max(y, topRow))
     }
 
     // MARK: Board
@@ -354,7 +368,10 @@ struct BlockBlastView: View {
     private func dragGesture(for index: Int) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
             .onChanged { value in
-                if dragIndex == nil { Haptics.tap(); SoundFX.play(.tap) }
+                if dragIndex == nil {
+                    dragStart = value.startLocation
+                    Haptics.tap(); SoundFX.play(.tap)
+                }
                 dragIndex = index
                 dragLocation = value.location
             }
@@ -398,7 +415,7 @@ struct BlockBlastView: View {
            let piece = engine.tray[index],
            gridFrame != .zero {
             PieceView(piece: piece, cellSize: cellPitch - Self.gap, spacing: Self.gap)
-                .position(x: dragLocation.x, y: dragLocation.y - Self.lift)
+                .position(pieceCenter(for: piece))
                 .allowsHitTesting(false)
                 .shadow(radius: 8, y: 4)
         }
@@ -441,5 +458,35 @@ private struct GridFrameKey: PreferenceKey {
     static var defaultValue: CGRect = .zero
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
+    }
+}
+
+// MARK: - Saved round
+
+extension BlockBlastEngine: ResumableGame {
+    private struct Session: Codable {
+        let board: Snapshot
+        let history: [Snapshot]
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, !history.isEmpty else { return nil }
+        return encodeSession(Session(board: Snapshot(grid: grid, tray: tray, score: score,
+                                                     combo: combo, comboGraceLeft: comboGraceLeft),
+                                     history: history))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        grid = session.board.grid
+        tray = session.board.tray
+        score = session.board.score
+        combo = session.board.combo
+        comboGraceLeft = session.board.comboGraceLeft
+        history = session.history
+        flashCells = [:]
+        popups.clear()
+        state = .playing
+        return true
     }
 }

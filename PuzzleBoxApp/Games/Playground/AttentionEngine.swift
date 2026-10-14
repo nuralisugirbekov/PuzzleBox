@@ -126,3 +126,30 @@ final class AttentionEngine: GameEngine {
         roundTime += d
     }
 }
+
+// MARK: - Saved round
+
+extension AttentionEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let timeLeft: Double
+        let lives: Int
+        let round: Int
+        let streak: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, round > 0 || score > 0 else { return nil }
+        return encodeSession(Session(score: score, timeLeft: timeLeft, lives: lives, round: round, streak: streak))
+    }
+
+    /// Picks up the score, clock, lives and round with a fresh question;
+    /// the player taps to start again.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data), s.lives > 0, s.timeLeft > 0 else { return false }
+        restart()
+        score = s.score; timeLeft = s.timeLeft; lives = s.lives; round = s.round; streak = s.streak
+        prepare()
+        return true
+    }
+}

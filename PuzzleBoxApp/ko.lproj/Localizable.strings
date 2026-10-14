@@ -400,6 +400,11 @@
 
 /* Pause */
 "Game Paused" = "일시정지됨";
+
+/* Resume */
+"Continue previous game?" = "이전 게임을 계속할까요?";
+"If you restart, you’ll lose your progress" = "다시 시작하면 진행 상황이 사라집니다";
+"Start over" = "처음부터";
 "Crossword" = "크로스워드";
 "Fill the grid from the clues" = "단서를 보고 칸을 채우세요";
 "Asyk" = "아식";

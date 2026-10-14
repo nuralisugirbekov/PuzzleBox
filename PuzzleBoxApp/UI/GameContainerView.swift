@@ -30,6 +30,9 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     /// The game-over alert was closed with its ✕ to look at the final board.
     @State private var gameOverHidden = false
     @State private var contentShown = false
+    @Environment(\.resumeOffer) private var resumeOffer
+    /// A saved round was restored; the "Continue previous game?" alert is up.
+    private var offeringResume: Bool { resumeOffer.awaiting.contains(gameID) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SoundFX.enabledKey) private var soundEnabled = true
     private var tutorial: GameTutorial? { GameTutorial.forGame(gameID) }
@@ -93,7 +96,21 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             }
             .padding()
 
-            if engine.state == .paused {
+            if engine.state == .paused && offeringResume {
+                ResumeAlert(continueGame: {
+                                resumeOffer.answer(gameID)
+                                engine.state = .playing
+                                AppAnalytics.log("game_resumed_session", parameters: ["game_id": gameID.rawValue])
+                            },
+                            startOver: {
+                                resumeOffer.answer(gameID)
+                                restart()
+                            },
+                            exit: {
+                                resumeOffer.answer(gameID)
+                                dismiss()
+                            })
+            } else if engine.state == .paused {
                 PauseAlert(resume: {
                                roundAnalytics.event("game_resume", score: engine.score)
                                engine.state = .playing
@@ -146,6 +163,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             if !hasStartedRound {
                 hasStartedRound = true
                 if hasCardTimer { cardClock.reset(active: scenePhase == .active && engine.state == .playing) }
+                restoreSavedRound()
                 roundAnalytics.start(gameID, active: scenePhase == .active && engine.state == .playing)
             }
         }
@@ -157,13 +175,16 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             if let tutorial { GameTutorialView(gameID: gameID, tutorial: tutorial) }
         }
         .onAppear {
-            if tutorial != nil && !UserDefaults.standard.bool(forKey: tutorialKey) { showTutorial() }
+            if tutorial != nil && !offeringResume && !UserDefaults.standard.bool(forKey: tutorialKey) { showTutorial() }
         }
         .onDisappear {
+            saveRound()
             cardClock.setActive(false)
             roundAnalytics.finish(score: displayedScore, reason: "exit")
         }
         .onChange(of: scenePhase) { _, phase in
+            // Backgrounded apps may be killed without warning, so save now.
+            if phase != .active { saveRound() }
             if hasCardTimer { cardClock.setActive(phase == .active && engine.state == .playing) }
             roundAnalytics.setActive(phase == .active && engine.state == .playing)
         }
@@ -174,6 +195,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 roundAnalytics.event("game_pause", score: engine.score)
             }
             if case .gameOver(let won) = newState {
+                GameSessionStore.delete(gameID)
                 awardedTimeBonus = hasCardTimer && won ? cardClock.victoryBonus : 0
                 let total = engine.score + awardedTimeBonus
                 finalScore = total
@@ -209,6 +231,35 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         }
     }
 
+    // MARK: Saved rounds
+
+    /// When the game was just opened from the catalog, picks up a round the
+    /// player left unfinished and asks whether to continue it.
+    private func restoreSavedRound() {
+        guard resumeOffer.claim(gameID),
+              let resumable = engine as? any ResumableGame,
+              let session = GameSessionStore.load(gameID) else { return }
+        guard resumable.restoreSession(session.payload) else {
+            GameSessionStore.delete(gameID)
+            return
+        }
+        if hasCardTimer { cardClock.resume(from: session.elapsed, active: false) }
+        resumeOffer.markAwaiting(gameID)
+        engine.state = .paused
+    }
+
+    /// Writes the unfinished round to disk, or clears it when there is
+    /// nothing to resume.
+    private func saveRound() {
+        guard let resumable = engine as? any ResumableGame else { return }
+        if hasCardTimer { cardClock.tick() }
+        if let payload = resumable.saveSession() {
+            GameSessionStore.save(payload, for: gameID, elapsed: cardClock.elapsed)
+        } else {
+            GameSessionStore.delete(gameID)
+        }
+    }
+
     private func restart() {
         Haptics.tap()
         autoAdvancing = false
@@ -225,6 +276,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         finalScore = nil
         awardedTimeBonus = 0
         if hasCardTimer { cardClock.reset(active: scenePhase == .active) }
+        GameSessionStore.delete(gameID)
         engine.restart()
         // Timed challenges return to setup; their new container starts the next round.
         if gameID != .checkmate && gameID != .quickMath {
@@ -387,6 +439,54 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 // MARK: - Overlay chrome
 
 
+
+/// Figma "Solitare. Rejoined": offered when a game opens on a round the
+/// player left unfinished.
+struct ResumeAlert: View {
+    let continueGame: () -> Void
+    let startOver: () -> Void
+    let exit: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { } // Block taps to the restored board.
+            VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 41, weight: .semibold))
+                        .foregroundStyle(GameTheme.accent)
+                        .frame(height: 49)
+                        .accessibilityHidden(true)
+                    Text(L10n.text("Continue previous game?"))
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(L10n.text("If you restart, you’ll lose your progress"))
+                        .font(.title2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                VStack(spacing: 8) {
+                    AlertActionButton(title: L10n.text("Continue"), symbol: "play.fill",
+                                      prominent: true, action: continueGame)
+                    AlertActionButton(title: L10n.text("Start over"), symbol: "arrow.counterclockwise",
+                                      action: startOver)
+                    AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: exit)
+                }
+            }
+            .padding(14)
+            .frame(width: 300)
+            .alertSurface(cornerRadius: 34)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+        }
+        .transition(.opacity)
+    }
+}
 
 /// Figma "Solitare. Paused": an iOS alert with a title and three stacked
 /// actions over a dimmed board. Shared by every game.

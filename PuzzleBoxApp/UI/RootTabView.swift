@@ -277,13 +277,24 @@ struct SettingsView: View {
 private struct GameSessionView: View {
     @Environment(StatsStore.self) private var stats
     @State private var currentGame: GameID
-    init(initialGame: GameID) { _currentGame = State(initialValue: initialGame) }
+    /// Lets each game opened here offer its saved round exactly once.
+    @State private var resumeOffer = ResumeOffer()
+
+    init(initialGame: GameID) {
+        _currentGame = State(initialValue: initialGame)
+        let offer = ResumeOffer()
+        offer.open(initialGame)
+        _resumeOffer = State(initialValue: offer)
+    }
+
     var body: some View {
         gameView(for: currentGame)
             .id(currentGame)
+            .environment(\.resumeOffer, resumeOffer)
             .environment(\.playGame, PlayGameAction { id, source in
                 AppAnalytics.selectGame(id, source: source)
                 stats.markOpened(id)
+                resumeOffer.open(id)
                 currentGame = id
             })
     }

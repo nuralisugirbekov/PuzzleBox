@@ -97,3 +97,37 @@ final class ArrowEscapePuzzleEngine: GameEngine {
         occupancy = Dictionary(uniqueKeysWithValues: puzzle.arrows.flatMap { arrow in arrow.cells.map { ($0, arrow.id) } })
     }
 }
+
+// MARK: - Saved round
+
+extension ArrowEscapePuzzleEngine: ResumableGame {
+    private struct Session: Codable {
+        let levelIndex: Int
+        /// Arrows still on the board; ones in flight count as gone.
+        let onBoard: [Int]
+        let mistakes: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused else { return nil }
+        let onBoard = remaining.subtracting(moving.keys)
+        guard onBoard.count < puzzle.arrows.count || mistakes > 0, !onBoard.isEmpty else { return nil }
+        return encodeSession(Session(levelIndex: levelIndex, onBoard: onBoard.sorted(), mistakes: mistakes))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data),
+              (0..<ArrowEscapePuzzle.levelCount).contains(session.levelIndex) else { return false }
+        let puzzle = ArrowEscapePuzzle.make(level: session.levelIndex)
+        guard session.onBoard.allSatisfy(puzzle.arrows.indices.contains) else { return false }
+        levelIndex = session.levelIndex
+        self.puzzle = puzzle
+        resetBoard()
+        remaining = Set(session.onBoard)
+        occupancy = Dictionary(uniqueKeysWithValues: puzzle.arrows.filter { remaining.contains($0.id) }
+            .flatMap { arrow in arrow.cells.map { ($0, arrow.id) } })
+        mistakes = session.mistakes
+        score = (puzzle.arrows.count - remaining.count) * 10
+        return true
+    }
+}

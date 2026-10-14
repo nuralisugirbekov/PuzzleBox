@@ -400,6 +400,11 @@
 
 /* Pause */
 "Game Paused" = "गेम रुका हुआ है";
+
+/* Resume */
+"Continue previous game?" = "पिछला गेम जारी रखें?";
+"If you restart, you’ll lose your progress" = "फिर से शुरू करने पर आपकी प्रगति खो जाएगी";
+"Start over" = "फिर से शुरू करें";
 "Crossword" = "क्रॉसवर्ड";
 "Fill the grid from the clues" = "संकेतों से ग्रिड भरें";
 "Asyk" = "असिक";

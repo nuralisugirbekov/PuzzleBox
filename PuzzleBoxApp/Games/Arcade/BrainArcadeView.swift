@@ -168,6 +168,38 @@ final class BrainArcadeEngine: GameEngine {
     }
 }
 
+// MARK: - Saved round
+
+extension BrainArcadeEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let round: Int
+        let sequence: [Int]
+        let reactionTimes: [Int]
+        let falseStarts: Int
+        let bestTime: Int?
+        let secondChance: Bool
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, round > 0 else { return nil }
+        return encodeSession(Session(score: score, round: round, sequence: sequence, reactionTimes: reactionTimes,
+                                     falseStarts: falseStarts, bestTime: bestTime, secondChance: secondChance))
+    }
+
+    /// Picks up after the last finished round; the player taps to start again.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data) else { return false }
+        restart()
+        score = s.score; round = s.round; reactionTimes = s.reactionTimes; falseStarts = s.falseStarts
+        bestTime = s.bestTime; secondChance = s.secondChance
+        // Simon keeps the rounds already passed; starting adds the next step
+        // and shows the whole sequence. A half-entered round is dropped.
+        sequence = Array(s.sequence.prefix(s.round))
+        return true
+    }
+}
+
 struct BrainArcadeView: View {
     @State private var engine: BrainArcadeEngine
     @Environment(\.scenePhase) private var scenePhase

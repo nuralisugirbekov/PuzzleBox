@@ -20,12 +20,12 @@ final class FreeCellEngine: GameEngine {
 
     var score: Int { foundations.reduce(0) { $0 + $1.count } * 10 }
 
-    private struct Snapshot {
+    fileprivate struct Snapshot: Codable {
         let cascades: [[Card]]
         let freeCells: [Card?]
         let foundations: [[Card]]
     }
-    private var history: [Snapshot] = []
+    fileprivate var history: [Snapshot] = []
     var canUndo: Bool { state == .playing && !history.isEmpty }
 
     private func saveForUndo() {
@@ -335,5 +335,31 @@ struct FreeCellView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Saved round
+
+extension FreeCellEngine: ResumableGame {
+    private struct Session: Codable {
+        let board: Snapshot
+        let history: [Snapshot]
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, !history.isEmpty else { return nil }
+        return encodeSession(Session(board: Snapshot(cascades: cascades, freeCells: freeCells, foundations: foundations),
+                                     history: history))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        cascades = session.board.cascades
+        freeCells = session.board.freeCells
+        foundations = session.board.foundations
+        history = session.history
+        selection = nil
+        state = .playing
+        return true
     }
 }

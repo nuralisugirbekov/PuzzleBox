@@ -3,7 +3,7 @@ import Observation
 
 // MARK: - Engine
 
-enum SudokuDifficulty: Int, CaseIterable {
+enum SudokuDifficulty: Int, CaseIterable, Codable {
     case easy, medium, hard
     var title: String {
         switch self {
@@ -445,5 +445,44 @@ struct SudokuView: View {
                 .background(active ? GameTheme.accent : GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(active ? Color.white : GameTheme.ink)
         }
+    }
+}
+
+// MARK: - Saved round
+
+extension SudokuEngine: ResumableGame {
+    private struct Session: Codable {
+        let difficulty: SudokuDifficulty
+        let solution: [[Int]]
+        let given: [[Bool]]
+        let board: [[Int?]]
+        let notes: [[Set<Int>]]
+        let mistakes: Int
+        let hintsLeft: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused else { return nil }
+        let touched = (0..<size).contains { r in
+            (0..<size).contains { c in (!given[r][c] && board[r][c] != nil) || !notes[r][c].isEmpty }
+        }
+        guard touched || mistakes > 0 else { return nil }
+        return encodeSession(Session(difficulty: difficulty, solution: solution, given: given, board: board,
+                                     notes: notes, mistakes: mistakes, hintsLeft: hintsLeft))
+    }
+
+    func restoreSession(_ data: Data) -> Bool {
+        guard let session = decodeSession(Session.self, from: data) else { return false }
+        difficulty = session.difficulty
+        solution = session.solution
+        given = session.given
+        board = session.board
+        notes = session.notes
+        mistakes = session.mistakes
+        hintsLeft = session.hintsLeft
+        selected = nil
+        notesMode = false
+        state = .playing
+        return true
     }
 }

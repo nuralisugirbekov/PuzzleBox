@@ -404,6 +404,11 @@
 
 /* Pause */
 "Game Paused" = "Game Paused";
+
+/* Resume */
+"Continue previous game?" = "Continue previous game?";
+"If you restart, you’ll lose your progress" = "If you restart, you’ll lose your progress";
+"Start over" = "Start over";
 "Crossword" = "Crossword";
 "Fill the grid from the clues" = "Fill the grid from the clues";
 "Asyk" = "Asyk";

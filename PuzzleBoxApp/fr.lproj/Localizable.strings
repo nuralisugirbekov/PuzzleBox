@@ -400,6 +400,12 @@
 
 /* Pause */
 "Game Paused" = "Jeu en pause";
+
+/* Resume */
+"Continue previous game?" = "Reprendre la partie précédente ?";
+"If you restart, you’ll lose your progress" = "Si vous recommencez, votre progression sera perdue";
+"Start over" = "Recommencer";
+
 "Crossword" = "Mots croisés";
 "Fill the grid from the clues" = "Remplissez la grille grâce aux définitions";
 "Asyk" = "Assyk";

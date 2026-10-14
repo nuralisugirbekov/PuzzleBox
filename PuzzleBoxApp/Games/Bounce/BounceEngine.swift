@@ -221,3 +221,28 @@ final class BounceEngine: GameEngine {
         // Collected rings remain collected, so a respawn cannot farm points.
     }
 }
+
+// MARK: - Saved round
+
+extension BounceEngine: ResumableGame {
+    private struct Session: Codable {
+        let score: Int
+        let levelIndex: Int
+        let lives: Int
+    }
+
+    func saveSession() -> Data? {
+        guard state == .playing || state == .paused, started, score > 0 || levelIndex > 0 else { return nil }
+        return encodeSession(Session(score: score, levelIndex: levelIndex, lives: lives))
+    }
+
+    /// Returns to the start of the saved level with its score and lives.
+    func restoreSession(_ data: Data) -> Bool {
+        guard let s = decodeSession(Session.self, from: data),
+              BounceLevel.levels.indices.contains(s.levelIndex), s.lives > 0 else { return false }
+        restart()
+        score = s.score; levelIndex = s.levelIndex; lives = s.lives
+        setupEnemies(); respawn()
+        return true
+    }
+}

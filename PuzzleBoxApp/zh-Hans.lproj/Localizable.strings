@@ -400,6 +400,13 @@
 
 /* Pause */
 "Game Paused" = "游戏已暂停";
+
+
+/* Resume */
+"Continue previous game?" = "继续上一局游戏？";
+"If you restart, you’ll lose your progress" = "重新开始将丢失当前进度";
+"Start over" = "重新开始";
+
 "Crossword" = "填字游戏";
 "Fill the grid from the clues" = "根据提示填满格子";
 "Asyk" = "羊拐骨游戏";
