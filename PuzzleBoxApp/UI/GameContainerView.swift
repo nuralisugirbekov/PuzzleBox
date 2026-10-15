@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 /// Shared wrapper for every mini-game: header with close/pause/restart and
 /// score display, plus the pause and game-over overlays. Records finished
@@ -16,6 +17,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(StatsStore.self) private var stats
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
     @State private var isNewHighScore = false
     @State private var roundAnalytics = GameRoundAnalytics()
     @State private var hasStartedRound = false
@@ -207,6 +209,15 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 // Wins and new records get a confetti shower.
                 if won || isNewHighScore { confetti += 1 }
                 SoundFX.play(won ? .win : .lose)
+                if nextLevel == nil, ReviewPrompt.shouldAsk {
+                    ReviewPrompt.markAsked()
+                    Task {
+                        // Let the result card and confetti land before the system sheet.
+                        try? await Task.sleep(for: .seconds(2.5))
+                        guard case .gameOver = engine.state else { return }
+                        requestReview()
+                    }
+                }
                 if won, let nextLevel {
                     autoAdvancing = true
                     Task {
