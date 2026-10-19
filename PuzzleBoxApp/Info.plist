@@ -10,6 +10,13 @@
 	<false/>
 	<key>GOOGLE_ANALYTICS_IDFA_COLLECTION_ENABLED</key>
 	<false/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PuzzleBox connects to phones nearby so you can play together without internet.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pbx-room._tcp</string>
+		<string>_pbx-room._udp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

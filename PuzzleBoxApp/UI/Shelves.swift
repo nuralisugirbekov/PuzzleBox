@@ -2,6 +2,64 @@ import SwiftUI
 
 // Apple Music–style building blocks shared by Home, Discover and Search.
 
+/// A tab's large title with its buttons and Settings in one row (Figma
+/// "All games" header). Tabs hide the navigation bar and put this at the top
+/// of their content, because the system large title always sits a row below
+/// the toolbar buttons.
+struct TabHeader<Trailing: View>: View {
+    let title: String
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.largeTitle.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            trailing()
+            SettingsButton()
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+}
+
+extension TabHeader where Trailing == EmptyView {
+    init(title: String) {
+        self.init(title: title) { EmptyView() }
+    }
+}
+
+/// 44pt glass circle with an SF Symbol, for `TabHeader` actions.
+struct HeaderCircleButton: View {
+    let symbol: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .glassCircle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
+extension View {
+    /// Root of a tab: no navigation bar, so `TabHeader` takes its place. The
+    /// title is kept as the back button label of pushed screens.
+    func tabRoot(title: String) -> some View {
+        navigationTitle(title)
+            .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
 /// Bold section title with an optional trailing chevron, like "Recently Played ›".
 struct ShelfHeader<Destination: View>: View {
     let title: String

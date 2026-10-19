@@ -126,9 +126,42 @@ enum GameID: String, CaseIterable, Identifiable {
     case solitaire
     case spiderSolitaire
     case freecell
+    case durak
+    case hangman
+    case battleship
     case minesweeper
     case checkmate
     var id: String { rawValue }
+
+    /// Games that can be played against a friend as well as the bot.
+    var supportsFriends: Bool { self == .durak || self == .hangman || self == .battleship }
+
+    /// How many can play one online game, the host included.
+    var playerRange: ClosedRange<Int> {
+        switch self {
+        case .durak: DurakState.playerRange
+        case .hangman: HangmanState.playerRange
+        case .battleship: BattleshipState.playerRange
+        default: 1...1
+        }
+    }
+
+    /// "2–6 players", or "2 players" when the count is fixed.
+    var playerCountText: String {
+        let range = playerRange
+        return range.lowerBound == range.upperBound
+            ? L10n.format("%d players", range.lowerBound)
+            : L10n.format("%d–%d players", range.lowerBound, range.upperBound)
+    }
+
+    /// Games a game room can pick from: every one with `supportsFriends`.
+    static var multiplayer: [GameID] { allCases.filter(\.supportsFriends) }
+
+    /// Seats in a game room, before its game is picked: enough for the biggest one.
+    static var sessionPlayerRange: ClosedRange<Int> {
+        let ranges = multiplayer.map(\.playerRange)
+        return (ranges.map(\.lowerBound).min() ?? 2)...(ranges.map(\.upperBound).max() ?? 2)
+    }
 
     var info: GameInfo {
         switch self {
@@ -310,6 +343,27 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .pink,
                      category: .cards,
                      difficulty: .hard)
+        case .durak:
+            GameInfo(title: L10n.text("Durak"),
+                     tagline: L10n.text("Beat the bot or a friend, don't be the fool"),
+                     symbol: "suit.spade.fill",
+                     tint: .orange,
+                     category: .cards,
+                     difficulty: .medium)
+        case .hangman:
+            GameInfo(title: L10n.text("Hangman"),
+                     tagline: L10n.text("Guess the word letter by letter with a bot or a friend"),
+                     symbol: "textformat.abc",
+                     tint: .teal,
+                     category: .logic,
+                     difficulty: .easy)
+        case .battleship:
+            GameInfo(title: L10n.text("Battleship"),
+                     tagline: L10n.text("Sink the enemy fleet with a bot or a friend"),
+                     symbol: "scope",
+                     tint: .blue,
+                     category: .logic,
+                     difficulty: .medium)
         case .minesweeper:
             GameInfo(title: L10n.text("Minesweeper"),
                      tagline: L10n.text("Flag the mines, clear the field"),
@@ -383,6 +437,9 @@ func gameView(for id: GameID) -> some View {
     case .solitaire: SolitaireView()
     case .spiderSolitaire: SpiderView()
     case .freecell: FreeCellView()
+    case .durak: DurakView()
+    case .hangman: HangmanView()
+    case .battleship: BattleshipView()
     case .minesweeper: MinesweeperView()
     case .checkmate: CheckmateView()
     }

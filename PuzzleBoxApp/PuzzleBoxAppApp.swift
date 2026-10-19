@@ -6,11 +6,15 @@ import FirebaseCore
 struct PuzzleBoxAppApp: App {
     @UIApplicationDelegateAdaptor(FirebaseAppDelegate.self) private var appDelegate
     @State private var stats = StatsStore()
+    @State private var friends = FriendsStore()
+    @State private var nearby = NearbyStore()
 
     var body: some Scene {
         WindowGroup {
             AppRootView()
                 .environment(stats)
+                .environment(friends)
+                .environment(nearby)
         }
     }
 }

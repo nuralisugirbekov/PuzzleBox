@@ -21,6 +21,12 @@ struct GameTutorial {
 
         case .matchstick:
             return GameTutorial(rules: VisualMode.matchstick.hint, controls: "Select a match, then tap a faint empty slot. The board shows how many matches you must move; the equals sign stays fixed. Use the reset button to start over.")
+        case .durak:
+            return GameTutorial(rules: "Get rid of all your cards; the last player still holding cards is the durak. Two to six can play. The attacker leads a card and the defender beats it with a higher card of the same suit or any trump. Then every other player in turn may throw in cards of ranks already on the table. If the defender can't beat a card, they take the whole table.", controls: "Tap a raised card to play it. As defender, tap Take to pick up the table. As an attacker, tap Bito or Pass when you have nothing more to throw in. Play against 1–5 bots, or create a room and invite friends.")
+        case .hangman:
+            return GameTutorial(rules: "Two to four players guess one hidden word, taking turns. Name a letter: if it's in the word, every copy of it opens and you go again. If not, a part is added to the hanged man and the turn passes. Whoever completes the man is out, and a new one is drawn. Whoever opens the last letter, or is the last one left, wins.", controls: "Tap a letter on the keyboard to name it. Green letters are in the word, grey ones aren't. Words are in the app's language. Play against the bot, or create a room for friends.")
+        case .battleship:
+            return GameTutorial(rules: "Two players each hide a fleet on a 10×10 board: one four-decker, two three-deckers, three two-deckers and four single boats. Ships can't touch, not even at the corners. Take turns firing at the enemy board. A hit lets you fire again, a miss passes the turn. Once a ship is sunk, the cells around it are marked, since nothing else can be there. Sink the whole enemy fleet to win.", controls: "Shuffle your fleet until you like it, then tap Ready. Tap a cell on the enemy board to fire: a red cross is a hit, a dot is a miss. Your own fleet is shown below. Play against the bot, or create a room for a friend.")
         default: return nil
         }
     }

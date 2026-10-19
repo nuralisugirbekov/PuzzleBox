@@ -45,7 +45,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
     /// Games drawn in the Figma game chrome (back, title, pause, prominent
     /// restart, score and best), rather than the original header.
-    private var usesFigmaChrome: Bool { hasCardTimer || gameID == .blockBlast }
+    private var usesFigmaChrome: Bool { hasCardTimer || gameID == .blockBlast || gameID == .durak || gameID == .hangman
+        || gameID == .battleship }
 
     private var isGameOver: Bool {
         if case .gameOver = engine.state { true } else { false }

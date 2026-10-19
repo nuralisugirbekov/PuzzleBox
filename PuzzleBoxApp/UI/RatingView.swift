@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Personal leaderboard: every game ranked by the player's best score.
-struct RatingView: View {
+/// Pushed from the Friends tab.
+struct RatingContent: View {
     @Environment(StatsStore.self) private var stats
     @Environment(\.playGame) private var playGame
 
@@ -13,7 +14,6 @@ struct RatingView: View {
     }
 
     var body: some View {
-        NavigationStack {
             List {
                 Section {
                     summary
@@ -33,9 +33,7 @@ struct RatingView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle(L10n.text("Rating"))
-            .toolbar { SettingsToolbarButton() }
-        }
+            .navigationTitle(L10n.text("Your Records"))
     }
 
     private var summary: some View {

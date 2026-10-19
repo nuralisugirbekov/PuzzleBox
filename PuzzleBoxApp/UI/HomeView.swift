@@ -38,6 +38,9 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
+                    TabHeader(title: L10n.text("Home"))
+                        .padding(.bottom, -16)
+
                     section {
                         SectionTitle(title: L10n.text("Top picks for you"))
                     } content: {
@@ -80,8 +83,7 @@ struct HomeView: View {
                 .padding(.bottom)
             }
             .background(Color(.systemBackground))
-            .navigationTitle(L10n.text("Home"))
-            .toolbar { SettingsToolbarButton() }
+            .tabRoot(title: L10n.text("Home"))
             .onAppear {
                 if pickSelection.isEmpty {
                     let today = GameID.gameOfTheDay

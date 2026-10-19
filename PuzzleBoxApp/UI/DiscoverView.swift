@@ -7,6 +7,9 @@ struct DiscoverView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    TabHeader(title: L10n.text("Discover"))
+                        .padding(.bottom, -12)
+
                     FeaturedGameCard(gameID: .gameOfTheDay,
                                      eyebrow: L10n.text("Game of the Day"),
                                      source: "discover_daily")
@@ -43,11 +46,10 @@ struct DiscoverView: View {
                             .padding(.horizontal)
                     }
                 }
-                .padding(.vertical)
+                .padding(.bottom)
             }
             .background(Color(.systemBackground))
-            .navigationTitle(L10n.text("Discover"))
-            .toolbar { SettingsToolbarButton() }
+            .tabRoot(title: L10n.text("Discover"))
         }
     }
 }

@@ -10,6 +10,9 @@ struct MyGamesView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                TabHeader(title: L10n.text("My Games"))
+                    .padding(.bottom, 16)
+
                 if stats.favoriteGames.isEmpty {
                     ContentUnavailableView {
                         Label(L10n.text("No Favorites Yet"), systemImage: "heart")
@@ -29,8 +32,7 @@ struct MyGamesView: View {
                 }
             }
             .background(Color(.systemBackground))
-            .navigationTitle(L10n.text("My Games"))
-            .toolbar { SettingsToolbarButton() }
+            .tabRoot(title: L10n.text("My Games"))
         }
     }
 }

@@ -222,16 +222,18 @@ final class SolitaireEngine: GameEngine {
         }
     }
 
-    private func moveSelection(toColumn col: Int) -> Bool {
+    private func canMoveSelection(toColumn col: Int) -> Bool {
         if case .tableau(let c, _) = selection, c == col { return false }
-        let cards = selectedCards()
-        guard let first = cards.first else { return false }
-
+        guard let first = selectedCards().first else { return false }
         if let target = tableau[col].last {
-            guard target.faceUp, target.isRed != first.isRed, target.rank == first.rank + 1 else { return false }
-        } else {
-            guard first.rank == 13 else { return false }
+            return target.faceUp && target.isRed != first.isRed && target.rank == first.rank + 1
         }
+        return first.rank == 13
+    }
+
+    private func moveSelection(toColumn col: Int) -> Bool {
+        guard canMoveSelection(toColumn: col) else { return false }
+        let cards = selectedCards()
 
         saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -255,19 +257,21 @@ final class SolitaireEngine: GameEngine {
         Haptics.tap(); SoundFX.play(.tap)
     }
 
-    private func moveSelection(toFoundation pile: Int) -> Bool {
+    private func canMoveSelection(toFoundation pile: Int) -> Bool {
         // A selected foundation card can return to play, not to another foundation.
         if case .foundation = selection { return false }
         let cards = selectedCards()
         // Only single cards go to foundations.
         guard cards.count == 1, let card = cards.first else { return false }
         if case .tableau(let col, let index) = selection, index != tableau[col].count - 1 { return false }
-
         if let top = foundations[pile].last {
-            guard top.suit == card.suit, card.rank == top.rank + 1 else { return false }
-        } else {
-            guard card.rank == 1 else { return false }
+            return top.suit == card.suit && card.rank == top.rank + 1
         }
+        return card.rank == 1
+    }
+
+    private func moveSelection(toFoundation pile: Int) -> Bool {
+        guard canMoveSelection(toFoundation: pile), let card = selectedCards().first else { return false }
 
         saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -289,12 +293,47 @@ final class SolitaireEngine: GameEngine {
         if case .tableau(let c, let i) = selection { return c == col && index >= i }
         return false
     }
+
+    // MARK: Drag and drop
+
+    /// Picks up `source`; returns the cards that travel with it.
+    func beginDrag(_ source: Selection) -> [Card]? {
+        guard state == .playing else { return nil }
+        if case .tableau(let col, let index) = source,
+           !(tableau[col].indices.contains(index) && tableau[col][index].faceUp) { return nil }
+        selection = source
+        let cards = selectedCards()
+        if cards.isEmpty { selection = nil; return nil }
+        return cards
+    }
+
+    /// Whether the picked-up cards may go on `pile`.
+    func canDrop(on pile: CardPile) -> Bool {
+        switch pile {
+        case .column(let col): canMoveSelection(toColumn: col)
+        case .foundation(let index): canMoveSelection(toFoundation: index)
+        default: false
+        }
+    }
+
+    /// Drops the picked-up cards on `pile`; nil cancels the drag.
+    func drop(on pile: CardPile?) -> Bool {
+        var moved = false
+        switch pile {
+        case .column(let col)?: moved = moveSelection(toColumn: col)
+        case .foundation(let index)?: moved = moveSelection(toFoundation: index)
+        default: break
+        }
+        if !moved { selection = nil }
+        return moved
+    }
 }
 
 // MARK: - View
 
 struct SolitaireView: View {
     @State private var engine = SolitaireEngine()
+    @State private var drag = CardDragController()
 
     /// Figma gaps: 4pt between piles, 32pt between the top row and the tableau.
     private static let gap: CGFloat = 4
@@ -328,6 +367,7 @@ struct SolitaireView: View {
                     }
                     .animation(.snappy, value: engine.canAutoComplete)
                 }
+                .cardTable(drag)
             }
         }
     }
@@ -339,19 +379,23 @@ struct SolitaireView: View {
                     if let top = engine.foundations[pile].last {
                         CardView(card: top, width: cardWidth,
                                  highlighted: engine.selection == .foundation(pile))
+                            .cardDraggable(top, drag: drag,
+                                           begin: { engine.beginDrag(.foundation(pile)) },
+                                           canDrop: engine.canDrop, drop: engine.drop)
                     } else {
                         CardSlot(width: cardWidth, label: "A")
                             .contentShape(Rectangle())
                     }
                 }
-                .onTapGesture { engine.tapFoundation(pile) }
+                .onTapGesture { drag.tap { engine.tapFoundation(pile) } }
+                .cardDropTarget(.foundation(pile), drag: drag)
             }
 
             Spacer(minLength: 0)
 
             // Waste, fanned 10pt per card like the design.
             wasteFan(cardWidth: cardWidth)
-                .onTapGesture { engine.tapWaste() }
+                .onTapGesture { drag.tap { engine.tapWaste() } }
                 .padding(.trailing, 10 * cardWidth / 50)
 
             // Stock
@@ -367,7 +411,7 @@ struct SolitaireView: View {
             } keyframes: { _ in
                 KeyframeTrack { SpringKeyframe(1.12, duration: 0.15); SpringKeyframe(1, duration: 0.2) }
             }
-            .onTapGesture { engine.tapStock() }
+            .onTapGesture { drag.tap { engine.tapStock() } }
         }
     }
 
@@ -381,6 +425,9 @@ struct SolitaireView: View {
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,
                          highlighted: i == shown.count - 1 && engine.selection == .waste)
+                    .cardDraggable(card, drag: drag, enabled: i == shown.count - 1,
+                                   begin: { engine.beginDrag(.waste) },
+                                   canDrop: engine.canDrop, drop: engine.drop)
                     .offset(x: CGFloat(i) * step)
             }
         }
@@ -402,17 +449,23 @@ struct SolitaireView: View {
                                       maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth, label: cards.isEmpty ? "K" : "")
+                .cardDropHighlight(.column(col), drag: drag, when: cards.isEmpty)
                 // The outlined placeholder must accept taps across its empty interior.
                 .contentShape(Rectangle())
-                .onTapGesture { engine.tapColumn(col, index: nil) }
+                .onTapGesture { drag.tap { engine.tapColumn(col, index: nil) } }
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,
                          highlighted: engine.isSelected(col: col, index: i))
+                    .cardDraggable(card, drag: drag, enabled: card.faceUp,
+                                   begin: { engine.beginDrag(.tableau(col: col, index: i)) },
+                                   canDrop: engine.canDrop, drop: engine.drop)
+                    .cardDropHighlight(.column(col), drag: drag, when: i == cards.count - 1)
                     .offset(y: offsets[i])
-                    .onTapGesture { engine.tapColumn(col, index: i) }
+                    .onTapGesture { drag.tap { engine.tapColumn(col, index: i) } }
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .cardDropTarget(.column(col), drag: drag, highlights: false)
     }
 }
 

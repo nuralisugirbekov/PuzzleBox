@@ -162,6 +162,34 @@ final class SpiderEngine: GameEngine {
         return true
     }
 
+    // MARK: Drag and drop
+
+    /// Picks up the run starting at `index`; returns its cards.
+    func beginDrag(col: Int, index: Int) -> [Card]? {
+        guard state == .playing, isValidRun(col: col, from: index) else { return nil }
+        message = ""
+        selection = (col, index)
+        return Array(tableau[col][index...])
+    }
+
+    /// Whether the picked-up run may go on `pile`.
+    func canDrop(on pile: CardPile) -> Bool {
+        guard case .column(let col) = pile, let sel = selection, sel.col != col,
+              tableau[sel.col].indices.contains(sel.index) else { return false }
+        guard let target = tableau[col].last else { return true }
+        return target.faceUp && target.rank == tableau[sel.col][sel.index].rank + 1
+    }
+
+    /// Drops the picked-up run on `pile`; nil cancels the drag.
+    func drop(on pile: CardPile?) -> Bool {
+        var moved = false
+        if case .column(let col)? = pile, let sel = selection, sel.col != col {
+            moved = moveSelection(to: col)
+        }
+        if !moved { selection = nil }
+        return moved
+    }
+
     private func checkCompletedRun(_ col: Int) {
         let pile = tableau[col]
         guard pile.count >= 13 else { return }
@@ -210,6 +238,7 @@ final class SpiderEngine: GameEngine {
 
 struct SpiderView: View {
     @State private var engine = SpiderEngine()
+    @State private var drag = CardDragController()
 
     var body: some View {
         GameContainerView(gameID: .spiderSolitaire, engine: engine) {
@@ -230,6 +259,7 @@ struct SpiderView: View {
                 .overlay(alignment: .bottom) {
                     CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
                 }
+                .cardTable(drag)
             }
         }
     }
@@ -274,15 +304,21 @@ struct SpiderView: View {
                                       maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth)
-                .onTapGesture { engine.tapColumn(col, index: nil) }
+                .cardDropHighlight(.column(col), drag: drag, when: cards.isEmpty)
+                .onTapGesture { drag.tap { engine.tapColumn(col, index: nil) } }
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,
                          highlighted: engine.isSelected(col: col, index: i))
+                    .cardDraggable(card, drag: drag, enabled: card.faceUp,
+                                   begin: { engine.beginDrag(col: col, index: i) },
+                                   canDrop: engine.canDrop, drop: engine.drop)
+                    .cardDropHighlight(.column(col), drag: drag, when: i == cards.count - 1)
                     .offset(y: offsets[i])
-                    .onTapGesture { engine.tapColumn(col, index: i) }
+                    .onTapGesture { drag.tap { engine.tapColumn(col, index: i) } }
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .cardDropTarget(.column(col), drag: drag, highlights: false)
     }
 }
 

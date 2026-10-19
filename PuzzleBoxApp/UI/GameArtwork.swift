@@ -91,6 +91,9 @@ struct GameArtwork: View {
         case .solitaire: SolitaireArt()
         case .spiderSolitaire: SpiderArt()
         case .freecell: FreeCellArt()
+        case .durak: DurakArt()
+        case .hangman: HangmanArt()
+        case .battleship: BattleshipArt()
         case .minesweeper: MinesweeperArt()
         case .checkmate: CheckmateArt()
         }
@@ -1343,6 +1346,88 @@ private struct FreeCellArt: View {
                         .at(40 + CGFloat(col) * 40, 90 + CGFloat(row) * 16)
                 }
             }
+        }
+    }
+}
+
+private struct BattleshipArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.ocean, Ink.night]) {
+            // A sea grid with a ship, a hit on it and a few splashes.
+            let cell: CGFloat = 18
+            let origin = CGPoint(x: 80 - cell * 3, y: 80 - cell * 3)
+            Path { path in
+                for i in 0...6 {
+                    let offset = CGFloat(i) * cell
+                    path.move(to: CGPoint(x: origin.x + offset, y: origin.y))
+                    path.addLine(to: CGPoint(x: origin.x + offset, y: origin.y + cell * 6))
+                    path.move(to: CGPoint(x: origin.x, y: origin.y + offset))
+                    path.addLine(to: CGPoint(x: origin.x + cell * 6, y: origin.y + offset))
+                }
+            }
+            .stroke(Ink.sky.opacity(0.45), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6).fill(Ink.cream)
+                .frame(width: cell * 4 - 4, height: cell - 4)
+                .at(origin.x + cell * 3, origin.y + cell * 1.5)
+            RoundedRectangle(cornerRadius: 6).fill(Ink.cream)
+                .frame(width: cell - 4, height: cell * 2 - 4)
+                .at(origin.x + cell * 4.5, origin.y + cell * 4)
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(Ink.coral)
+                .at(origin.x + cell * 2.5, origin.y + cell * 1.5)
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(Ink.coral)
+                .at(origin.x + cell * 3.5, origin.y + cell * 1.5)
+            ForEach(Array([(0.5, 4.5), (1.5, 3.5), (3.5, 5.5), (5.5, 0.5), (2.5, 5.5)].enumerated()), id: \.offset) { _, spot in
+                dot(Ink.sky, 5).at(origin.x + cell * spot.0, origin.y + cell * spot.1)
+            }
+            Image(systemName: "scope")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(Ink.sun)
+                .at(origin.x + cell * 1.5, origin.y + cell * 4.5)
+        }
+    }
+}
+
+private struct HangmanArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.teal, Ink.ocean]) {
+            // The gallows with a half-drawn man above a word being guessed.
+            GallowsView(mistakes: 4)
+                .foregroundStyle(Ink.cream)
+                .environment(\.colorScheme, .dark)
+                .frame(width: 92, height: 92)
+                .at(80, 58)
+            HStack(spacing: 5) {
+                ForEach(Array(["W", "O", "", "D"].enumerated()), id: \.offset) { _, letter in
+                    Text(letter)
+                        .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Ink.night)
+                        .frame(width: 24, height: 28)
+                        .background(Ink.cream, in: RoundedRectangle(cornerRadius: 5))
+                }
+            }
+            .at(80, 128)
+        }
+    }
+}
+
+private struct DurakArt: View {
+    var body: some View {
+        ArtCanvas(colors: [Ink.coral, Ink.plum]) {
+            // A fanned hand, an attack beaten by a trump, and the deck.
+            ForEach(0..<5, id: \.self) { i in
+                PlayingCard(rank: ["6", "9", "J", "Q", "A"][i], suit: ["clubs", "hearts", "spades", "diamonds", "hearts"][i], width: 34)
+                    .rotationEffect(.degrees(Double(i - 2) * 12), anchor: .bottom)
+                    .at(80 + CGFloat(i - 2) * 16, 118)
+            }
+            PlayingCard(rank: "8", suit: "clubs", width: 32).at(70, 50)
+            PlayingCard(rank: "10", suit: "hearts", width: 32).rotationEffect(.degrees(10)).at(84, 58)
+            RoundedRectangle(cornerRadius: 5).fill(Ink.night).frame(width: 30, height: 42)
+                .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(Ink.cream.opacity(0.6), lineWidth: 1.5).padding(3) }
+                .at(126, 50)
         }
     }
 }

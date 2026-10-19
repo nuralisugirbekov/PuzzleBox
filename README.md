@@ -9,7 +9,7 @@
 | **Logic** | Arrow Escape, Block Blast, Water Sort, Minesweeper, Checkmate, Lights Out, One Line, Unblock, 15 Puzzle, Pipe Connect, Dots, Flood Fill, Laser, Color Lines |
 | **Japanese puzzles** | Sudoku (6×6 и 9×9), Nonogram, Numberlink |
 | **Numbers** | 2048, Quick Math, Matchstick Puzzle |
-| **Cards** | Solitaire (Klondike), Spider, FreeCell |
+| **Cards** | Solitaire (Klondike), Spider, FreeCell, Durak |
 | **Arcade** | Rocket Maze, Bounce, Snake, Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop, Slope, Circle Pong, Space Dodge, Endless Climb, Chain Reaction |
 | **Physics** | Merge Fruit, Basket Shot, Bottle Flip, Golf, Plinko, Rope Cut, Draw Bridge |
 | **Reaction** | Reaction Tap, Simon, Red Light Green Light, Perfect Timing, Bubble Pop, Whack-a-Mole |
@@ -22,10 +22,12 @@
 - **Rocket Maze** — лабиринт на SpriteKit: ракета движется непрерывно, игрок поворачивает её и собирает звёзды. Подробнее: [docs/arrow-maze.md](docs/arrow-maze.md).
 - **Checkmate** — 306 задач «мат в один ход» (`Resources/MateInOne.json`).
 - **Merge Fruit** — физика на SpriteKit.
+- **Durak** — «подкидной дурак» на 36 карт против бота или друга онлайн. Подробнее: [docs/friends.md](docs/friends.md).
 
 ## Возможности
 
-- Пять вкладок: **Главная** (игра дня, подборки, недавние, популярные), **Обзор** (полки по категориям, «Быстро и просто», все игры), **Рейтинг** (личные рекорды и статистика), **Мои игры** (избранное), **Поиск**.
+- Пять вкладок: **Главная** (игра дня, подборки, недавние, популярные), **Обзор** (полки по категориям, «Быстро и просто», все игры), **Друзья** (список друзей со статусом «в сети», код друга, личные рекорды), **Мои игры** (избранное), **Поиск**.
+- Игры вдвоём: приглашения друзьям через Firebase (Firestore + анонимный вход). Настройка: [docs/friends.md](docs/friends.md).
 - Кнопка **Random Game**. С экрана результатов можно сразу перейти в случайную игру, не возвращаясь в меню.
 - Общий игровой контейнер: счёт, рекорд, пауза, перезапуск, экран результатов с конфетти.
 - Экран «Как играть» с правилами и управлением; при первом запуске игры он открывается сам.
@@ -61,6 +63,7 @@ PuzzleBoxApp/
 ├── Core/
 │   ├── GameCore.swift          каталог игр (GameID), категории, протокол GameEngine
 │   ├── StatsStore.swift        рекорды, избранное, недавние игры
+│   ├── FriendsStore.swift      друзья, статус в сети, приглашения, онлайн-матчи (Firestore)
 │   ├── Localization.swift      выбор языка и L10n
 │   ├── AppAnalytics.swift      события Firebase Analytics
 │   ├── SoundFX.swift           синтез звуков
@@ -73,6 +76,7 @@ PuzzleBoxApp/
 │   ├── ArrowEscape/            головоломка Arrow Escape
 │   ├── ArrowMaze/              Rocket Maze (SpriteKit)
 │   ├── Bounce/
+│   ├── Durak/                  правила, бот и стол «Дурака»
 │   ├── Collection/             сборники логических и реакционных мини-игр
 │   ├── Expansion/              Slope, Circle Pong, Space Dodge, Endless Climb
 │   └── Playground/             физика, внимание и визуальные головоломки
