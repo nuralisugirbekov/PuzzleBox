@@ -364,7 +364,6 @@
 "Extra tube" = "额外试管";
 "Notes" = "笔记";
 "Hint (%d)" = "提示（%d）";
-"Mistakes: %d/%d" = "错误：%d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "长按插旗。点击周围旗子已插满的数字，可翻开它周围的格子。";
 "Time: %@" = "用时：%@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "输入答案即可自动判定。连续答对可提高倍数。";
@@ -627,3 +626,41 @@
 "Hits: %d, misses: %d" = "命中：%d，落空：%d";
 "%d players" = "%d 名玩家";
 "%d players. Invite a friend or share the room code." = "%d 名玩家。邀请一位好友或分享房间码。";
+
+/* Gems */
+"Arcade mode" = "街机";
+"Gems Arcade" = "宝石街机";
+"Clear levels on boards of every shape" = "在各种形状的棋盘上闯关";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "每一关都是新棋盘：更大、更小或形状特别，有宝石会穿过的空洞，开局就带着冰块。在步数内收集水晶即可过关，剩余步数会带来奖励。步数用完就重玩本关。进度会自动保存。";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "将宝石滑向相邻宝石，或先点一颗再点另一颗。炸弹、十字和闪电的效果与经典模式相同。棋盘上方显示关卡、剩余步数和已收集的水晶。";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "在计时结束前收集水晶：宝石被消除时即可收集其水晶。达成目标后进入下一关，获得新的一分钟和时间奖励。每一关需要更多水晶，冰块也更多。可以独自挑战纪录，也可以和好友竞速：大家的棋盘相同，所有人的时间都用完后，得分最高者获得第一名。";
+"Out of moves" = "步数用完";
+"Moves bonus +%d" = "步数奖励 +%d";
+"Moves left: %d" = "剩余步数：%d";
+"Play solo" = "挑战纪录";
+"Place %d" = "第 %d 名";
+"Your score: %d" = "你的得分：%d";
+"%@ won with %d" = "%@ 以 %d 分获胜";
+"Waiting for the others to finish…" = "等待其他玩家完成…";
+"Classic" = "经典";
+"Blitz" = "闪电战";
+"Gems" = "宝石消消乐";
+"Gems Blitz" = "宝石闪电战";
+"Swap gems, chain cascades, set off bombs" = "交换宝石，连锁消除，引爆炸弹";
+"Collect crystals before the time runs out" = "在时间用完前收集水晶";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "交换相邻的两颗宝石，让三颗或更多同色宝石连成一线。四连生成炸弹，L 形或 T 形生成十字，五连生成闪电。自动落入新连线的宝石会带来递增的连击。冰冻宝石无法移动：经它连线两次或将其炸开即可。没有可走的步时游戏结束，场上剩余的道具都会引爆，带来最后的加分。";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "将宝石滑向相邻宝石，或先点一颗再点另一颗。把两个道具交换可引发更大的爆炸。闪电会清除与其交换的颜色的所有宝石。卡住时点“提示”。";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "将宝石滑向相邻宝石，或先点一颗再点另一颗。炸弹、十字和闪电的效果与宝石消消乐相同。没有可走的步时棋盘会重新洗牌。宝石下落时计时暂停。";
+"Swipe a gem to swap it with a neighbour." = "滑动宝石即可与相邻宝石交换。";
+"No moves — shuffling" = "无步可走——正在洗牌";
+"Last chord!" = "最后的和弦！";
+"Time bonus +%d" = "时间奖励 +%d";
+"Crystals: %d of %d" = "水晶：%d / %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d，%d 颗雷";
+"Some digits are wrong" = "有些数字不对";
+"%d×%d, %d clues" = "%d×%d，%d 个提示";
+"Maze Paint" = "迷宫涂色";
+"Swipe to paint every square" = "滑动涂满每一格";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "滑动让小球一直滚到墙边。手指不离开屏幕再次滑动即可转向。涂满每一格。";

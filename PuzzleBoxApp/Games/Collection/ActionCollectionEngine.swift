@@ -223,11 +223,13 @@ final class ActionCollectionEngine: GameEngine {
 
     // MARK: Whack-a-Mole
 
-    static func holeCenter(_ i: Int) -> CGPoint { CGPoint(x: CGFloat(i % 3) * 106.66 + 53.33, y: CGFloat(i / 3) * 110 + 125) }
+    /// Three rows centred on the 320×460 field, counting the mole that rises above each hole.
+    static func holeCenter(_ i: Int) -> CGPoint { CGPoint(x: CGFloat(i % 3) * 106.66 + 53.33, y: CGFloat(i / 3) * 120 + 92) }
 
     private func tapMole(_ p: CGPoint) {
-        let c = Int(p.x / 106.66), r = Int((p.y - 70) / 110)
-        guard p.y >= 70, (0..<3).contains(c), (0..<3).contains(r) else { return }
+        // Rows are 120 apart; each band runs from midway to the row above to midway to the next.
+        let c = Int(p.x / 106.66), r = Int((p.y - 38) / 120)
+        guard p.y >= 38, (0..<3).contains(c), (0..<3).contains(r) else { return }
         let i = r * 3 + c
         let center = Self.holeCenter(i)
         guard let mole = holes[i], !mole.whacked else {

@@ -94,7 +94,7 @@ struct NearbyRoomView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if nearby.joining == room {
+                        if nearby.joining?.id == room.id {
                             ProgressView()
                         } else {
                             Text(L10n.text("Join")).font(.subheadline.weight(.semibold)).foregroundStyle(GameTheme.accent)

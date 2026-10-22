@@ -7,7 +7,7 @@ struct RatingContent: View {
     @Environment(\.playGame) private var playGame
 
     private var ranked: [GameID] {
-        GameID.allCases.sorted {
+        GameID.allCases.filter { !$0.isHidden }.sorted {
             let lhs = stats.highScore(for: $0), rhs = stats.highScore(for: $1)
             return lhs != rhs ? lhs > rhs : stats.gamesPlayed(for: $0) > stats.gamesPlayed(for: $1)
         }

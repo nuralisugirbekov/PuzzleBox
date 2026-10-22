@@ -101,6 +101,7 @@ enum GameID: String, CaseIterable, Identifiable {
     case nonogram
     case numberConnect
     case oneLine
+    case mazePaint
     case unblock
     case fifteenPuzzle
     case pipeConnect
@@ -131,10 +132,54 @@ enum GameID: String, CaseIterable, Identifiable {
     case battleship
     case minesweeper
     case checkmate
+    case gems
+    case gemsArcade
+    case gemsBlitz
     var id: String { rawValue }
 
     /// Games that can be played against a friend as well as the bot.
-    var supportsFriends: Bool { self == .durak || self == .hangman || self == .battleship }
+    var supportsFriends: Bool {
+        self == .durak || self == .hangman || self == .battleship || self == .gemsBlitz
+    }
+
+    /// Modes offered when the game is opened, the listed one first. Each mode
+    /// is its own id, so it keeps its own record and saved round.
+    var modes: [GameID] {
+        switch self {
+        case .gems, .gemsArcade, .gemsBlitz: [.gems, .gemsArcade, .gemsBlitz]
+        default: []
+        }
+    }
+
+    /// Short name of this mode in the mode picker.
+    var modeTitle: String {
+        switch self {
+        case .gemsBlitz: L10n.text("Blitz")
+        case .gemsArcade: L10n.text("Arcade mode")
+        case .gems: L10n.text("Classic")
+        default: info.title
+        }
+    }
+
+    /// Games shown in the catalog: modes other than the first are reached
+    /// only through the mode picker, and hidden games aren't listed at all.
+    static var catalog: [GameID] { allCases.filter { ($0.modes.first ?? $0 == $0) && !$0.isHidden } }
+
+    /// Kept out of every list in the app after the team's game review: dropped
+    /// for release, or waiting on a rework. Their code and saved records stay,
+    /// so taking one off this list brings it back.
+    static let hidden: Set<GameID> = [
+        // Dropped.
+        .quickMath, .bubblePop, .dots, .arrowMaze, .bottleFlip, .drawBridge, .findColor,
+        .rotatePuzzle, .slope, .chainReaction, .nonogram, .colorLines, .bounce, .plinko,
+        .ropeCut, .reactionTap,
+        // Replaced by Maze Paint.
+        .oneLine,
+        // Back after a rework.
+        .findPair, .pipeConnect, .basketShot, .endlessClimb, .spaceDodge,
+    ]
+
+    var isHidden: Bool { Self.hidden.contains(self) }
 
     /// How many can play one online game, the host included.
     var playerRange: ClosedRange<Int> {
@@ -142,6 +187,7 @@ enum GameID: String, CaseIterable, Identifiable {
         case .durak: DurakState.playerRange
         case .hangman: HangmanState.playerRange
         case .battleship: BattleshipState.playerRange
+        case .gemsBlitz: Match3RaceState.playerRange
         default: 1...1
         }
     }
@@ -240,6 +286,9 @@ enum GameID: String, CaseIterable, Identifiable {
         case .numberConnect:
             GameInfo(title: L10n.text("Numberlink"), tagline: L10n.text(PuzzleMode.numberConnect.hint),
                      symbol: "point.topleft.down.to.point.bottomright.curvepath", tint: .pink, category: .japanese, difficulty: .medium)
+        case .mazePaint:
+            GameInfo(title: L10n.text("Maze Paint"), tagline: L10n.text("Swipe to paint every square"),
+                     symbol: "paintbrush.pointed.fill", tint: .pink, category: .logic, difficulty: .medium)
         case .oneLine:
             GameInfo(title: L10n.text("One Line"), tagline: L10n.text(PuzzleMode.oneLine.hint),
                      symbol: "pencil.tip", tint: .mint, category: .logic, difficulty: .medium)
@@ -378,6 +427,27 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .yellow,
                      category: .logic,
                      difficulty: .hard)
+        case .gems:
+            GameInfo(title: L10n.text("Gems"),
+                     tagline: L10n.text("Swap gems, chain cascades, set off bombs"),
+                     symbol: "suit.diamond.fill",
+                     tint: .purple,
+                     category: .casual,
+                     difficulty: .easy)
+        case .gemsArcade:
+            GameInfo(title: L10n.text("Gems Arcade"),
+                     tagline: L10n.text("Clear levels on boards of every shape"),
+                     symbol: "square.grid.3x3.middle.filled",
+                     tint: .orange,
+                     category: .casual,
+                     difficulty: .medium)
+        case .gemsBlitz:
+            GameInfo(title: L10n.text("Gems Blitz"),
+                     tagline: L10n.text("Collect crystals before the time runs out"),
+                     symbol: "bolt.fill",
+                     tint: .cyan,
+                     category: .casual,
+                     difficulty: .medium)
         }
     }
 }
@@ -413,6 +483,7 @@ func gameView(for id: GameID) -> some View {
     case .nonogram: PuzzleCollectionView(mode: .nonogram)
     case .numberConnect: PuzzleCollectionView(mode: .numberConnect)
     case .oneLine: PuzzleCollectionView(mode: .oneLine)
+    case .mazePaint: MazePaintView()
     case .unblock: PuzzleCollectionView(mode: .unblock)
     case .fifteenPuzzle: PuzzleCollectionView(mode: .fifteenPuzzle)
     case .pipeConnect: PuzzleCollectionView(mode: .pipeConnect)
@@ -442,6 +513,9 @@ func gameView(for id: GameID) -> some View {
     case .battleship: BattleshipView()
     case .minesweeper: MinesweeperView()
     case .checkmate: CheckmateView()
+    case .gems: Match3View(mode: .casual)
+    case .gemsArcade: Match3View(mode: .arcade)
+    case .gemsBlitz: Match3View(mode: .blitz)
     }
 }
 

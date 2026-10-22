@@ -129,7 +129,35 @@ struct LiveScoreText: View {
     }
 }
 
+/// Lays a play area across the full width offered, as tall as its aspect
+/// ratio asks. When the height runs short the area may stretch up to
+/// `stretch` away from that ratio before it narrows: the canvases scale
+/// each axis on their own, and a few percent never shows.
+struct ArenaLayout: Layout {
+    var aspect: CGFloat
+    var stretch: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 320
+        let wanted = width / aspect
+        guard let height = proposal.height, height < wanted else { return CGSize(width: width, height: wanted) }
+        return CGSize(width: min(width, height * aspect * (1 + stretch)), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center,
+                          proposal: ProposedViewSize(bounds.size))
+        }
+    }
+}
+
 extension View {
+    /// The play area fills the width; see `ArenaLayout`.
+    func arenaFit(_ aspect: CGFloat, stretch: CGFloat = 0.08) -> some View {
+        ArenaLayout(aspect: aspect, stretch: stretch) { self }
+    }
+
     /// Shared dark play-field: a soft vertical gradient with a fine inner rim,
     /// so every canvas game sits on the same polished board.
     func arenaBackground(cornerRadius: CGFloat = 24) -> some View {

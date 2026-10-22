@@ -368,7 +368,6 @@
 "Extra tube" = "Дополнительная пробирка";
 "Notes" = "Заметки";
 "Hint (%d)" = "Подсказка (%d)";
-"Mistakes: %d/%d" = "Ошибки: %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "Долгое нажатие ставит флажок. Нажми на цифру, вокруг которой уже стоят все флажки, чтобы открыть остальные клетки рядом.";
 "Time: %@" = "Время: %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "Вводи ответ — он проверится сам. Отвечай без ошибок подряд, чтобы увеличить множитель.";
@@ -631,3 +630,41 @@
 "Hits: %d, misses: %d" = "Попаданий: %d, промахов: %d";
 "%d players" = "Игроков: %d";
 "%d players. Invite a friend or share the room code." = "Игроков: %d. Пригласите друга или поделитесь кодом зала.";
+
+/* Gems */
+"Arcade mode" = "Аркада";
+"Gems Arcade" = "Самоцветы: аркада";
+"Clear levels on boards of every shape" = "Проходи уровни на полях любой формы";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "Каждый уровень — новое поле: больше, меньше или необычной формы, с дырами, через которые камни пролетают, и со льдом с самого начала. Собери кристаллы за отведённые ходы, чтобы пройти уровень; оставшиеся ходы дают бонус. Ходы кончились — уровень начинается заново. Прогресс сохраняется.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "Проведи камнем к соседнему или коснись одного камня, а затем другого. Бомбы, кресты и молнии работают как в классике. Над полем видно уровень, оставшиеся ходы и собранные кристаллы.";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "Собери кристаллы, пока не кончилось время: кристалл засчитывается, когда убран его камень. Выполнил цель — переходи на следующий уровень с новой минутой и бонусом за время. С каждым уровнем нужно больше кристаллов и больше льда. Играй один на рекорд или устрой гонку с друзьями: у всех одинаковые поля, и когда время кончится у каждого, первое место займёт лучший счёт.";
+"Out of moves" = "Ходы закончились";
+"Moves bonus +%d" = "Бонус за ходы +%d";
+"Moves left: %d" = "Осталось ходов: %d";
+"Play solo" = "Играть на рекорд";
+"Place %d" = "%d место";
+"Your score: %d" = "Ваш счёт: %d";
+"%@ won with %d" = "%@ победил со счётом %d";
+"Waiting for the others to finish…" = "Ждём, пока остальные доиграют…";
+"Classic" = "Классика";
+"Blitz" = "Блиц";
+"Gems" = "Самоцветы";
+"Gems Blitz" = "Самоцветы: блиц";
+"Swap gems, chain cascades, set off bombs" = "Меняй камни, собирай каскады, взрывай бомбы";
+"Collect crystals before the time runs out" = "Собери кристаллы, пока не кончилось время";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "Меняй местами два соседних камня, чтобы собрать три или больше одного цвета в ряд. Четыре в ряд дают бомбу, фигура L или T — крест, пять в ряд — молнию. Камни, которые сами падают в новые ряды, приносят растущее комбо. Замороженные камни нельзя двигать: дважды собери через них ряд или взорви их. Игра кончается, когда ходов не осталось, и все бонусы на поле взрываются напоследок.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "Проведи камнем к соседнему или коснись одного камня, а затем другого. Поменяй два бонуса местами для взрыва посильнее. Молния убирает все камни того цвета, с которым её поменяли. Застрял — нажми «Подсказка».";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "Проведи камнем к соседнему или коснись одного камня, а затем другого. Бомбы, кресты и молнии работают как в «Самоцветах». Если ходов нет, поле перемешивается. Пока камни падают, таймер стоит.";
+"Swipe a gem to swap it with a neighbour." = "Проведи по камню, чтобы поменять его с соседним.";
+"No moves — shuffling" = "Ходов нет — перемешиваем";
+"Last chord!" = "Последний аккорд!";
+"Time bonus +%d" = "Бонус за время +%d";
+"Crystals: %d of %d" = "Кристаллы: %d из %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, мин: %d";
+"Some digits are wrong" = "Некоторые цифры неверны";
+"%d×%d, %d clues" = "%1$d×%2$d, дано цифр: %3$d";
+"Maze Paint" = "Раскрась лабиринт";
+"Swipe to paint every square" = "Свайпай и закрась каждую клетку";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "Свайпни — шарик покатится до стены. Не отрывая палец, свайпни снова, чтобы повернуть. Закрась каждую клетку.";

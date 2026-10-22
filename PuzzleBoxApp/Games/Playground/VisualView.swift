@@ -6,15 +6,15 @@ struct VisualView:View {
     private let pictureColors:[Color] = [.cyan,.pink,.orange,.green,.purple,.yellow,.mint]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body:some View {
-        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.levelIndex+1),centersContent:true,nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil) {
+        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.levelIndex+1),nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil) {
             VStack(spacing:12) {
                 HStack(spacing:10) {
                     Menu {
                         ForEach(0..<engine.levelCount,id: \.self) { level in
-                            Button(L10n.format("Level %d",level+1)) { engine.loadLevel(level) }
+                            Button(levelTitle(level)) { engine.loadLevel(level) }
                         }
                     } label: {
-                        Label(L10n.format("Level %d",engine.levelIndex+1),systemImage:"square.grid.2x2")
+                        Label(levelTitle(engine.levelIndex),systemImage:"square.grid.2x2")
                     }
                     Text(L10n.format("%d moves",engine.moves))
                     Spacer()
@@ -43,13 +43,21 @@ struct VisualView:View {
                                 .onEnded { v in
                                     interact(CGPoint(x:v.location.x/geometry.size.width*320,y:v.location.y/geometry.size.height*460))
                                 })
-                    }.aspectRatio(320.0/460,contentMode:.fit).frame(maxWidth:380,maxHeight:460)
+                    }.arenaFit(320.0/460)
                 }
                 if !engine.feedback.isEmpty { Text(L10n.text(engine.feedback)).font(.caption).foregroundStyle(.orange) }
                 Text(L10n.text(engine.mode.hint)).font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
             }
         }
         .id(engine.levelIndex)
+    }
+
+    /// "Level 12 · 4×4" for Rotate Puzzle, just "Level 12" for Matchstick.
+    private func levelTitle(_ level:Int) -> String {
+        let title = L10n.format("Level %d",level+1)
+        guard engine.mode == .rotatePuzzle else { return title }
+        let side = VisualEngine.rotateSide(level).side
+        return "\(title) · \(side)×\(side)"
     }
 
     /// Each tile is its own view so a tap animates a smooth quarter turn.
@@ -63,30 +71,40 @@ struct VisualView:View {
                 let side = min(geo.size.width,geo.size.height)
                 let n = engine.size
                 let tile = side/CGFloat(n)
-                ZStack(alignment:.topLeading) {
-                    ForEach(engine.cells.indices,id:\.self) { i in
-                        let r = i/n, c = i%n
-                        Canvas { context,_ in
-                            picture(rect:CGRect(x:-CGFloat(c)*tile,y:-CGFloat(r)*tile,width:side,height:side),context:&context)
+                // Rows of tiles rather than offsets in a ZStack: an offset
+                // doesn't move a view's frame, which pushed the grid off the board.
+                VStack(spacing:0) {
+                    ForEach(0..<n,id:\.self) { r in
+                        HStack(spacing:0) {
+                            ForEach(0..<n,id:\.self) { c in
+                                rotateTile(r*n+c,row:r,column:c,tile:tile,side:side)
+                            }
                         }
-                        .frame(width:tile,height:tile)
-                        .rotationEffect(.degrees(Double(engine.turns.indices.contains(i) ? engine.turns[i] : 0)*90))
-                        .animation(reduceMotion ? nil : .spring(duration:0.3,bounce:0.25),value:engine.turns.indices.contains(i) ? engine.turns[i] : 0)
-                        .clipShape(Rectangle())
-                        .overlay {
-                            // Tiles already in place lose their seam, a gentle hint of progress.
-                            Rectangle().strokeBorder(engine.isCorrect(i) ? Color.clear : Color.black.opacity(0.35),lineWidth:1)
-                        }
-                        .offset(x:CGFloat(c)*tile,y:CGFloat(r)*tile)
-                        .onTapGesture { engine.tap(i) }
                     }
                 }
                 .frame(width:side,height:side)
                 .clipShape(RoundedRectangle(cornerRadius:16))
                 .frame(maxWidth:.infinity,maxHeight:.infinity)
             }
-            .aspectRatio(1,contentMode:.fit).frame(maxWidth:380)
+            .aspectRatio(1,contentMode:.fit)
         }
+    }
+
+    private func rotateTile(_ i:Int,row r:Int,column c:Int,tile:CGFloat,side:CGFloat) -> some View {
+        let turns = engine.turns.indices.contains(i) ? engine.turns[i] : 0
+        return Canvas { context,_ in
+            picture(rect:CGRect(x:-CGFloat(c)*tile,y:-CGFloat(r)*tile,width:side,height:side),context:&context)
+        }
+        .frame(width:tile,height:tile)
+        .rotationEffect(.degrees(Double(turns)*90))
+        .animation(reduceMotion ? nil : .spring(duration:0.3,bounce:0.25),value:turns)
+        .clipShape(Rectangle())
+        .overlay {
+            // Tiles already in place lose their seam, a gentle hint of progress.
+            Rectangle().strokeBorder(engine.isCorrect(i) ? Color.clear : Color.black.opacity(0.35),lineWidth:1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { engine.tap(i) }
     }
 
     private func interact(_ p:CGPoint) {

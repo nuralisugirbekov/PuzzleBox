@@ -368,7 +368,6 @@
 "Extra tube" = "Қосымша түтік";
 "Notes" = "Белгілер";
 "Hint (%d)" = "Кеңес (%d)";
-"Mistakes: %d/%d" = "Қателер: %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "Ұзақ басу жалауша қояды. Айналасында барлық жалауша қойылған санды бассаң, қалған көрші ұяшықтар ашылады.";
 "Time: %@" = "Уақыт: %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "Жауапты тер — ол өзі тексеріледі. Множительді арттыру үшін қатарынан қатесіз жауап бер.";
@@ -631,3 +630,41 @@
 "Hits: %d, misses: %d" = "Тиген: %d, тимеген: %d";
 "%d players" = "Ойыншылар: %d";
 "%d players. Invite a friend or share the room code." = "Ойыншылар: %d. Досыңызды шақырыңыз немесе зал кодымен бөлісіңіз.";
+
+/* Gems */
+"Arcade mode" = "Аркада";
+"Gems Arcade" = "Асыл тастар: аркада";
+"Clear levels on boards of every shape" = "Кез келген пішінді тақталарда деңгейлерден өт";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "Әр деңгей — жаңа тақта: үлкенірек, кішірек не ерекше пішінді, тастар өтіп кететін тесіктері бар және басынан мұзы бар. Деңгейден өту үшін берілген жүрістер ішінде кристалдарды жина; қалған жүрістер бонус береді. Жүріс біткенде деңгей қайта басталады. Прогресс сақталады.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "Тасты көршісіне қарай сырғыт немесе бір тасты, сосын екіншісін түрт. Бомба, крест және найзағай классикадағыдай жұмыс істейді. Тақтаның үстінде деңгей, қалған жүрістер және жиналған кристалдар көрінеді.";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "Уақыт бітпей тұрып кристалдарды жина: тасы алынғанда кристалл есептеледі. Мақсатқа жетсең, жаңа минутпен және уақыт бонусымен келесі деңгейге өтесің. Әр деңгейде кристалл да, мұз да көбейеді. Рекорд үшін жалғыз ойна немесе достарыңмен жарыс: бәрінің тақтасы бірдей, әркімнің уақыты біткенде ең көп ұпай жинаған бірінші орын алады.";
+"Out of moves" = "Жүріс бітті";
+"Moves bonus +%d" = "Жүріс бонусы +%d";
+"Moves left: %d" = "Қалған жүріс: %d";
+"Play solo" = "Рекорд үшін ойнау";
+"Place %d" = "%d-орын";
+"Your score: %d" = "Сіздің ұпайыңыз: %d";
+"%@ won with %d" = "%@ %d ұпаймен жеңді";
+"Waiting for the others to finish…" = "Басқалардың аяқтауын күтудеміз…";
+"Classic" = "Классика";
+"Blitz" = "Блиц";
+"Gems" = "Асыл тастар";
+"Gems Blitz" = "Асыл тастар: блиц";
+"Swap gems, chain cascades, set off bombs" = "Тастарды ауыстыр, каскад жина, бомба жар";
+"Collect crystals before the time runs out" = "Уақыт бітпей тұрып кристалдарды жина";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "Бір түсті үш не одан көп тасты қатарға тізу үшін көрші екі тастың орнын ауыстыр. Қатардағы төрт тас бомба, L не T пішіні крест, қатардағы бес тас найзағай береді. Өздігінен жаңа қатарға түскен тастар өсетін комбо әкеледі. Мұздаған тастарды жылжытуға болмайды: олар арқылы екі рет қатар жина немесе жарып жібер. Жүріс қалмағанда ойын бітеді, ал тақтадағы барлық бонус соңғы рет жарылады.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "Тасты көршісіне қарай сырғыт немесе бір тасты, сосын екіншісін түрт. Күштірек жарылыс үшін екі бонустың орнын ауыстыр. Найзағай өзі ауыстырылған түстің барлық тасын алып тастайды. Тығырыққа тірелсең, «Кеңес» түймесін бас.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "Тасты көршісіне қарай сырғыт немесе бір тасты, сосын екіншісін түрт. Бомба, крест және найзағай «Асыл тастардағыдай» жұмыс істейді. Жүріс қалмаса, тақта араласады. Тастар құлап жатқанда таймер тоқтап тұрады.";
+"Swipe a gem to swap it with a neighbour." = "Тасты көршісімен ауыстыру үшін сырғыт.";
+"No moves — shuffling" = "Жүріс жоқ — араластырамыз";
+"Last chord!" = "Соңғы аккорд!";
+"Time bonus +%d" = "Уақыт бонусы +%d";
+"Crystals: %d of %d" = "Кристалдар: %d / %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, мина: %d";
+"Some digits are wrong" = "Кейбір сандар қате";
+"%d×%d, %d clues" = "%1$d×%2$d, берілген сандар: %3$d";
+"Maze Paint" = "Лабиринтті боя";
+"Swipe to paint every square" = "Әр шаршыны бояу үшін сырғытыңыз";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "Шарды қабырғаға дейін домалату үшін сырғытыңыз. Бұрылу үшін саусақты көтермей қайта сырғытыңыз. Әр шаршыны бояңыз.";

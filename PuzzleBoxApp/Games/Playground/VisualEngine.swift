@@ -22,11 +22,16 @@ enum VisualMode:String,CaseIterable {
 final class VisualEngine:GameEngine {
     let mode:VisualMode
     private(set) var levelIndex = 0
-    let levelCount = 20
+    /// Rotate grows from 3×3 to 7×7 over its levels; see `rotateSide`.
+    var levelCount: Int { mode == .rotatePuzzle ? 50 : 20 }
     private var random = LevelRandom(seed: 1)
+    /// The level to open on next time, so leaving never loses progress.
+    private var levelKey: String { "visualLevel." + mode.rawValue }
     func loadLevel(_ index: Int) {
         guard (0..<levelCount).contains(index) else { return }
-        levelIndex = index; restart()
+        levelIndex = index
+        UserDefaults.standard.set(index, forKey: levelKey)
+        restart()
     }
     func nextLevel() { loadLevel(levelIndex + 1) }
     var hasNextLevel: Bool { levelIndex + 1 < levelCount }
@@ -42,7 +47,7 @@ final class VisualEngine:GameEngine {
     private(set) var moves = 0
     private(set) var feedback = ""
     private(set) var selectedMatch:Int?
-    /// Rotate grid side (3…5).
+    /// Rotate grid side (3…7).
     private(set) var size = 3
     private(set) var par = 0
     /// Matchstick: matches that must be moved, and how many have been moved so far.
@@ -53,15 +58,24 @@ final class VisualEngine:GameEngine {
     var stars: Int { par == 0 ? 3 : moves <= par ? 3 : Double(moves) <= Double(par) * 1.5 ? 2 : 1 }
 
     static let digitMasks = [63,6,91,79,102,109,125,7,127,111]
-    init(mode:VisualMode) { self.mode = mode; restart() }
+    init(mode:VisualMode) {
+        self.mode = mode
+        levelIndex = max(0, min(levelCount - 1, UserDefaults.standard.integer(forKey: "visualLevel." + mode.rawValue)))
+        restart()
+    }
     func restart() {
         random = LevelRandom(seed: UInt64((mode == .rotatePuzzle ? 4 : 10)*1000 + levelIndex + 1))
         state = .playing; score = 0; moves = 0; cells = []; turns = []; feedback = ""; selectedMatch = nil; matchesMoved = 0
         switch mode {
         case .rotatePuzzle:
-            size = levelIndex < 4 ? 3 : levelIndex < 11 ? 4 : 5
-            cells = (0..<(size * size)).map { _ in pick(0...3) }
-            if cells.allSatisfy({ $0 == 0 }) { cells[0] = 1 }
+            let (side, progress) = Self.rotateSide(levelIndex)
+            size = side
+            // Within a size, levels start with half the tiles turned and end
+            // with every tile turned.
+            let tileCount = size * size
+            let turned = max(2, Int((Double(tileCount) * (0.5 + 0.5 * progress)).rounded()))
+            let scrambled = Set(shuffled(Array(0..<tileCount)).prefix(turned))
+            cells = (0..<tileCount).map { scrambled.contains($0) ? pick(1...3) : 0 }
             turns = cells
             par = cells.reduce(0) { $0 + (4 - $1) % 4 }
         case .matchstick:
@@ -71,8 +85,25 @@ final class VisualEngine:GameEngine {
             par = matchesToMove
         }
     }
+    /// Rotate levels by grid side: 8 at 3×3, 10 at 4×4, 12 at 5×5, 12 at
+    /// 6×6 and 8 at 7×7. Returns the side and how far through that size the
+    /// level is (0…1).
+    private static let rotateSides: [(side: Int, levels: Int)] = [(3, 8), (4, 10), (5, 12), (6, 12), (7, 8)]
+
+    static func rotateSide(_ level: Int) -> (side: Int, progress: Double) {
+        var first = 0
+        for (side, levels) in rotateSides {
+            if level < first + levels || side == rotateSides.last!.side {
+                return (side, Double(min(level - first, levels - 1)) / Double(max(1, levels - 1)))
+            }
+            first += levels
+        }
+        return (3, 0)
+    }
+
     private func win() {
         score = 100 + levelIndex * 50 + stars * 100
+        UserDefaults.standard.set(min(levelCount - 1, levelIndex + 1), forKey: levelKey)
         state = .gameOver(won:true); Haptics.success()
     }
     func tap(_ i:Int) {

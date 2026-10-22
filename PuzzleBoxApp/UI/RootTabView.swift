@@ -56,13 +56,42 @@ struct RootTabView: View {
     @AppStorage(AppTheme.storageKey) private var theme: AppTheme = .system
     @State private var selection: AppTab = .home
     @State private var presented: PresentedGame?
-    /// A two-player game waiting for "vs Bot" or "vs Friend".
+    /// A two-player game waiting for "vs Bot" or "vs Friend", or a game
+    /// waiting for its mode to be picked.
     @State private var choosingOpponent: GameID?
     /// A game to open once the opponent picker has finished closing.
     @State private var queued: PresentedGame?
+    /// A game (Minesweeper, Block Blast, 2048 or Sudoku) waiting for its difficulty to be picked.
+    @State private var choosingDifficulty: GameID?
 
     var body: some View {
         tabs
+            .overlay {
+                switch choosingDifficulty {
+                case .minesweeper:
+                    MinesweeperDifficultyAlert { difficulty in
+                        MinesweeperEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .minesweeper)
+                    } cancel: { closeDifficultyAlert() }
+                case .sudoku:
+                    SudokuDifficultyAlert { difficulty in
+                        SudokuEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .sudoku)
+                    } cancel: { closeDifficultyAlert() }
+                case .game2048:
+                    Game2048DifficultyAlert { difficulty in
+                        Game2048Engine.choose(difficulty)
+                        open(afterChoosingDifficulty: .game2048)
+                    } cancel: { closeDifficultyAlert() }
+                case .blockBlast:
+                    BlockBlastDifficultyAlert { difficulty in
+                        BlockBlastEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .blockBlast)
+                    } cancel: { closeDifficultyAlert() }
+                default:
+                    EmptyView()
+                }
+            }
             // Set on the window rather than via preferredColorScheme, which
             // doesn't reliably revert open sheets when switching back to system.
             .onChange(of: theme, initial: true) { _, theme in
@@ -71,7 +100,9 @@ struct RootTabView: View {
             .environment(\.playGame, PlayGameAction { id, source in
                 Haptics.tap()
                 AppAnalytics.selectGame(id, source: source)
-                if id.supportsFriends {
+                if [.blockBlast, .minesweeper, .game2048, .sudoku].contains(id) {
+                    withAnimation(.easeOut(duration: 0.2)) { choosingDifficulty = id }
+                } else if id.supportsFriends || !id.modes.isEmpty {
                     choosingOpponent = id
                 } else {
                     stats.markOpened(id)
@@ -84,9 +115,21 @@ struct RootTabView: View {
                     presented = queued
                 }
             }) { game in
-                OpponentPickerView(game: game) {
-                    stats.markOpened(game)
-                    present(.solo(game))
+                if game.modes.first != game {
+                    OpponentPickerView(game: game) {
+                        stats.markOpened(game)
+                        present(.solo(game))
+                    }
+                } else {
+                    GameModePickerView(game: game) { mode in
+                        if mode.supportsFriends {
+                            // Blitz can be raced against friends: its own picker takes over.
+                            choosingOpponent = mode
+                        } else {
+                            stats.markOpened(mode)
+                            present(.solo(mode))
+                        }
+                    }
                 }
             }
             .fullScreenCover(item: $presented, onDismiss: {
@@ -132,6 +175,16 @@ struct RootTabView: View {
             .onChange(of: StatsSnapshot(stats: stats, ready: friends.status == .ready), initial: true) { _, snapshot in
                 if snapshot.ready { friends.publish(PublicStats(stats: stats)) }
             }
+    }
+
+    private func open(afterChoosingDifficulty game: GameID) {
+        choosingDifficulty = nil
+        stats.markOpened(game)
+        presented = .solo(game)
+    }
+
+    private func closeDifficultyAlert() {
+        withAnimation(.easeOut(duration: 0.2)) { choosingDifficulty = nil }
     }
 
     /// Opens `game` full screen. With the opponent picker up (and the nearby

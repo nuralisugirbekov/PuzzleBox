@@ -190,8 +190,11 @@ extension GameCategory {
     }
 
     var games: [GameID] {
-        GameID.allCases.filter { $0.info.category == self }
+        GameID.catalog.filter { $0.info.category == self }
     }
+
+    /// Categories with at least one game left after hiding.
+    static var listed: [GameCategory] { allCases.filter { !$0.games.isEmpty } }
 }
 
 /// Coloured category tile, like the genre tiles in Apple Music's Browse.
@@ -230,7 +233,7 @@ struct CategoryGrid: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
                             GridItem(.flexible(), spacing: 12)],
                   spacing: 12) {
-            ForEach(GameCategory.allCases) { CategoryTile(category: $0) }
+            ForEach(GameCategory.listed) { CategoryTile(category: $0) }
         }
         .padding(.horizontal)
     }
@@ -245,12 +248,12 @@ extension GameID {
         let gameKey = "dailyGame.id"
         if defaults.double(forKey: dateKey) == day,
            let raw = defaults.string(forKey: gameKey),
-           let saved = GameID(rawValue: raw) {
+           let saved = GameID(rawValue: raw), catalog.contains(saved) {
             return saved
         }
         let previous = defaults.string(forKey: gameKey)
-        let candidates = allCases.filter { $0.rawValue != previous }
-        let selected = candidates.randomElement() ?? allCases.randomElement() ?? .bounce
+        let candidates = catalog.filter { $0.rawValue != previous }
+        let selected = candidates.randomElement() ?? catalog.randomElement() ?? .bounce
         defaults.set(selected.rawValue, forKey: gameKey)
         defaults.set(day, forKey: dateKey)
         return selected

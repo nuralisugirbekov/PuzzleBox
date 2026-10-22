@@ -364,7 +364,6 @@
 "Extra tube" = "अतिरिक्त ट्यूब";
 "Notes" = "नोट्स";
 "Hint (%d)" = "संकेत (%d)";
-"Mistakes: %d/%d" = "गलतियाँ: %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "झंडा लगाने के लिए देर तक दबाएँ। जिस संख्या के सारे झंडे लग चुके हों, उस पर टैप करके आस-पास की खानें खोलें।";
 "Time: %@" = "समय: %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "उत्तर टाइप करें — यह अपने आप जाँचा जाएगा। लगातार सही उत्तर देकर गुणक बढ़ाएँ।";
@@ -627,3 +626,41 @@
 "Hits: %d, misses: %d" = "निशाने: %d, चूक: %d";
 "%d players" = "%d खिलाड़ी";
 "%d players. Invite a friend or share the room code." = "%d खिलाड़ी। किसी दोस्त को बुलाएँ या रूम कोड साझा करें।";
+
+/* Gems */
+"Arcade mode" = "आर्केड";
+"Gems Arcade" = "रत्न आर्केड";
+"Clear levels on boards of every shape" = "हर आकार के बोर्ड पर स्तर पार करें";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "हर स्तर एक नया बोर्ड है: बड़ा, छोटा या अनोखे आकार का, जिसमें छेद हैं जिनके पार रत्न गिर जाते हैं और शुरू से बर्फ़ जमी है। स्तर पार करने के लिए तय चालों में क्रिस्टल जमा करें; बची चालें बोनस देती हैं। चालें खत्म हों तो स्तर फिर से खेलें। आपकी प्रगति सहेजी जाती है।";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "रत्न को उसके पड़ोसी की ओर स्वाइप करें, या एक रत्न और फिर दूसरे को टैप करें। बम, क्रॉस और बिजली क्लासिक खेल की तरह काम करते हैं। बोर्ड के ऊपर स्तर, बची चालें और जमा क्रिस्टल दिखते हैं।";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "टाइमर खत्म होने से पहले क्रिस्टल जमा करें: रत्न हटते ही उसका क्रिस्टल गिना जाता है। लक्ष्य पूरा करें और नए मिनट व समय बोनस के साथ अगले स्तर पर जाएँ। हर स्तर पर ज़्यादा क्रिस्टल चाहिए और बर्फ़ भी बढ़ती है। रिकॉर्ड के लिए अकेले खेलें या दोस्तों से दौड़ लगाएँ: सबको एक जैसे बोर्ड मिलते हैं, और सबकी घड़ी रुकने पर सबसे ज़्यादा अंक वाला पहला आता है।";
+"Out of moves" = "चालें खत्म";
+"Moves bonus +%d" = "चाल बोनस +%d";
+"Moves left: %d" = "बची चालें: %d";
+"Play solo" = "रिकॉर्ड के लिए खेलें";
+"Place %d" = "%d वाँ स्थान";
+"Your score: %d" = "आपके अंक: %d";
+"%@ won with %d" = "%@ %d अंकों से जीते";
+"Waiting for the others to finish…" = "बाकी खिलाड़ियों का इंतज़ार…";
+"Classic" = "क्लासिक";
+"Blitz" = "ब्लिट्ज़";
+"Gems" = "रत्न";
+"Gems Blitz" = "रत्न ब्लिट्ज़";
+"Swap gems, chain cascades, set off bombs" = "रत्न बदलें, कैस्केड बनाएँ, बम फोड़ें";
+"Collect crystals before the time runs out" = "समय खत्म होने से पहले क्रिस्टल जमा करें";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "एक ही रंग के तीन या ज़्यादा रत्न कतार में लाने के लिए दो पड़ोसी रत्नों की जगह बदलें। एक कतार में चार से बम, L या T आकार से क्रॉस, और एक कतार में पाँच से बिजली बनती है। जो रत्न अपने आप नई कतार में गिरते हैं, वे बढ़ता हुआ कॉम्बो देते हैं। जमे हुए रत्न हिल नहीं सकते: उनसे दो बार कतार बनाएँ या उन्हें उड़ा दें। कोई चाल न बचने पर खेल खत्म होता है, और बोर्ड पर बचे सभी बोनस आख़िरी इनाम के लिए फट जाते हैं।";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "रत्न को उसके पड़ोसी की ओर स्वाइप करें, या एक रत्न और फिर दूसरे को टैप करें। बड़े धमाके के लिए दो बोनस आपस में बदलें। बिजली उस रंग के सभी रत्न हटा देती है जिससे आप उसे बदलते हैं। अटक जाएँ तो संकेत दबाएँ।";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "रत्न को उसके पड़ोसी की ओर स्वाइप करें, या एक रत्न और फिर दूसरे को टैप करें। बम, क्रॉस और बिजली रत्न की तरह ही काम करते हैं। कोई चाल न बचे तो बोर्ड मिला दिया जाता है। रत्न गिरते समय घड़ी रुकी रहती है।";
+"Swipe a gem to swap it with a neighbour." = "रत्न को पड़ोसी से बदलने के लिए स्वाइप करें।";
+"No moves — shuffling" = "कोई चाल नहीं — मिला रहे हैं";
+"Last chord!" = "आख़िरी सुर!";
+"Time bonus +%d" = "समय बोनस +%d";
+"Crystals: %d of %d" = "क्रिस्टल: %d में से %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, %d माइन";
+"Some digits are wrong" = "कुछ अंक गलत हैं";
+"%d×%d, %d clues" = "%d×%d, %d संकेत";
+"Maze Paint" = "भूलभुलैया रंगो";
+"Swipe to paint every square" = "हर खाने को रंगने के लिए स्वाइप करें";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "गेंद को दीवार तक लुढ़काने के लिए स्वाइप करें। मुड़ने के लिए उंगली हटाए बिना फिर से स्वाइप करें। हर खाना रंगें।";

@@ -191,8 +191,7 @@ struct QuickMathView: View {
     private var round: some View {
         GameContainerView(gameID: .quickMath, engine: engine,
                           resultTitle: L10n.text("Time's up!"),
-                          resultSummary: L10n.format("Solved: %d", engine.solved) + "\n" + L10n.format("%d mistakes", engine.mistakes),
-                          centersContent: true) {
+                          resultSummary: L10n.format("Solved: %d", engine.solved) + "\n" + L10n.format("%d mistakes", engine.mistakes)) {
             VStack(spacing: 16) {
                 HStack {
                     Label(String(format: "%d:%02d", engine.secondsLeft / 60, engine.secondsLeft % 60), systemImage: "timer")

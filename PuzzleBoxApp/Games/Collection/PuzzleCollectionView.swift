@@ -11,7 +11,6 @@ struct PuzzleCollectionView: View {
     var body: some View {
         GameContainerView(gameID: engine.mode.id, engine: engine,
                           resultSummary: engine.hasLevels ? L10n.format("Level %d", engine.level) : nil,
-                          centersContent: true,
                           nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil) {
             VStack(spacing: 12) {
                 hud
@@ -45,7 +44,7 @@ struct PuzzleCollectionView: View {
                                 } else if ![.numberConnect, .oneLine].contains(engine.mode), let cell = index(value.location, size: geometry.size) { engine.tap(cell) }
                                 lastCell = nil
                             })
-                }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 420)
+                }.aspectRatio(1, contentMode: .fit)
                 controls
                 Text(L10n.text(engine.mode.hint)).font(.footnote).foregroundStyle(GameTheme.textSecondary)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)

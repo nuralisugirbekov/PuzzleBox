@@ -364,7 +364,6 @@
 "Extra tube" = "추가 튜브";
 "Notes" = "메모";
 "Hint (%d)" = "힌트 (%d)";
-"Mistakes: %d/%d" = "실수: %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "길게 눌러 깃발을 꽂으세요. 깃발이 모두 꽂힌 숫자를 탭하면 주변 칸이 열립니다.";
 "Time: %@" = "시간: %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "답을 입력하면 자동으로 확인돼요. 연속으로 맞히면 배수가 올라갑니다.";
@@ -627,3 +626,41 @@
 "Hits: %d, misses: %d" = "명중: %d, 빗나감: %d";
 "%d players" = "%d명";
 "%d players. Invite a friend or share the room code." = "%d명. 친구를 초대하거나 방 코드를 공유하세요.";
+
+/* Gems */
+"Arcade mode" = "아케이드";
+"Gems Arcade" = "보석 아케이드";
+"Clear levels on boards of every shape" = "온갖 모양의 판에서 단계를 깨세요";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "단계마다 새로운 판이 나옵니다. 더 크거나 작거나 특이한 모양이고, 보석이 지나쳐 떨어지는 구멍과 처음부터 얼음이 있습니다. 주어진 수 안에 크리스털을 모으면 통과하고, 남은 수는 보너스가 됩니다. 수를 다 쓰면 그 단계를 다시 합니다. 진행 상황은 저장됩니다.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "보석을 이웃 쪽으로 밀거나, 보석 하나를 누른 뒤 다른 하나를 누르세요. 폭탄, 십자, 번개는 클래식과 똑같이 작동합니다. 판 위에 단계, 남은 수, 모은 크리스털이 표시됩니다.";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "타이머가 끝나기 전에 크리스털을 모으세요. 보석이 사라지면 그 크리스털을 얻습니다. 목표를 채우면 새 1분과 시간 보너스를 받고 다음 단계로 갑니다. 단계마다 필요한 크리스털과 얼음이 늘어납니다. 혼자 기록에 도전하거나 친구와 경주하세요. 모두 같은 판으로 시작하고, 모두의 시간이 끝나면 최고 점수가 1등입니다.";
+"Out of moves" = "수를 모두 썼습니다";
+"Moves bonus +%d" = "남은 수 보너스 +%d";
+"Moves left: %d" = "남은 수: %d";
+"Play solo" = "기록 도전";
+"Place %d" = "%d등";
+"Your score: %d" = "내 점수: %d";
+"%@ won with %d" = "%@ 님이 %d점으로 승리";
+"Waiting for the others to finish…" = "다른 플레이어를 기다리는 중…";
+"Classic" = "클래식";
+"Blitz" = "블리츠";
+"Gems" = "보석";
+"Gems Blitz" = "보석 블리츠";
+"Swap gems, chain cascades, set off bombs" = "보석을 바꾸고, 연쇄를 일으키고, 폭탄을 터뜨리세요";
+"Collect crystals before the time runs out" = "시간이 끝나기 전에 크리스털을 모으세요";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "이웃한 두 보석을 바꿔 같은 색을 세 개 이상 한 줄로 맞추세요. 한 줄에 네 개면 폭탄, L자나 T자 모양이면 십자, 한 줄에 다섯 개면 번개가 생깁니다. 저절로 떨어져 새 줄을 만든 보석은 점점 커지는 콤보를 줍니다. 얼어붙은 보석은 움직일 수 없습니다. 그 보석으로 두 번 줄을 맞추거나 터뜨리세요. 둘 수 있는 수가 없으면 게임이 끝나고, 판에 남은 모든 아이템이 마지막 보너스로 터집니다.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "보석을 이웃 쪽으로 밀거나, 보석 하나를 누른 뒤 다른 하나를 누르세요. 아이템 두 개를 서로 바꾸면 더 큰 폭발이 일어납니다. 번개는 바꾼 색의 보석을 모두 없앱니다. 막히면 힌트를 누르세요.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "보석을 이웃 쪽으로 밀거나, 보석 하나를 누른 뒤 다른 하나를 누르세요. 폭탄, 십자, 번개는 보석과 똑같이 작동합니다. 둘 수 있는 수가 없으면 판을 섞습니다. 보석이 떨어지는 동안 시계는 멈춥니다.";
+"Swipe a gem to swap it with a neighbour." = "보석을 밀어 이웃과 바꾸세요.";
+"No moves — shuffling" = "수가 없음 — 섞는 중";
+"Last chord!" = "마지막 화음!";
+"Time bonus +%d" = "시간 보너스 +%d";
+"Crystals: %d of %d" = "크리스털: %d / %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, 지뢰 %d개";
+"Some digits are wrong" = "틀린 숫자가 있어요";
+"%d×%d, %d clues" = "%1$d×%2$d, 힌트 %3$d개";
+"Maze Paint" = "미로 칠하기";
+"Swipe to paint every square" = "스와이프해서 모든 칸을 칠하세요";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "스와이프하면 공이 벽에 닿을 때까지 굴러가요. 손가락을 떼지 않고 다시 스와이프하면 방향을 바꿔요. 모든 칸을 칠하세요.";

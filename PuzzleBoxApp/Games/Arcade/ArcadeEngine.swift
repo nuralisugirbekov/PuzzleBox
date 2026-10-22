@@ -25,6 +25,20 @@ enum ArcadeMode: String, CaseIterable {
     }
 }
 
+/// A Stack block in world space: a footprint on the x–z floor at a level.
+/// Levels are `StackSlab.height` tall; level 0 is the plinth.
+struct StackSlab: Identifiable {
+    static let height: CGFloat = 16
+    let id = UUID()
+    var x: CGFloat, z: CGFloat, w: CGFloat, d: CGFloat
+    var level: Int
+    var hue: Double
+    /// Cut-off pieces fall: how far they have dropped, how fast, and which way they drift.
+    var drop: CGFloat = 0
+    var fall: CGFloat = 0
+    var drift: CGVector = .zero
+}
+
 struct ArcadeBody: Identifiable {
     let id = UUID()
     var rect: CGRect
@@ -69,14 +83,40 @@ final class ArcadeEngine: GameEngine {
     var isBossLevel: Bool { level.isMultiple(of: 5) }
 
     // Stack
-    private var movingX: CGFloat = 20
-    private(set) var blockWidth: CGFloat = 180
+    static let stackSize: CGFloat = 120
+    /// How far the sliding block travels past the tower on either side.
+    private static let stackReach: CGFloat = 150
+    private(set) var slabs: [StackSlab] = []
+    private(set) var stackDebris: [StackSlab] = []
+    /// Offset of the sliding block from the top of the tower, along `stackAlongX` or z.
+    private(set) var slide: CGFloat = -150
+    private var direction: CGFloat = 1
     private(set) var placed = 0
     private(set) var perfectStreak = 0
-    private(set) var cameraLag: CGFloat = 0
-    private(set) var ripple: (rect: CGRect, t: CGFloat)?
-    private var direction: CGFloat = 1
-    var stackHue: Double { (0.52 + Double(placed) * 0.031).truncatingRemainder(dividingBy: 1) }
+    /// The level the view is centred on; eases up to `placed`.
+    private(set) var stackCamera: CGFloat = 0
+    private(set) var ripple: (slab: StackSlab, t: CGFloat)?
+    /// Blocks slide along x on even turns and along z on odd ones.
+    var stackAlongX: Bool { placed.isMultiple(of: 2) }
+    var stackHue: Double { Self.stackHue(placed) }
+    static func stackHue(_ level: Int) -> Double { (0.52 + Double(level) * 0.031).truncatingRemainder(dividingBy: 1) }
+
+    /// The block in play, sliding over the top of the tower.
+    var movingSlab: StackSlab? {
+        guard let top = slabs.last else { return nil }
+        var slab = top
+        slab.level = top.level + 1
+        slab.hue = Self.stackHue(placed + 1)
+        if stackAlongX { slab.x += slide } else { slab.z += slide }
+        return slab
+    }
+
+    /// World point to the 320×480 canvas, isometric, with the camera on the top.
+    func stackScreen(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint {
+        let c: CGFloat = 0.866, s: CGFloat = 0.5
+        return CGPoint(x: 160 + (x - z) * c,
+                       y: 250 + (x + z) * s - (y - stackCamera * StackSlab.height))
+    }
 
     // Helix Drop
     private(set) var combo = 0
@@ -109,14 +149,17 @@ final class ArcadeEngine: GameEngine {
         angle = 0; level = 1; remainingPins = 7; totalPins = 7; targetKick = 0; levelIntro = 0; spinClock = 0
         fx.reset(); time = 0
         cooldown = 0; flash = 0; emitClock = 0
-        movingX = 0; blockWidth = 180; direction = 1; previousDrag = nil
-        placed = 0; perfectStreak = 0; cameraLag = 0; ripple = nil
+        direction = 1; previousDrag = nil
+        slabs = []; stackDebris = []; slide = -Self.stackReach
+        placed = 0; perfectStreak = 0; stackCamera = 0; ripple = nil
         combo = 0; helixSpawned = 0
         scroll = 0; flap = 0; pipesSpawned = 0; pipesPassed = 0
         roadRow = 0; furthestRoadRow = 0; hopTimer = 0; facing = -1
         switch mode {
         case .stack:
-            bodies = [ArcadeBody(rect: CGRect(x: 70, y: 420, width: 180, height: 22), hue: stackHue)]
+            // A tall plinth so the tower never seems to float.
+            let half = Self.stackSize / 2
+            slabs = (-4...0).map { StackSlab(x: -half, z: -half, w: Self.stackSize, d: Self.stackSize, level: $0, hue: Self.stackHue(0)) }
         case .flappyFlight:
             player = CGPoint(x: 78, y: 240)
             addPipe(x: 380); addPipe(x: 580)
@@ -129,10 +172,6 @@ final class ArcadeEngine: GameEngine {
         case .knifeSpin:
             setupKnifeLevel()
         }
-    }
-
-    var movingBlock: CGRect {
-        CGRect(x: movingX, y: (bodies.last?.rect.minY ?? 420) - 24, width: blockWidth, height: 22)
     }
 
     var roadProgress: Int { furthestRoadRow }
@@ -216,74 +255,72 @@ final class ArcadeEngine: GameEngine {
     // MARK: Stack
 
     private func updateStack(_ dt: CGFloat) {
-        movingX += direction * (105 + min(CGFloat(placed) * 4.5, 190)) * dt
-        if movingX < 0 { movingX = 0; direction = 1 }
-        if movingX + blockWidth > 320 { movingX = 320 - blockWidth; direction = -1 }
-        for i in debris.indices {
-            debris[i].speed += 760 * dt
-            debris[i].rect.origin.y += debris[i].speed * dt
-            debris[i].rect.origin.x += debris[i].vx * dt
-            debris[i].phase += debris[i].vx * 0.02 * dt
+        slide += direction * (105 + min(CGFloat(placed) * 4.5, 190)) * dt
+        if slide > Self.stackReach { slide = Self.stackReach; direction = -1 }
+        if slide < -Self.stackReach { slide = -Self.stackReach; direction = 1 }
+        for i in stackDebris.indices {
+            stackDebris[i].fall += 520 * dt
+            stackDebris[i].drop += stackDebris[i].fall * dt
+            stackDebris[i].x += stackDebris[i].drift.dx * dt
+            stackDebris[i].z += stackDebris[i].drift.dy * dt
         }
-        debris.removeAll { $0.rect.minY > 520 }
-        cameraLag = max(0, cameraLag - dt * max(60, cameraLag * 9))
+        stackDebris.removeAll { $0.drop > 700 }
+        stackCamera += (CGFloat(placed) - stackCamera) * min(1, dt * 6)
         if let current = ripple {
-            ripple = current.t + dt > 0.5 ? nil : (current.rect, current.t + dt)
+            ripple = current.t + dt > 0.5 ? nil : (current.slab, current.t + dt)
         }
     }
 
     private func placeBlock() {
-        guard let base = bodies.last else { return }
-        var rect = movingBlock
-        let hue = (0.52 + Double(placed + 1) * 0.031).truncatingRemainder(dividingBy: 1)
-        let blockColor = Color(hue: hue, saturation: 0.6, brightness: 0.95)
-        if abs(rect.minX - base.rect.minX) < 4.5 && abs(rect.width - base.rect.width) < 0.5 {
-            // Perfect drop: keep the full width; a streak of three or more regrows the block.
+        guard let top = slabs.last, var slab = movingSlab else { return }
+        let alongX = stackAlongX
+        let blockColor = Color(hue: slab.hue, saturation: 0.6, brightness: 0.95)
+        // Positions along the sliding axis.
+        let topMin = alongX ? top.x : top.z, length = alongX ? top.w : top.d
+        let slabMin = alongX ? slab.x : slab.z
+        let center = stackScreen(slab.x + slab.w / 2, CGFloat(slab.level + 1) * StackSlab.height, slab.z + slab.d / 2)
+
+        if abs(slabMin - topMin) < 4.5 {
+            // Perfect drop: snap onto the tower; a streak of three or more regrows the block.
             perfectStreak += 1
-            var width = base.rect.width
-            var x = base.rect.minX
-            if perfectStreak >= 3 && width < 180 {
-                let grow = min(14, 180 - width)
-                width += grow
-                x = max(0, min(320 - width, x - grow / 2))
+            if alongX { slab.x = top.x } else { slab.z = top.z }
+            if perfectStreak >= 3 {
+                let gw = min(10, Self.stackSize - slab.w), gd = min(10, Self.stackSize - slab.d)
+                slab.x -= gw / 2; slab.w += gw
+                slab.z -= gd / 2; slab.d += gd
             }
-            rect = CGRect(x: x, y: rect.minY, width: width, height: 22)
             let bonus = 5 * min(perfectStreak, 6)
             score += 10 + bonus; flash = 0.18
-            ripple = (rect, 0)
+            ripple = (slab, 0)
             let label = perfectStreak > 1 ? L10n.text("Perfect!") + " ×\(perfectStreak)" : L10n.text("Perfect!")
-            fx.popup(label, at: CGPoint(x: rect.midX, y: rect.minY - 18), color: .white, size: 18)
-            fx.burst(at: CGPoint(x: rect.minX, y: rect.midY), color: blockColor, count: 8, speed: 120, gravity: 200)
-            fx.burst(at: CGPoint(x: rect.maxX, y: rect.midY), color: blockColor, count: 8, speed: 120, gravity: 200)
+            fx.popup(label, at: CGPoint(x: center.x, y: center.y - 30), color: .white, size: 18)
+            fx.burst(at: center, color: blockColor, count: 14, speed: 140, gravity: 200)
             if perfectStreak >= 3 { Haptics.success(); SoundFX.play(.coin) } else { Haptics.move(); SoundFX.play(.pop) }
         } else {
-            let left = max(rect.minX, base.rect.minX), right = min(rect.maxX, base.rect.maxX)
-            guard right > left else {
-                debris.append(ArcadeBody(rect: rect, hue: hue, vx: direction * 40))
-                lose(at: CGPoint(x: rect.midX, y: rect.midY), color: blockColor)
+            let low = max(slabMin, topMin), high = min(slabMin + length, topMin + length)
+            guard high > low else {
+                var miss = slab
+                miss.drift = alongX ? CGVector(dx: direction * 60, dy: 0) : CGVector(dx: 0, dy: direction * 60)
+                stackDebris.append(miss)
+                lose(at: center, color: blockColor)
                 return
             }
             perfectStreak = 0
-            if rect.minX < left {
-                debris.append(ArcadeBody(rect: CGRect(x: rect.minX, y: rect.minY, width: left - rect.minX, height: 22), hue: hue, vx: -50))
+            // The overhang breaks off and falls; the rest stays on the tower.
+            for (from, to, sign) in [(slabMin, low, -1.0), (high, slabMin + length, 1.0)] where to - from > 0.5 {
+                var piece = slab
+                if alongX { piece.x = from; piece.w = to - from; piece.drift = CGVector(dx: sign * 50, dy: 0) }
+                else { piece.z = from; piece.d = to - from; piece.drift = CGVector(dx: 0, dy: sign * 50) }
+                stackDebris.append(piece)
             }
-            if rect.maxX > right {
-                debris.append(ArcadeBody(rect: CGRect(x: right, y: rect.minY, width: rect.maxX - right, height: 22), hue: hue, vx: 50))
-            }
-            rect.origin.x = left; rect.size.width = right - left
+            if alongX { slab.x = low; slab.w = high - low } else { slab.z = low; slab.d = high - low }
             reward(10, sound: .place)
         }
-        blockWidth = rect.width
         placed += 1
-        bodies.append(ArcadeBody(rect: rect, value: placed, hue: hue))
-        if rect.minY < 190 {
-            for i in bodies.indices { bodies[i].rect.origin.y += 24 }
-            for i in debris.indices { debris[i].rect.origin.y += 24 }
-            if let current = ripple { ripple = (current.rect.offsetBy(dx: 0, dy: 24), current.t) }
-            cameraLag += 24
-            bodies.removeAll { $0.rect.minY > 500 }
-        }
-        direction *= -1; movingX = direction > 0 ? 0 : 320 - blockWidth
+        slabs.append(slab)
+        // Only the top of the tower is ever on screen.
+        if slabs.count > 40 { slabs.removeFirst(slabs.count - 40) }
+        direction = 1; slide = -Self.stackReach
     }
 
     // MARK: Knife Spin

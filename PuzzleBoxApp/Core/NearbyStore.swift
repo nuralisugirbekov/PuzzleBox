@@ -4,8 +4,10 @@ import MultipeerConnectivity
 import UIKit
 
 // Games with people nearby, without internet: phones find each other and talk
-// directly over Bluetooth and peer-to-peer Wi-Fi (MultipeerConnectivity), so
-// it works in airplane mode with Bluetooth or Wi-Fi turned back on.
+// directly, over peer-to-peer Wi-Fi (MultipeerConnectivity) and over Bluetooth
+// LE (`NearbyBluetooth`) at the same time, so it works with no network at all,
+// in airplane mode with Wi-Fi or Bluetooth turned back on. A room seen both
+// ways is joined over Wi-Fi first, then Bluetooth if that fails.
 //
 // The phone that opens the room is the host. It advertises the room, holds
 // the lobby and, once the game starts, the one true table: players send it
@@ -33,15 +35,24 @@ struct NearbyLobby: Codable, Equatable {
     var isFull: Bool { players.count >= maxPlayers }
 }
 
+/// How this phone reaches another one.
+enum NearbyLink: Hashable {
+    case multipeer(MCPeerID)
+    case bluetooth(UUID)
+
+    var isMultipeer: Bool { if case .multipeer = self { true } else { false } }
+}
+
 /// A room another phone nearby is advertising.
 struct NearbyRoom: Identifiable, Equatable {
-    let peer: MCPeerID
+    /// The host's player id.
+    let id: String
+    /// Ways to reach the host, the one to try first first.
+    var links: [NearbyLink]
     let game: GameID
     let hostName: String
     let players: Int
     let maxPlayers: Int
-
-    var id: MCPeerID { peer }
 }
 
 /// A started nearby game, for the root view to present.
@@ -90,9 +101,16 @@ final class NearbyStore: NSObject {
     @ObservationIgnored private var session: MCSession?
     @ObservationIgnored private var advertiser: MCNearbyServiceAdvertiser?
     @ObservationIgnored private var browser: MCNearbyServiceBrowser?
+    /// The nearby screen is up, listing rooms.
+    @ObservationIgnored private var looking = false
+    @ObservationIgnored private let bluetooth = NearbyBluetooth()
+    /// Rooms as each link sees them; `rooms` merges them by host.
+    @ObservationIgnored private var sightings: [NearbyLink: NearbyRoom] = [:]
+    /// Links of the room being joined still to try.
+    @ObservationIgnored private var joinLinks: [NearbyLink] = []
     /// Host only: which peer is which player.
-    @ObservationIgnored private var players: [MCPeerID: NearbyPlayer] = [:]
-    @ObservationIgnored private var hostPeer: MCPeerID?
+    @ObservationIgnored private var players: [NearbyLink: NearbyPlayer] = [:]
+    @ObservationIgnored private var hostLink: NearbyLink?
     /// Host only: players who said goodbye, so their disconnect isn't a forfeit.
     @ObservationIgnored private var departed: Set<String> = []
 
@@ -107,6 +125,7 @@ final class NearbyStore: NSObject {
         // Peer names are limited to 63 bytes.
         peerID = MCPeerID(displayName: String(name.prefix(20)))
         super.init()
+        bluetooth.delegate = self
     }
 
     var isHost: Bool { role == .host }
@@ -133,14 +152,22 @@ final class NearbyStore: NSObject {
     }
 
     /// (Re)starts advertising with the current player count; discovery info
-    /// can't change while advertising.
+    /// can't change while advertising. A full or started room keeps
+    /// advertising, marked closed, until it's left: with no Wi-Fi network,
+    /// peer-to-peer Wi-Fi stays up only while this phone advertises or
+    /// browses, and the session drops with it. So the new advertiser starts
+    /// before the old one stops, and never none at all.
     private func advertise() {
-        advertiser?.stopAdvertisingPeer()
-        guard let lobby, !lobby.started, !lobby.isFull else { advertiser = nil; return }
-        let info = ["game": lobby.game, "host": me.name, "n": "\(lobby.players.count)", "max": "\(lobby.maxPlayers)"]
+        guard let lobby else { return }
+        let open = !lobby.started && !lobby.isFull
+        var info = ["game": lobby.game, "host": me.name, "n": "\(lobby.players.count)", "max": "\(lobby.maxPlayers)",
+                    "id": me.id]
+        if !open { info["open"] = "0" }
+        bluetooth.host(open ? info : nil)
         let advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: info, serviceType: Self.serviceType)
         advertiser.delegate = self
         advertiser.startAdvertisingPeer()
+        self.advertiser?.stopAdvertisingPeer()
         self.advertiser = advertiser
     }
 
@@ -157,8 +184,7 @@ final class NearbyStore: NSObject {
         let state = onlineInitialState(for: lobby.gameID, players: lobby.players.count, options: lobby.options)
         lobby.started = true
         self.lobby = lobby
-        advertiser?.stopAdvertisingPeer()
-        advertiser = nil
+        advertise()
         beginMatch(players: lobby.players, state: state)
         send(.start(state: state))
         broadcastLobby()
@@ -174,6 +200,8 @@ final class NearbyStore: NSObject {
 
     /// Looks for rooms nearby until `stopLooking()`.
     func look() {
+        looking = true
+        bluetooth.look()
         guard browser == nil else { return }
         let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
         browser.delegate = self
@@ -182,19 +210,45 @@ final class NearbyStore: NSObject {
     }
 
     func stopLooking() {
+        looking = false
+        bluetooth.stopLooking()
+        sightings = [:]
+        rooms = []
+        // In a room the browser keeps peer-to-peer Wi-Fi up (see `advertise()`); it stops on leaving.
+        guard role == nil else { return }
         browser?.stopBrowsingForPeers()
         browser = nil
-        rooms = []
     }
 
     /// Asks the host of `room` to let this player in.
     func join(_ room: NearbyRoom) {
-        guard joining == nil, lobby == nil, let browser else { return }
+        guard joining == nil, lobby == nil else { return }
         role = .guest
         joining = room
-        hostPeer = room.peer
-        let context = try? JSONEncoder().encode(me)
-        browser.invitePeer(room.peer, to: makeSession(), withContext: context, timeout: 15)
+        joinLinks = room.links
+        tryNextLink()
+    }
+
+    /// Knocks on the joining room over its next link. Returns false when none is left.
+    @discardableResult
+    private func tryNextLink() -> Bool {
+        let context = (try? JSONEncoder().encode(me)) ?? Data()
+        while !joinLinks.isEmpty {
+            let link = joinLinks.removeFirst()
+            session?.disconnect()
+            session = nil
+            switch link {
+            case .multipeer(let peer):
+                guard let browser else { continue }
+                hostLink = link
+                browser.invitePeer(peer, to: makeSession(), withContext: context, timeout: 15)
+            case .bluetooth(let id):
+                hostLink = link
+                bluetooth.join(id, context: context)
+            }
+            return true
+        }
+        return false
     }
 
     // MARK: Leaving
@@ -204,15 +258,21 @@ final class NearbyStore: NSObject {
         if isHost {
             send(.closed)
         } else if matchState != nil {
-            send(.bye(me.id), to: hostPeer.map { [$0] })
+            send(.bye(me.id), to: hostLink.map { [$0] })
         }
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
+        if !looking {
+            browser?.stopBrowsingForPeers()
+            browser = nil
+        }
         session?.disconnect()
         session = nil
+        bluetooth.disconnect()
         players = [:]
         departed = []
-        hostPeer = nil
+        hostLink = nil
+        joinLinks = []
         role = nil
         lobby = nil
         joining = nil
@@ -239,7 +299,7 @@ final class NearbyStore: NSObject {
             commit(encoded)
         } else {
             matchState = encoded
-            send(.move(encoded, base: matchVersion), to: hostPeer.map { [$0] })
+            send(.move(encoded, base: matchVersion), to: hostLink.map { [$0] })
         }
     }
 
@@ -254,20 +314,30 @@ final class NearbyStore: NSObject {
             forfeitedBy = me.id
             send(.forfeit(me.id))
         } else {
-            send(.forfeit(me.id), to: hostPeer.map { [$0] })
+            send(.forfeit(me.id), to: hostLink.map { [$0] })
         }
     }
 
     // MARK: Messages
 
-    private func send(_ message: NearbyMessage, to peers: [MCPeerID]? = nil) {
-        guard let session, let data = try? JSONEncoder().encode(message) else { return }
-        let targets = peers ?? session.connectedPeers
-        guard !targets.isEmpty else { return }
-        try? session.send(data, toPeers: targets, with: .reliable)
+    /// Sends to `links`, or to everyone connected.
+    private func send(_ message: NearbyMessage, to links: [NearbyLink]? = nil) {
+        guard let data = try? JSONEncoder().encode(message) else { return }
+        var peers: [MCPeerID] = []
+        var bluetoothIDs: [UUID] = []
+        for link in links ?? ((session?.connectedPeers ?? []).map { .multipeer($0) }
+                              + bluetooth.connectedIDs.map { .bluetooth($0) }) {
+            switch link {
+            case .multipeer(let peer): peers.append(peer)
+            case .bluetooth(let id): bluetoothIDs.append(id)
+            }
+        }
+        if let session, !peers.isEmpty { try? session.send(data, toPeers: peers, with: .reliable) }
+        if !bluetoothIDs.isEmpty { bluetooth.send(data, to: bluetoothIDs) }
     }
 
-    private func receive(_ message: NearbyMessage, from peer: MCPeerID) {
+    private func receive(_ data: Data, from peer: NearbyLink) {
+        guard let message = try? JSONDecoder().decode(NearbyMessage.self, from: data) else { return }
         switch message {
         case .lobby(let lobby):
             guard !isHost else { return }
@@ -311,7 +381,7 @@ final class NearbyStore: NSObject {
     }
 
     /// Host only: a player connected or dropped out.
-    private func peerChanged(_ peer: MCPeerID, connected: Bool) {
+    private func peerChanged(_ peer: NearbyLink, connected: Bool) {
         if isHost {
             guard let player = players[peer] else { return }
             if connected {
@@ -335,8 +405,10 @@ final class NearbyStore: NSObject {
                     advertise()
                 }
             }
-        } else if peer == hostPeer, !connected {
+        } else if peer == hostLink, !connected {
             if joining != nil {
+                // Try the room's other link, if it has one, before giving up.
+                guard !tryNextLink() else { return }
                 leave()
                 notice = L10n.text("Couldn't join the room.")
             } else {
@@ -346,23 +418,49 @@ final class NearbyStore: NSObject {
     }
 
     /// Host only: lets a player in while there is room.
-    private func shouldAdmit(_ peer: MCPeerID, context: Data?) -> Bool {
+    private func shouldAdmit(_ peer: NearbyLink, context: Data?) -> Bool {
         guard isHost, let lobby, !lobby.started, !lobby.isFull,
               let context, let player = try? JSONDecoder().decode(NearbyPlayer.self, from: context) else { return false }
         players[peer] = player
         return true
     }
 
-    private func found(_ peer: MCPeerID, info: [String: String]?) {
+    private func found(_ link: NearbyLink, info: [String: String]?) {
+        guard looking else { return }
+        guard info?["open"] != "0" else { return lost(link) }
         guard let info, let game = info["game"].flatMap(GameID.init(rawValue:)) else { return }
-        let room = NearbyRoom(peer: peer, game: game, hostName: info["host"] ?? peer.displayName,
-                              players: Int(info["n"] ?? "") ?? 1, maxPlayers: Int(info["max"] ?? "") ?? 2)
-        rooms.removeAll { $0.peer == peer }
-        rooms.append(room)
+        let fallbackName: String
+        switch link {
+        case .multipeer(let peer): fallbackName = peer.displayName
+        case .bluetooth: fallbackName = ""
+        }
+        sightings[link] = NearbyRoom(id: info["id"] ?? "\(link)", links: [link], game: game,
+                                     hostName: info["host"] ?? fallbackName,
+                                     players: Int(info["n"] ?? "") ?? 1, maxPlayers: Int(info["max"] ?? "") ?? 2)
+        mergeRooms()
     }
 
-    private func lost(_ peer: MCPeerID) {
-        rooms.removeAll { $0.peer == peer }
+    private func lost(_ link: NearbyLink) {
+        guard sightings.removeValue(forKey: link) != nil else { return }
+        mergeRooms()
+    }
+
+    /// One room per host, keeping the order rooms were first seen in.
+    private func mergeRooms() {
+        let byHost = Dictionary(grouping: sightings.values, by: \.id)
+        var merged: [NearbyRoom] = rooms.compactMap { room in byHost[room.id].map(Self.merge) }
+        for (id, seen) in byHost where !merged.contains(where: { $0.id == id }) {
+            merged.append(Self.merge(seen))
+        }
+        rooms = merged
+    }
+
+    /// Wi-Fi first: it's faster, and the room info it brings is the same.
+    private static func merge(_ seen: [NearbyRoom]) -> NearbyRoom {
+        let ordered = seen.sorted { $0.links[0].isMultipeer && !$1.links[0].isMultipeer }
+        var room = ordered[0]
+        room.links = ordered.map { $0.links[0] }
+        return room
     }
 }
 
@@ -374,15 +472,12 @@ extension NearbyStore: MCSessionDelegate {
     nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         guard state != .connecting else { return }
         let connected = state == .connected
-        Task { @MainActor in self.peerChanged(peerID, connected: connected) }
+        Task { @MainActor in self.peerChanged(.multipeer(peerID), connected: connected) }
     }
 
     nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         // Decoded on the main actor, where the message types live.
-        Task { @MainActor in
-            guard let message = try? JSONDecoder().decode(NearbyMessage.self, from: data) else { return }
-            self.receive(message, from: peerID)
-        }
+        Task { @MainActor in self.receive(data, from: .multipeer(peerID)) }
     }
 
     nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String,
@@ -397,7 +492,7 @@ extension NearbyStore: MCNearbyServiceAdvertiserDelegate {
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID,
                                 withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         Task { @MainActor in
-            let admit = self.shouldAdmit(peerID, context: context)
+            let admit = self.shouldAdmit(.multipeer(peerID), context: context)
             invitationHandler(admit, admit ? self.session : nil)
         }
     }
@@ -406,12 +501,20 @@ extension NearbyStore: MCNearbyServiceAdvertiserDelegate {
 extension NearbyStore: MCNearbyServiceBrowserDelegate {
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID,
                              withDiscoveryInfo info: [String: String]?) {
-        Task { @MainActor in self.found(peerID, info: info) }
+        Task { @MainActor in self.found(.multipeer(peerID), info: info) }
     }
 
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
-        Task { @MainActor in self.lost(peerID) }
+        Task { @MainActor in self.lost(.multipeer(peerID)) }
     }
+}
+
+extension NearbyStore: NearbyBluetoothDelegate {
+    func bluetoothFound(_ id: UUID, info: [String: String]) { found(.bluetooth(id), info: info) }
+    func bluetoothLost(_ id: UUID) { lost(.bluetooth(id)) }
+    func bluetoothShouldAdmit(_ id: UUID, context: Data) -> Bool { shouldAdmit(.bluetooth(id), context: context) }
+    func bluetoothLink(_ id: UUID, connected: Bool) { peerChanged(.bluetooth(id), connected: connected) }
+    func bluetoothReceived(_ data: Data, from id: UUID) { receive(data, from: .bluetooth(id)) }
 }
 
 // MARK: - Match transport

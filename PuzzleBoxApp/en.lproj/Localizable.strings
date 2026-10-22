@@ -368,7 +368,6 @@
 "Extra tube" = "Extra tube";
 "Notes" = "Notes";
 "Hint (%d)" = "Hint (%d)";
-"Mistakes: %d/%d" = "Mistakes: %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "Long-press to flag. Tap a number with all its flags placed to open the cells around it.";
 "Time: %@" = "Time: %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "Type the answer — it checks itself. Answer in a row to build a multiplier.";
@@ -631,3 +630,41 @@
 "Hits: %d, misses: %d" = "Hits: %d, misses: %d";
 "%d players" = "%d players";
 "%d players. Invite a friend or share the room code." = "%d players. Invite a friend or share the room code.";
+
+/* Gems */
+"Arcade mode" = "Arcade mode";
+"Gems Arcade" = "Gems Arcade";
+"Clear levels on boards of every shape" = "Clear levels on boards of every shape";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected.";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place.";
+"Out of moves" = "Out of moves";
+"Moves bonus +%d" = "Moves bonus +%d";
+"Moves left: %d" = "Moves left: %d";
+"Play solo" = "Play solo";
+"Place %d" = "Place %d";
+"Your score: %d" = "Your score: %d";
+"%@ won with %d" = "%@ won with %d";
+"Waiting for the others to finish…" = "Waiting for the others to finish…";
+"Classic" = "Classic";
+"Blitz" = "Blitz";
+"Gems" = "Gems";
+"Gems Blitz" = "Gems Blitz";
+"Swap gems, chain cascades, set off bombs" = "Swap gems, chain cascades, set off bombs";
+"Collect crystals before the time runs out" = "Collect crystals before the time runs out";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling.";
+"Swipe a gem to swap it with a neighbour." = "Swipe a gem to swap it with a neighbour.";
+"No moves — shuffling" = "No moves — shuffling";
+"Last chord!" = "Last chord!";
+"Time bonus +%d" = "Time bonus +%d";
+"Crystals: %d of %d" = "Crystals: %d of %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, %d mines";
+"Some digits are wrong" = "Some digits are wrong";
+"%d×%d, %d clues" = "%d×%d, %d clues";
+"Maze Paint" = "Maze Paint";
+"Swipe to paint every square" = "Swipe to paint every square";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square.";

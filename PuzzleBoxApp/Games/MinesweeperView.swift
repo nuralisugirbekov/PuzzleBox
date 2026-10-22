@@ -46,19 +46,32 @@ final class MinesweeperEngine: GameEngine {
         return revealedCount * 2 + difficulty.bonus + max(0, 300 - seconds) * (difficulty.rawValue + 1)
     }
 
+    /// The difficulty picked last, which the next game opens on.
+    static var savedDifficulty: MinesweeperDifficulty {
+        MinesweeperDifficulty(rawValue: UserDefaults.standard.integer(forKey: difficultyKey)) ?? .easy
+    }
+
+    /// Picked on the sheet before the game opens. A saved round of another
+    /// difficulty is dropped, so the game opens on the board that was asked for.
+    static func choose(_ difficulty: MinesweeperDifficulty) {
+        UserDefaults.standard.set(difficulty.rawValue, forKey: difficultyKey)
+        if let saved = GameSessionStore.load(.minesweeper),
+           (try? JSONDecoder().decode(SavedDifficulty.self, from: saved.payload))?.difficulty != difficulty {
+            GameSessionStore.delete(.minesweeper)
+        }
+    }
+
+    /// Just the difficulty of a saved round.
+    private struct SavedDifficulty: Decodable {
+        let difficulty: MinesweeperDifficulty
+    }
+
     init() {
-        difficulty = MinesweeperDifficulty(rawValue: UserDefaults.standard.integer(forKey: Self.difficultyKey)) ?? .easy
+        difficulty = Self.savedDifficulty
         reset()
     }
 
     func restart() { reset() }
-
-    func setDifficulty(_ value: MinesweeperDifficulty) {
-        guard value != difficulty else { return }
-        difficulty = value
-        UserDefaults.standard.set(value.rawValue, forKey: Self.difficultyKey)
-        reset()
-    }
 
     private func reset() {
         grid = Array(repeating: Array(repeating: Cell(), count: cols), count: rows)
@@ -105,14 +118,19 @@ final class MinesweeperEngine: GameEngine {
         return out
     }
 
+    /// A late tap from a board that was just swapped for another size is ignored.
+    private func contains(_ p: GridPos) -> Bool {
+        grid.indices.contains(p.r) && grid[p.r].indices.contains(p.c)
+    }
+
     func tap(_ p: GridPos) {
-        guard state == .playing else { return }
+        guard state == .playing, contains(p) else { return }
         if grid[p.r][p.c].revealed { chord(p); return }
         if flagMode { toggleFlag(p) } else { dig(p) }
     }
 
     func toggleFlag(_ p: GridPos) {
-        guard state == .playing, !grid[p.r][p.c].revealed else { return }
+        guard state == .playing, contains(p), !grid[p.r][p.c].revealed else { return }
         grid[p.r][p.c].flagged.toggle()
         Haptics.tap(); SoundFX.play(.tap)
     }
@@ -130,7 +148,7 @@ final class MinesweeperEngine: GameEngine {
     }
 
     func dig(_ p: GridPos) {
-        guard state == .playing, !grid[p.r][p.c].revealed, !grid[p.r][p.c].flagged else { return }
+        guard state == .playing, contains(p), !grid[p.r][p.c].revealed, !grid[p.r][p.c].flagged else { return }
         if !minesPlaced { placeMines(avoiding: p) }
 
         if grid[p.r][p.c].isMine {
@@ -184,10 +202,6 @@ struct MinesweeperView: View {
         GameContainerView(gameID: .minesweeper, engine: engine,
                           resultSummary: engine.finishSeconds.map { L10n.format("Time: %@", Self.clock($0)) } ?? L10n.text(engine.difficulty.title)) {
             VStack(spacing: 14) {
-                Picker("", selection: Binding(get: { engine.difficulty }, set: { engine.setDifficulty($0) })) {
-                    ForEach(MinesweeperDifficulty.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
-                }
-                .pickerStyle(.segmented)
                 statusBar
                 board
                 Text(L10n.text("Long-press to flag. Tap a number with all its flags placed to open the cells around it."))
@@ -200,15 +214,11 @@ struct MinesweeperView: View {
 
     private var statusBar: some View {
         HStack(spacing: 14) {
+            Text(L10n.text(engine.difficulty.title))
+                .font(.subheadline.weight(.semibold))
             Label("\(engine.mineCount - engine.flagsUsed)", systemImage: "flag.fill")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.red)
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let seconds = engine.finishSeconds ?? engine.startDate.map { Int(context.date.timeIntervalSince($0)) } ?? 0
-                Label(Self.clock(seconds), systemImage: "timer")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(GameTheme.textSecondary)
-            }
             Spacer()
             Button {
                 engine.flagMode.toggle()
@@ -230,11 +240,14 @@ struct MinesweeperView: View {
 
     private var board: some View {
         let spacing: CGFloat = engine.rows > 10 ? 2 : 3
+        // Built from the grid itself, so each cell carries its own value: when the
+        // difficulty shrinks the board, a cell still on its way out never reads
+        // past the end of the new, smaller grid.
         return VStack(spacing: spacing) {
-            ForEach(0..<engine.rows, id: \.self) { r in
+            ForEach(Array(engine.grid.enumerated()), id: \.offset) { r, row in
                 HStack(spacing: spacing) {
-                    ForEach(0..<engine.cols, id: \.self) { c in
-                        cell(r: r, c: c)
+                    ForEach(Array(row.enumerated()), id: \.offset) { c, cell in
+                        self.cell(cell, at: GridPos(r: r, c: c))
                     }
                 }
             }
@@ -246,9 +259,7 @@ struct MinesweeperView: View {
     }
 
     @ViewBuilder
-    private func cell(r: Int, c: Int) -> some View {
-        let cell = engine.grid[r][c]
-        let pos = GridPos(r: r, c: c)
+    private func cell(_ cell: MinesweeperEngine.Cell, at pos: GridPos) -> some View {
         let lost = engine.state == .gameOver(won: false)
         let fontSize: CGFloat = engine.rows > 10 ? 12 : 16
         ZStack {

@@ -1,1 +1,2 @@
 "NSLocalNetworkUsageDescription" = "PuzzleBox आस-पास के फ़ोन से जुड़ता है ताकि आप बिना इंटरनेट साथ खेल सकें।";
+"NSBluetoothAlwaysUsageDescription" = "PuzzleBox आस-पास के फ़ोन से जुड़ने के लिए Bluetooth का उपयोग करता है, ताकि आप बिना इंटरनेट के साथ खेल सकें।";

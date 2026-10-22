@@ -15,7 +15,7 @@ struct DiscoverView: View {
                                      source: "discover_daily")
                         .padding(.horizontal)
 
-                    ForEach(GameCategory.allCases) { category in
+                    ForEach(GameCategory.listed) { category in
                         VStack(alignment: .leading, spacing: 12) {
                             ShelfHeader(title: L10n.text(category.rawValue)) {
                                 CategoryGamesView(category: category)
@@ -29,7 +29,7 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("Quick and Easy"))
-                        Shelf(items: GameID.allCases.filter { $0.info.difficulty == .easy }, spacing: GameCard.spacing) { id in
+                        Shelf(items: GameID.catalog.filter { $0.info.difficulty == .easy }, spacing: GameCard.spacing) { id in
                             GameCard(gameID: id, source: "discover_easy")
                                 .frame(width: GameCard.width)
                         }
@@ -42,7 +42,7 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("All games"))
-                        GameGrid(games: GameID.allCases, source: "discover_all")
+                        GameGrid(games: GameID.catalog, source: "discover_all")
                             .padding(.horizontal)
                     }
                 }

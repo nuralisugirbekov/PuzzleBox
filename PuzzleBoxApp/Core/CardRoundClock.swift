@@ -28,8 +28,13 @@ struct CardRoundClock {
         anchor = active ? ProcessInfo.processInfo.systemUptime : nil
     }
 
+    /// Time played so far, including the stretch running right now.
+    var current: TimeInterval {
+        elapsed + (anchor.map { max(0, ProcessInfo.processInfo.systemUptime - $0) } ?? 0)
+    }
+
     var formattedTime: String {
-        let seconds = Int(elapsed)
+        let seconds = Int(current)
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 

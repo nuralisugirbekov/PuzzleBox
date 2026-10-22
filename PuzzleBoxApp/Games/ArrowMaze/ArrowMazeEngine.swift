@@ -16,6 +16,13 @@ final class ArrowMazeEngine: GameEngine {
     @ObservationIgnored private(set) var simulation = ArrowMazeSimulation(level: ArrowMazeLevel.all[0])
 
     var level: ArrowMazeLevel { ArrowMazeLevel.all[levelIndex] }
+    /// The level to open on next time, so leaving never loses progress.
+    static let levelKey = "arrowMazeLevel"
+
+    init() {
+        levelIndex = max(0, min(ArrowMazeLevel.all.count - 1, UserDefaults.standard.integer(forKey: Self.levelKey)))
+        simulation = ArrowMazeSimulation(level: ArrowMazeLevel.all[levelIndex])
+    }
     var canAdvance: Bool { active && started && state == .playing }
     var hasNextLevel: Bool { levelIndex + 1 < ArrowMazeLevel.all.count }
 
@@ -39,6 +46,7 @@ final class ArrowMazeEngine: GameEngine {
     func selectLevel(_ index: Int) {
         guard ArrowMazeLevel.all.indices.contains(index), index != levelIndex else { return }
         levelIndex = index
+        UserDefaults.standard.set(index, forKey: Self.levelKey)
         restart()
     }
     func nextLevel() { selectLevel(levelIndex + 1) }
@@ -73,7 +81,9 @@ final class ArrowMazeEngine: GameEngine {
         switch simulation.outcome {
         case .moving: break
         case .crashed: state = .gameOver(won: false)
-        case .escaped: state = .gameOver(won: true)
+        case .escaped:
+            UserDefaults.standard.set(min(ArrowMazeLevel.all.count - 1, levelIndex + 1), forKey: Self.levelKey)
+            state = .gameOver(won: true)
         }
     }
 }

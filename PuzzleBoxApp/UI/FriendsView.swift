@@ -353,7 +353,8 @@ struct OpponentPickerView: View {
                         botPicker
                         DurakRuleToggles(transfer: $transfer, bluff: $bluff)
                     }
-                    modeButton(L10n.text("vs Bot"), symbol: "cpu", prominent: true) {
+                    modeButton(game == .gemsBlitz ? L10n.text("Play solo") : L10n.text("vs Bot"),
+                               symbol: game == .gemsBlitz ? "person.fill" : "cpu", prominent: true) {
                         AppAnalytics.log("opponent_selected", parameters: ["game_id": game.rawValue, "mode": "bot"])
                         playBot()
                     }

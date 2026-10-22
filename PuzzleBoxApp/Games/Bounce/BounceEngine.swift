@@ -100,9 +100,12 @@ final class BounceEngine: GameEngine {
     var level: BounceLevel { BounceLevel.levels[levelIndex] }
     var cameraX: CGFloat { max(0,min(level.width-360,ball.x-130)) }
     var gateOpen: Bool { collected.count == level.rings.count }
+    /// The level reached, so a new run picks up there instead of at the start.
+    static let levelKey = "bounceLevel"
     init() { restart() }
     func restart() {
-        state = .playing; score = 0; levelIndex = 0; lives = 3; started = false
+        let saved = UserDefaults.standard.integer(forKey: Self.levelKey)
+        state = .playing; score = 0; levelIndex = max(0, min(BounceLevel.levels.count - 1, saved)); lives = 3; started = false
         collected = []; transition = 0; changingLevel = false; message = ""; fx.reset(); clock = 0
         setupEnemies(); respawn()
     }
@@ -191,8 +194,12 @@ final class BounceEngine: GameEngine {
         }
         if gateOpen && level.exit.insetBy(dx:-radius,dy:0).contains(ball) {
             score += 250
-            if levelIndex == BounceLevel.levels.count-1 { score += lives*100; state = .gameOver(won:true) }
-            else { changingLevel = true; message = "Level complete!"; transition = 1; releaseControls(); SoundFX.play(.win) }
+            if levelIndex == BounceLevel.levels.count-1 {
+                // The whole campaign is done: the next run starts it over.
+                UserDefaults.standard.set(0, forKey: Self.levelKey)
+                score += lives*100; state = .gameOver(won:true)
+            }
+            else { UserDefaults.standard.set(levelIndex + 1, forKey: Self.levelKey); changingLevel = true; message = "Level complete!"; transition = 1; releaseControls(); SoundFX.play(.win) }
         }
     }
     /// From level 2 on, critters patrol the wider floor sections (never the spawn floor).

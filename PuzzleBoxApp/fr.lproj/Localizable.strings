@@ -364,7 +364,6 @@
 "Extra tube" = "Tube supplémentaire";
 "Notes" = "Notes";
 "Hint (%d)" = "Indice (%d)";
-"Mistakes: %d/%d" = "Erreurs : %d/%d";
 "Long-press to flag. Tap a number with all its flags placed to open the cells around it." = "Appui long pour poser un drapeau. Touchez un chiffre entouré de tous ses drapeaux pour ouvrir les cases voisines.";
 "Time: %@" = "Temps : %@";
 "Type the answer — it checks itself. Answer in a row to build a multiplier." = "Tapez la réponse : elle se vérifie toute seule. Enchaînez les bonnes réponses pour augmenter le multiplicateur.";
@@ -627,3 +626,41 @@
 "Hits: %d, misses: %d" = "Touchés : %d, ratés : %d";
 "%d players" = "%d joueurs";
 "%d players. Invite a friend or share the room code." = "%d joueurs. Invitez un ami ou partagez le code de la salle.";
+
+/* Gems */
+"Arcade mode" = "Arcade";
+"Gems Arcade" = "Gemmes Arcade";
+"Clear levels on boards of every shape" = "Réussissez des niveaux sur des plateaux de toutes formes";
+"Every level is a new board: bigger, smaller or oddly shaped, with holes that gems fall past and ice already in place. Collect the crystals within the moves to clear it, and unused moves score a bonus. Run out of moves and you try the level again. Your progress is saved." = "Chaque niveau est un nouveau plateau : plus grand, plus petit ou de forme étrange, avec des trous que les gemmes traversent et de la glace dès le départ. Récoltez les cristaux dans la limite de coups pour le réussir ; les coups restants rapportent un bonus. Plus de coups, et vous recommencez le niveau. Votre progression est sauvegardée.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in the classic game. Above the board you see the level, the moves left and the crystals collected." = "Faites glisser une gemme vers sa voisine, ou touchez une gemme puis l’autre. Bombes, croix et éclairs fonctionnent comme dans le jeu classique. Au-dessus du plateau s’affichent le niveau, les coups restants et les cristaux récoltés.";
+"Collect the crystals before the timer runs out: a crystal is collected when its gem is cleared. Reach the goal to move on to the next level with a fresh minute and a time bonus. Each level needs more crystals and brings more ice. Play solo for a record, or race friends: everyone gets the same boards, and the best score once every clock has run out takes first place." = "Récoltez les cristaux avant la fin du chrono : un cristal compte quand sa gemme disparaît. Atteignez l’objectif pour passer au niveau suivant avec une nouvelle minute et un bonus de temps. Chaque niveau demande plus de cristaux et ajoute de la glace. Jouez seul pour le record ou défiez vos amis : tout le monde a les mêmes plateaux, et quand tous les chronos sont écoulés, le meilleur score prend la première place.";
+"Out of moves" = "Plus de coups";
+"Moves bonus +%d" = "Bonus de coups +%d";
+"Moves left: %d" = "Coups restants : %d";
+"Play solo" = "Jouer pour le record";
+"Place %d" = "%de place";
+"Your score: %d" = "Votre score : %d";
+"%@ won with %d" = "%@ gagne avec %d";
+"Waiting for the others to finish…" = "En attente des autres joueurs…";
+"Classic" = "Classique";
+"Blitz" = "Blitz";
+"Gems" = "Gemmes";
+"Gems Blitz" = "Gemmes Blitz";
+"Swap gems, chain cascades, set off bombs" = "Échangez les gemmes, enchaînez les cascades, faites tout sauter";
+"Collect crystals before the time runs out" = "Récoltez les cristaux avant la fin du temps";
+"Swap two neighbouring gems to line up three or more of a colour. Four in a line leaves a bomb, an L or T shape leaves a cross, five in a line leaves lightning. Gems that fall into new lines score a growing combo. Frozen gems can't be moved: match through them twice, or blast them. The game ends when no move is left, and every power still on the board goes off for a last bonus." = "Échangez deux gemmes voisines pour aligner trois gemmes ou plus de la même couleur. Quatre en ligne donnent une bombe, une forme en L ou en T donne une croix, cinq en ligne donnent un éclair. Les gemmes qui tombent dans de nouvelles lignes rapportent un combo croissant. Les gemmes gelées ne bougent pas : alignez-les deux fois ou faites-les exploser. La partie s’arrête quand il n’y a plus de coup, et tous les bonus restants explosent pour un dernier gain.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Swap two powers together for a bigger blast. Lightning clears every gem of the colour you swap it with. Tap Hint if you're stuck." = "Faites glisser une gemme vers sa voisine, ou touchez une gemme puis l’autre. Échangez deux bonus entre eux pour une plus grosse explosion. L’éclair efface toutes les gemmes de la couleur avec laquelle vous l’échangez. Touchez Indice si vous êtes bloqué.";
+"Swipe a gem towards its neighbour, or tap one gem and then the other. Bombs, crosses and lightning work as in Gems. If no move is left the board is shuffled. The clock waits while gems are falling." = "Faites glisser une gemme vers sa voisine, ou touchez une gemme puis l’autre. Bombes, croix et éclairs fonctionnent comme dans Gemmes. S’il n’y a plus de coup, le plateau est mélangé. Le chrono s’arrête pendant que les gemmes tombent.";
+"Swipe a gem to swap it with a neighbour." = "Faites glisser une gemme pour l’échanger avec sa voisine.";
+"No moves — shuffling" = "Plus de coups — mélange";
+"Last chord!" = "Dernier accord !";
+"Time bonus +%d" = "Bonus de temps +%d";
+"Crystals: %d of %d" = "Cristaux : %d sur %d";
+
+/* Minesweeper */
+"%d×%d, %d mines" = "%d×%d, %d mines";
+"Some digits are wrong" = "Certains chiffres sont faux";
+"%d×%d, %d clues" = "%d×%d, %d indices";
+"Maze Paint" = "Labyrinthe à peindre";
+"Swipe to paint every square" = "Balaie pour peindre chaque case";
+"Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square." = "Balaie pour faire rouler la bille jusqu’au mur. Garde le doigt posé et balaie à nouveau pour tourner. Peins chaque case.";

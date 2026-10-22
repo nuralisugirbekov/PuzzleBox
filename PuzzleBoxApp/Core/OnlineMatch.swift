@@ -27,6 +27,14 @@ protocol OnlineGameState: Codable, Equatable {
     @MainActor static func playFeedback(for state: Self)
     /// The result for `seat`, once it is decided; `names` holds every seat's name.
     func result(for seat: Int, names: [String]) -> OnlineMatchResult?
+    /// Whether the table waits for this player's move to be written before
+    /// taking the next one. Turn-based games do; a race, where each player
+    /// keeps playing their own board, doesn't.
+    static var locksWhileSending: Bool { get }
+}
+
+extension OnlineGameState {
+    static var locksWhileSending: Bool { true }
 }
 
 /// The opening table of a new match for `players` seats, written by the host.
@@ -38,6 +46,7 @@ func onlineInitialState(for game: GameID, players: Int, options: DurakOptions = 
     case .durak: return encode(DurakState.deal(players: players, options: options))
     case .hangman: return encode(HangmanState.newGame(language: HangmanLanguage(app: L10n.language), players: players))
     case .battleship: return encode(BattleshipState.newGame())
+    case .gemsBlitz: return encode(Match3RaceState.newGame(players: players))
     default: return ""
     }
 }
@@ -78,6 +87,10 @@ func onlineGameView(for match: MatchRef) -> some View {
 @ViewBuilder
 func matchView(for game: GameID, transport: any MatchTransport) -> some View {
     switch game {
+    case .gemsBlitz:
+        OnlineMatchScreen<Match3RaceState, Match3RaceView>(transport: transport) { table, seat, names, act in
+            Match3RaceView(table: table, seat: seat, names: names, onAction: act)
+        }
     case .battleship:
         OnlineMatchScreen<BattleshipState, BattleshipTableView>(transport: transport) { table, seat, names, act in
             BattleshipTableView(table: table, seat: seat, names: names, onAction: act)
@@ -255,7 +268,7 @@ struct OnlineMatchScreen<Match: OnlineGameState, Table: View>: View {
                 header
                 if let state = current, let seat = session.seat {
                     table(state, seat, session.names, play)
-                        .allowsHitTesting(!session.isSending && result == nil)
+                        .allowsHitTesting((!Match.locksWhileSending || !session.isSending) && result == nil)
                 } else {
                     Spacer()
                     ProgressView()

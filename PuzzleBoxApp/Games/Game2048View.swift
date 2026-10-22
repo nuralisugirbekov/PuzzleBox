@@ -12,10 +12,20 @@ struct Game2048Tile: Identifiable, Equatable, Codable {
     var isVanishing = false
 }
 
+/// The board grows as the game gets easier: more room means fewer dead ends.
+enum Game2048Difficulty: Int, CaseIterable, Codable {
+    case easy, medium, hard
+    var title: String { ["Easy", "Medium", "Hard"][rawValue] }
+    var size: Int { [6, 5, 4][rawValue] }
+}
+
 @MainActor
 @Observable
 final class Game2048Engine: GameEngine {
-    static let size = 4
+    private static let difficultyKey = "game2048Difficulty"
+
+    private(set) var difficulty: Game2048Difficulty
+    var size: Int { difficulty.size }
 
     private(set) var tiles: [Game2048Tile] = []
     private(set) var score = 0
@@ -33,12 +43,36 @@ final class Game2048Engine: GameEngine {
 
     /// Board values in row-major order (vanishing tiles excluded).
     var values: [Int] {
-        var grid = Array(repeating: 0, count: Self.size * Self.size)
-        for tile in tiles where !tile.isVanishing { grid[tile.row * Self.size + tile.col] = tile.value }
+        var grid = Array(repeating: 0, count: size * size)
+        for tile in tiles where !tile.isVanishing { grid[tile.row * size + tile.col] = tile.value }
         return grid
     }
 
-    init() { restart() }
+    /// The difficulty picked last, which the next game opens on.
+    static var savedDifficulty: Game2048Difficulty {
+        Game2048Difficulty(rawValue: UserDefaults.standard.integer(forKey: difficultyKey)) ?? .easy
+    }
+
+    /// Picked before the game opens. A saved round on another board size is
+    /// dropped, so the game opens on the board that was asked for.
+    static func choose(_ difficulty: Game2048Difficulty) {
+        UserDefaults.standard.set(difficulty.rawValue, forKey: difficultyKey)
+        if let saved = GameSessionStore.load(.game2048),
+           (try? JSONDecoder().decode(SavedDifficulty.self, from: saved.payload))?.difficulty ?? .hard != difficulty {
+            GameSessionStore.delete(.game2048)
+        }
+    }
+
+    /// Just the difficulty of a saved round; rounds saved before there was a
+    /// choice were played on the 4×4 board.
+    private struct SavedDifficulty: Decodable {
+        let difficulty: Game2048Difficulty?
+    }
+
+    init() {
+        difficulty = Self.savedDifficulty
+        restart()
+    }
 
     func restart() {
         tiles = []
@@ -58,7 +92,7 @@ final class Game2048Engine: GameEngine {
         guard let index = grid.indices.filter({ grid[$0] == 0 }).randomElement() else { return }
         nextID += 1
         tiles.append(Game2048Tile(id: nextID, value: Int.random(in: 0..<10) == 0 ? 4 : 2,
-                                  row: index / Self.size, col: index % Self.size))
+                                  row: index / size, col: index % size))
     }
 
     /// Drops tiles that finished their merge slide.
@@ -71,7 +105,7 @@ final class Game2048Engine: GameEngine {
         purgeVanished()
         let before = tiles
         let previousScore = score
-        let n = Self.size
+        let n = size
         var gained = 0
         var biggestMerge = 0
         var moved = false
@@ -164,7 +198,7 @@ final class Game2048Engine: GameEngine {
     private var hasMoves: Bool {
         let grid = values
         if grid.contains(0) { return true }
-        let n = Self.size
+        let n = size
         for i in grid.indices {
             if i % n < n - 1, grid[i] == grid[i + 1] { return true }
             if i / n < n - 1, grid[i] == grid[i + n] { return true }
@@ -177,10 +211,12 @@ struct Game2048View: View {
     @State private var engine = Game2048Engine()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let spacing: CGFloat = 8
+    /// Tighter gaps on the bigger boards keep the tiles readable.
+    private var spacing: CGFloat { engine.size > 4 ? 6 : 8 }
 
     var body: some View {
-        GameContainerView(gameID: .game2048, engine: engine, centersContent: true) {
+        GameContainerView(gameID: .game2048, engine: engine,
+                          resultSummary: L10n.format("%@ · %d×%d", L10n.text(engine.difficulty.title), engine.size, engine.size)) {
             VStack(spacing: 16) {
                 Text(L10n.text("Merge matching tiles to reach 2048."))
                     .font(.subheadline).foregroundStyle(GameTheme.textSecondary)
@@ -214,17 +250,17 @@ struct Game2048View: View {
     private var board: some View {
         GeometryReader { geo in
             let side = geo.size.width
-            let n = CGFloat(Game2048Engine.size)
+            let n = CGFloat(engine.size)
             let cell = (side - spacing * (n + 1)) / n
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(Color(red: 0.62, green: 0.56, blue: 0.50).opacity(0.85))
-                ForEach(0..<(Game2048Engine.size * Game2048Engine.size), id: \.self) { index in
+                ForEach(0..<(engine.size * engine.size), id: \.self) { index in
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color.white.opacity(0.22))
                         .frame(width: cell, height: cell)
-                        .offset(x: spacing + CGFloat(index % Game2048Engine.size) * (cell + spacing),
-                                y: spacing + CGFloat(index / Game2048Engine.size) * (cell + spacing))
+                        .offset(x: spacing + CGFloat(index % engine.size) * (cell + spacing),
+                                y: spacing + CGFloat(index / engine.size) * (cell + spacing))
                 }
                 ForEach(engine.tiles) { tile in
                     Game2048TileView(tile: tile, size: cell, reduceMotion: reduceMotion)
@@ -238,6 +274,7 @@ struct Game2048View: View {
             .frame(width: side, height: side)
         }
         .aspectRatio(1, contentMode: .fit)
+        .id(engine.size)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 20).onEnded { value in
             let x = value.translation.width, y = value.translation.height
@@ -257,9 +294,9 @@ struct Game2048View: View {
 
     private var accessibilitySummary: String {
         let grid = engine.values
-        return (0..<Game2048Engine.size).map { r in
-            (0..<Game2048Engine.size).map { c in
-                let v = grid[r * Game2048Engine.size + c]
+        return (0..<engine.size).map { r in
+            (0..<engine.size).map { c in
+                let v = grid[r * engine.size + c]
                 return v == 0 ? "·" : "\(v)"
             }.joined(separator: " ")
         }.joined(separator: ", ")
@@ -289,7 +326,7 @@ private struct Game2048TileView: View {
 
     var body: some View {
         let dark = tile.value <= 4
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
+        RoundedRectangle(cornerRadius: min(12, size * 0.18), style: .continuous)
             .fill(Game2048View.color(for: tile.value).gradient)
             .overlay {
                 Text(verbatim: "\(tile.value)")
@@ -322,6 +359,7 @@ extension Game2048Engine: ResumableGame {
         let bestTile: Int
         let undosLeft: Int
         let nextID: Int
+        var difficulty: Game2048Difficulty?
     }
 
     func saveSession() -> Data? {
@@ -329,11 +367,12 @@ extension Game2048Engine: ResumableGame {
         guard state == .playing || state == .paused, score > 0 else { return nil }
         purgeVanished()
         return encodeSession(Session(tiles: tiles, score: score, bestTile: bestTile,
-                                     undosLeft: undosLeft, nextID: nextID))
+                                     undosLeft: undosLeft, nextID: nextID, difficulty: difficulty))
     }
 
     func restoreSession(_ data: Data) -> Bool {
         guard let session = decodeSession(Session.self, from: data) else { return false }
+        difficulty = session.difficulty ?? .hard
         tiles = session.tiles.filter { !$0.isVanishing }
         score = session.score
         bestTile = session.bestTile
