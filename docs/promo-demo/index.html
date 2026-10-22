@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Oina! Puzzle &amp; Arcade</title>
+<style>
+:root{--bg1:#2f2d94;--bg2:#1b1760;--line:rgba(255,255,255,.07);--accent:#2ee6b6;--yellow:#ffd04d;--coral:#ff6f61}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,"Inter","Helvetica Neue",Arial,sans-serif;color:#fff}
+body{background:
+ linear-gradient(var(--line) 1px,transparent 1px) 0 0/6.25vmax 6.25vmax,
+ linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/6.25vmax 6.25vmax,
+ linear-gradient(135deg,var(--bg1),var(--bg2))}
+.wrap{height:100%;display:flex;align-items:center;justify-content:space-between;padding:4vh 6vw;gap:4vw}
+.copy{flex:1;min-width:0}
+.kicker{font-size:clamp(16px,2.3vw,30px);font-weight:300;opacity:.9}
+h1{font-size:clamp(64px,12vw,170px);line-height:1;font-weight:800;letter-spacing:-.03em;margin:.05em 0 .1em}
+.sub{font-size:clamp(20px,3.2vw,46px);font-weight:500;line-height:1.15}
+.cta{display:inline-flex;align-items:center;gap:.6em;margin-top:6vh;font-size:clamp(18px,2.6vw,36px);font-weight:600;color:#fff;text-decoration:none;
+ padding:.55em 1.1em;border-radius:999px;background:var(--accent);color:#06362b;box-shadow:0 8px 30px rgba(46,230,182,.35);transition:transform .15s}
+.cta:active{transform:scale(.96)}
+.cta img{width:1.5em;height:1.5em;border-radius:.35em}
+.phones{position:relative;height:92vh;aspect-ratio:9/18.5;flex:none}
+.phone{position:absolute;inset:0;border-radius:11% / 5.4%;background:#0a0a0c;padding:2.2%;
+ box-shadow:0 0 0 2px #6b6b70,0 0 0 5px #1c1c20,0 40px 80px rgba(0,0,0,.55);transform:rotate(7deg)}
+.screen{position:relative;height:100%;border-radius:9% / 4.4%;background:#000;overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:9% 6% 6%}
+.notch{position:absolute;top:2.2%;left:50%;width:26%;height:3%;background:#000;border-radius:99px;transform:translateX(-50%);z-index:2}
+.hud{width:100%;display:flex;justify-content:space-between;align-items:flex-end;font-size:clamp(10px,1.6vh,18px);margin-bottom:3%}
+.hud b{display:block;font-size:1.9em;line-height:1.1}.hud span{opacity:.6}
+.title{font-size:clamp(11px,1.8vh,20px);font-weight:600;align-self:center}
+#board{position:relative;width:100%;aspect-ratio:1;background:#1a1a1f;border-radius:4%;display:grid;grid-template:repeat(8,1fr)/repeat(8,1fr);gap:2%;padding:2%;flex:none;touch-action:none}
+.c{border-radius:14%;background:#26262c;transition:background .15s,transform .15s}
+.c.f{box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}.c.g{opacity:.45}.c.bad{opacity:.25}
+.c.ln{box-shadow:inset 0 0 0 2px #fff}.c.clr{animation:clr .4s forwards}@keyframes clr{to{transform:scale(0);opacity:0}}
+#tray{display:flex;justify-content:space-around;align-items:center;width:100%;flex:1;min-height:0;margin-top:4%}
+.slot{width:30%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
+.pg{display:grid;gap:2px}.pg i{border-radius:20%;display:block}
+#undo{margin-top:2%;font:inherit;background:none;border:0;color:#fff;text-align:center;cursor:pointer;font-size:clamp(11px,1.9vh,20px);font-weight:600;opacity:.4;line-height:1.1}
+#undo.on{opacity:1}#undo span{display:block;font-size:1.6em}
+.pop{position:fixed;pointer-events:none;z-index:10;font-weight:800;text-shadow:0 2px 6px rgba(0,0,0,.6);animation:up .9s forwards;transform:translateX(-50%)}
+@keyframes up{to{transform:translate(-50%,-40px);opacity:0}}
+#drag{position:fixed;pointer-events:none;z-index:9;display:none}
+.hint{margin-top:auto;font-size:clamp(10px,1.7vh,18px);opacity:.75;text-align:center;animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.over{position:absolute;inset:0;background:rgba(0,0,0,.78);display:none;flex-direction:column;align-items:center;justify-content:center;gap:2vh;text-align:center;z-index:3}
+.over.show{display:flex}.over h2{font-size:clamp(20px,4vh,44px)}
+.over a,.over button{font:inherit;font-weight:700;border:0;border-radius:99px;padding:.6em 1.3em;background:var(--accent);color:#06362b;text-decoration:none;font-size:clamp(14px,2.4vh,26px)}
+.over button{background:#fff2;color:#fff}
+.float{position:absolute;right:-4%;top:-3%;width:20%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff9488,var(--coral));box-shadow:0 12px 24px rgba(0,0,0,.35);animation:bob 2.4s ease-in-out infinite;z-index:4}
+@keyframes bob{50%{transform:translateY(-12px)}}
+@media (max-aspect-ratio:1/1){
+ .wrap{flex-direction:column;justify-content:center;text-align:center;padding:3vh 6vw;gap:2vh}
+ .copy{flex:none}h1{font-size:clamp(56px,20vw,120px)}.sub{font-size:clamp(18px,5vw,34px)}.cta{margin-top:2vh;font-size:clamp(16px,4.5vw,28px)}
+ .phones{height:58vh}.phone{transform:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="copy">
+    <div class="kicker">Puzzle &amp; Arcade</div>
+    <h1>Oina!</h1>
+    <div class="sub">50 free to play<br>offline games</div>
+    <a class="cta" id="store" href="#"><img src="icon.png" alt="">Get it now on App Store</a>
+  </div>
+  <div class="phones">
+    <div class="float"></div>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div>
+      <div class="hud"><div><span>Score</span><b id="score">0</b></div><div class="title">Block Blast</div><div style="text-align:right"><span>Your best</span><b id="best">0</b></div></div>
+      <div id="board"></div>
+      <div id="tray"></div>
+      <button id="undo" type="button"><span>↩</span>Revert</button>
+      <div class="hint" id="hint">Drag blocks to the board</div>
+      <div class="over" id="over"><h2 id="overTitle">Nice!</h2><a id="store2" href="#">Get Oina! on App Store</a><button id="again">Play again</button></div>
+    </div></div>
+  </div>
+</div>
+<div id="drag"></div>
+<script>
+const STORE_URL = "https://apps.apple.com/it/app/oina-games-puzzle-arcade/id6803818218?l=en-GB";
+// Opens the store from inside ad-network players (MRAID, Google ExitApi, Mintegral, Unity dapi), plain iframes and normal tabs.
+function openStore(e){
+  if(e) e.preventDefault();
+  try{ if(window.mraid&&mraid.open){mraid.open(STORE_URL);return} }catch(_){}
+  try{ if(window.ExitApi&&ExitApi.exit){ExitApi.exit();return} }catch(_){}
+  try{ if(window.install){window.install();return} }catch(_){}
+  try{ if(window.dapi&&dapi.openStoreUrl){dapi.openStoreUrl();return} }catch(_){}
+  let w=null; try{ w=window.open(STORE_URL,"_blank","noopener") }catch(_){}
+  if(w) return;
+  try{ window.top.location.href=STORE_URL }catch(_){ location.href=STORE_URL }
+}
+for (const id of ["store","store2"]) { const a=document.getElementById(id); a.href=STORE_URL; a.removeAttribute("target"); a.addEventListener("click",openStore); }
+
+const N=8, board=document.getElementById("board"), tray=document.getElementById("tray"), dragEl=document.getElementById("drag"), undoBtn=document.getElementById("undo");
+// Same rules as the app: colours, shapes, scoring, combo grace, undo.
+const COL=["#5856d6","#34c759","#af52de","#ff2d55","#ffcc00"], COMBO_GRACE=3, LIFT=90/42, REACH=1.8;
+const SHAPES=[["###","###","###"],["##","##"],["####"],["#","#","#","#"],["###",".#."],["#.","##","#."],[".#.","###"],[".#","##",".#"],["#.","#.","##"],["..#","###"],["##",".#",".#"],["###","#.."],[".#",".#","##"],["###","..#"],["##","#.","#."],["#..","###"],["###","..#","..#"],["###","#..","#.."],["#..","#..","###"],["..#","..#","###"],["##.",".##"],[".#","##","#."],[".##","##."],["#.","##",".#"]]
+ .map(rows=>rows.flatMap((row,r)=>[...row].map((ch,c)=>ch=="#"?[r,c]:null).filter(Boolean)));
+const pw=p=>Math.max(...p.cells.map(x=>x[1]))+1, ph=p=>Math.max(...p.cells.map(x=>x[0]))+1;
+let grid,tray_,score,best=0,combo,grace,history,cells=[],ended=false,drag=null,flashSet=new Set();
+const rnd=n=>Math.random()*n|0;
+function build(){board.innerHTML="";cells=[];for(let i=0;i<64;i++){const d=document.createElement("div");d.className="c";board.appendChild(d);cells.push(d)}}
+function draw(){cells.forEach((d,i)=>{const v=grid[i/8|0][i%8];d.className="c"+(v>=0?" f":"");d.style.background=v>=0?COL[v]:""});
+  document.getElementById("score").textContent=score;best=Math.max(best,score);document.getElementById("best").textContent=best;undoBtn.classList.toggle("on",history.length>0&&!ended)}
+function canPlace(p,r0,c0){return p.cells.every(([r,c])=>{const R=r0+r,C=c0+c;return R>=0&&C>=0&&R<N&&C<N&&grid[R][C]<0})}
+function canAnywhere(p){for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(canPlace(p,r,c))return true;return false}
+function linesDone(p,r0,c0){if(!canPlace(p,r0,c0))return new Set();const add=new Set(p.cells.map(([r,c])=>(r0+r)*N+c0+c));
+  const f=(r,c)=>grid[r][c]>=0||add.has(r*N+c),out=new Set();
+  for(const r of new Set([...add].map(i=>i/N|0)))if([...Array(N).keys()].every(c=>f(r,c)))for(let c=0;c<N;c++)out.add(r*N+c);
+  for(const c of new Set([...add].map(i=>i%N)))if([...Array(N).keys()].every(r=>f(r,c)))for(let r=0;r<N;r++)out.add(r*N+c);return out}
+function refill(){for(let a=0;a<12;a++){tray_=[0,1,2].map(()=>({cells:SHAPES[rnd(SHAPES.length)],color:rnd(COL.length)}));if(a==11||tray_.some(canAnywhere))break}drawTray()}
+function pg(p,px,alpha){const e=document.createElement("div"),w=pw(p),h=ph(p);e.className="pg";e.style.gridTemplate=`repeat(${h},${px}px)/repeat(${w},${px}px)`;
+  const set=new Set(p.cells.map(([r,c])=>r*w+c));for(let i=0;i<w*h;i++){const d=document.createElement("i");d.style.width=d.style.height=px+"px";if(set.has(i)){d.style.background=COL[p.color];d.style.opacity=alpha}e.appendChild(d)}return e}
+function drawTray(){tray.innerHTML="";tray_.forEach((p,k)=>{const s=document.createElement("div");s.className="slot";if(p){const big=pw(p)>3||ph(p)>3,px=Math.max(8,board.clientWidth/8*(big?.42:.55));s.appendChild(pg(p,px,canAnywhere(p)?1:.3));s.onpointerdown=e=>startDrag(e,k,s)}tray.appendChild(s)})}
+function clearGhost(){cells.forEach(d=>{d.classList.remove("g","bad","ln");if(!d.classList.contains("f"))d.style.background=""})}
+function geom(){const br=board.getBoundingClientRect();return{br,bw:br.width/8}}
+function target(e){const {br,bw}=geom(),p=drag.p,w=pw(p),h=ph(p);
+  const climbed=Math.max(0,drag.startY-e.clientY),cx=e.clientX,cy=Math.max(e.clientY-bw*LIFT-climbed*(REACH-1),br.top+h*bw/2);
+  const c0=Math.round((cx-br.left)/bw-w/2),r0=Math.round((cy-br.top)/bw-h/2);return{cx,cy,r0,c0,bw}}
+function startDrag(e,k,slot){if(ended)return;e.preventDefault();document.getElementById("hint").style.visibility="hidden";
+  const p=tray_[k];drag={k,p,slot,startY:e.clientY};slot.style.opacity=.25;slot.setPointerCapture&&slot.setPointerCapture(e.pointerId);
+  slot.onpointermove=moveDrag;slot.onpointerup=slot.onpointercancel=endDrag;moveDrag(e)}
+function moveDrag(e){if(!drag)return;const t=target(e),p=drag.p;
+  dragEl.innerHTML="";dragEl.appendChild(pg(p,t.bw*.94,1));dragEl.style.display="block";
+  dragEl.style.left=(t.cx-pw(p)*t.bw/2)+"px";dragEl.style.top=(t.cy-ph(p)*t.bw/2)+"px";
+  clearGhost();const ok=canPlace(p,t.r0,t.c0),clr=ok?linesDone(p,t.r0,t.c0):new Set();
+  p.cells.forEach(([r,c])=>{const R=t.r0+r,C=t.c0+c;if(R<0||C<0||R>=N||C>=N)return;const d=cells[R*N+C];if(d.classList.contains("f"))return;if(ok){d.classList.add("g");d.style.background=COL[p.color]}else d.classList.add("bad")});
+  clr.forEach(i=>cells[i].classList.add("ln"))}
+function pop(txt,x,y,color,size){const d=document.createElement("div");d.className="pop";d.textContent=txt;d.style.cssText+=`left:${x}px;top:${y}px;color:${color};font-size:${size}px`;document.body.appendChild(d);setTimeout(()=>d.remove(),900)}
+function endDrag(e){if(!drag)return;const t=target(e),{k,p,slot}=drag;drag=null;dragEl.style.display="none";clearGhost();slot.style.opacity=1;slot.onpointermove=slot.onpointerup=slot.onpointercancel=null;
+  if(canPlace(p,t.r0,t.c0))place(k,t.r0,t.c0)}
+function place(k,r0,c0){const p=tray_[k];history.push({grid:grid.map(r=>r.slice()),tray:tray_.slice(),score,combo,grace});
+  p.cells.forEach(([r,c])=>grid[r0+r][c0+c]=p.color);score+=p.cells.length;tray_[k]=null;
+  const rows=[...Array(N).keys()].filter(r=>grid[r].every(v=>v>=0)),cols=[...Array(N).keys()].filter(c=>grid.every(r=>r[c]>=0));
+  const hit=new Set();rows.forEach(r=>{for(let c=0;c<N;c++)hit.add(r*N+c)});cols.forEach(c=>{for(let r=0;r<N;r++)hit.add(r*N+c)});
+  const cleared=rows.length+cols.length;
+  if(cleared){combo++;grace=COMBO_GRACE;const gained=cleared*cleared*10*combo;score+=gained;
+    const {br,bw}=geom(),mx=[...hit].reduce((a,i)=>a+i%N,0)/hit.size,my=[...hit].reduce((a,i)=>a+(i/N|0),0)/hit.size,px=br.left+(mx+.5)*bw,py=br.top+(my+.5)*bw;
+    pop("+"+gained,px,py,"#fff",cleared>1?26:20);if(combo>1)pop("Combo ×"+combo,px,Math.max(br.top+10,py-44),"#ffd04d",22);
+    draw();hit.forEach(i=>cells[i].classList.add("clr"));
+    setTimeout(()=>{hit.forEach(i=>grid[i/N|0][i%N]=-1);if(grid.every(r=>r.every(v=>v<0))){score+=300;const {br}=geom();pop("Board clear! +300",br.left+br.width/2,br.top+br.height/3,"#00c7be",26)}after()},300)}
+  else{if(grace>0)grace--;if(grace==0)combo=0;draw();after()}}
+function after(){draw();if(tray_.every(x=>!x))refill();else drawTray();
+  if(!tray_.filter(Boolean).some(canAnywhere)){ended=true;draw();setTimeout(()=>{document.getElementById("overTitle").textContent="No more moves · "+score;document.getElementById("over").classList.add("show")},500)}}
+undoBtn.onclick=()=>{if(ended||!history.length)return;const h=history.pop();grid=h.grid;tray_=h.tray;score=h.score;combo=h.combo;grace=h.grace;draw();drawTray()};
+function init(){grid=Array.from({length:N},()=>Array(N).fill(-1));score=0;combo=0;grace=0;history=[];ended=false;document.getElementById("over").classList.remove("show");build();draw();refill()}
+document.getElementById("again").onclick=init;
+addEventListener("resize",()=>{if(tray_)drawTray()});
+init();
+</script>
+</body>
+</html>

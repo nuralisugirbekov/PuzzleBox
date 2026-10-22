@@ -136,7 +136,9 @@ enum GameID: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Games that stay in the code (and keep saved progress) but are not shown in the app yet.
-    static let hidden: Set<GameID> = [.crossword, .asyk, .togyzkumalak, .altybakan, .kokpar, .baige]
+    static let hidden: Set<GameID> = [.crossword, .asyk, .togyzkumalak, .altybakan, .kokpar, .baige,
+                                     .quickMath, .bubblePop, .dots, .arrowMaze, .bottleFlip,
+                                     .drawBridge, .findColor, .rotatePuzzle, .slope, .chainReaction]
     /// Everything the catalogue, search, home picks and random buttons may offer.
     static var visible: [GameID] { allCases.filter { !hidden.contains($0) } }
 
