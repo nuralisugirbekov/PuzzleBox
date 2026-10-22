@@ -1,6 +1,6 @@
 # Oina Games: материалы для App Store
 
-Все тексты проверены по лимитам App Store Connect. Факты из кода приложения: 53 игры, 8 языков интерфейса, только iPhone, iOS 17+, нет рекламы, нет покупок, сетевых запросов в коде нет (отправляется только аналитика Firebase).
+Все тексты проверены по лимитам App Store Connect. Факты из кода приложения: 35 игр в каталоге (37 вместе с режимами Gems), 8 языков интерфейса, только iPhone, iOS 17+, нет рекламы, нет покупок. Одиночные игры работают офлайн. Для друзей и онлайн-партий приложение использует Firebase Auth (анонимный вход) и Firestore, игра рядом работает через Bluetooth и Wi-Fi без интернета. Кроме того, отправляется аналитика Firebase.
 
 ## Основная информация
 
@@ -8,7 +8,7 @@
 |---|---|
 | Основная категория | Games → Puzzle |
 | Дополнительная категория | Games → Casual (запасной вариант: Arcade) |
-| Возрастной рейтинг | 4+ (нет насилия, азартных игр, контента для взрослых; вопросник Apple заполнить «нет» везде) |
+| Возрастной рейтинг | Проверьте вопросник Apple заново: теперь игроки видят имена и «о себе» друг друга (пользовательский контент), но чата нет. Азартных игр и насилия по-прежнему нет |
 | Цена | Бесплатно, без встроенных покупок |
 | Устройства | iPhone (iPad не поддерживается) |
 | Языки в App Store Connect | English (основной), Russian, Kazakh. Остальные 5 можно добавить позже |
@@ -21,38 +21,43 @@
 | Поле | Текст | Длина |
 |---|---|---|
 | Name | Oina Games: Puzzle & Arcade | 27/30 |
-| Subtitle | 50+ mini games, play offline | 28/30 |
-| Keywords | `sudoku,2048,solitaire,spider,freecell,chess,minesweeper,snake,brain,logic,quiz,relax,kazakh,asyk` | 96/100 |
-| Promotional Text | 53 mini games in one app: sudoku, solitaire, 2048, chess puzzles, snake, physics and arcade hits. No ads, no internet needed. Quick rounds, real challenge. | 155/170 |
+| Subtitle | 35 mini games, play together | 28/30 |
+| Keywords | `sudoku,2048,solitaire,durak,battleship,hangman,gems,freecell,minesweeper,snake,multiplayer` | 90/100 |
+| Promotional Text | 35 mini games in one app: sudoku, solitaire, 2048, chess puzzles, match-3 gems and arcade hits. Play Durak, Hangman and Battleship with friends, online or nearby. No ads. | 170/170 |
 
-**Description** (1592/4000)
+**Description** (1947/4000)
 
 ```
-Oina means “play” in Kazakh. Oina Games puts more than 50 mini games in one app, so there is always something to match your mood: a quick arcade round, a calm puzzle or a real brain workout.
+Oina means “play” in Kazakh. Oina Games puts 35 mini games in one app, so there is always something to match your mood: a quick arcade round, a calm puzzle, a card game with friends or a real brain workout.
 
-NO ADS. NO PURCHASES. NO INTERNET NEEDED.
-Open the app and play. Everything works offline.
+NO ADS. NO PURCHASES.
+Solo games work offline: open the app and play. Playing online with friends needs internet, and nearby play works over Bluetooth and Wi-Fi without it.
+
+PLAY WITH FRIENDS
+• Durak for 2–6 players, with transfer and bluff rules, plus Hangman and Battleship
+• Add friends by a short code, invite them to a room, or join with a room code
+• Nearby play with no internet: connect phones over Bluetooth and Wi-Fi
+• Prefer a bot? Every multiplayer game can be played solo against the computer
+• Your profile has an avatar, a short bio and privacy switches for online status, stats, friends list and invites
+
+GEMS
+• Match-3 with cascades and bombs in three modes: Classic, Arcade and Blitz, a race against friends
 
 LOGIC & BRAIN PUZZLES
 • Sudoku in 6×6 and 9×9 with notes and hints
 • Minesweeper in three sizes
 • Checkmate puzzles: find the mate before time runs out
-• Nonogram, Lights Out, Pipe Connect, Laser mirrors, Flood Fill, Unblock, 15 Puzzle and many more, each with 60 generated levels and a star rating
+• Lights Out, Numberlink, Maze Paint, Laser mirrors, Flood Fill, Unblock, 15 Puzzle, Matchstick and Water Sort
 • Arrow Escape: clear the board, but every blocked tap costs a life
 
 ARCADE & REACTION
-• Rocket Maze: grab stars, speed up, reach the portal
-• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop, Bounce, Slope, Space Dodge and Endless Climb
-• Whack-a-Mole, Bubble Pop, Perfect Timing, Simon and Reaction Tap
-
-PHYSICS & SKILL
-• Basketball, Mini Golf, Plinko, Rope Cut, Draw Bridge and Bottle Flip
-• Merge Fruit with chain combos
-• Asyk: the traditional Kazakh knucklebone game, now with a computer opponent
+• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop and Circle Pong
+• Whack-a-Mole, Red Light Green Light, Perfect Timing and Simon
+• Mini Golf and Merge Fruit with chain combos
 
 CLASSICS
 • Klondike Solitaire, Spider and FreeCell with undo, hints and auto-moves
-• 2048, Block Blast, Water Sort, Snake, Quick Math
+• 2048, Block Blast and Snake
 
 MADE TO FEEL GOOD
 • Satisfying sounds and haptics, with a mute button in every game
@@ -69,38 +74,43 @@ Pick a game, play one round, then another. Oina!
 | Поле | Текст | Длина |
 |---|---|---|
 | Name | Oina Games: Головоломки | 23/30 |
-| Subtitle | 50+ мини-игр без интернета | 26/30 |
-| Keywords | `судоку,2048,пасьянс,паук,фрикелл,шахматы,сапёр,змейка,логика,мозг,аркада,асык,релакс,казахский` | 94/100 |
-| Promotional Text | 53 мини-игры в одном приложении: судоку, пасьянс, 2048, шахматные задачи, змейка, физика и аркады. Без рекламы и интернета. Быстрые раунды и настоящий вызов. | 157/170 |
+| Subtitle | 35 мини-игр, играй с друзьями | 29/30 |
+| Keywords | `судоку,2048,пасьянс,дурак,морской бой,виселица,паук,фрикелл,шахматы,сапёр,змейка,логика,мозг,друзья` | 99/100 |
+| Promotional Text | 35 мини-игр в одном приложении: судоку, пасьянс, 2048, шахматные задачи, три в ряд и аркады. Дурак, «Виселица» и «Морской бой» с друзьями онлайн и рядом. Без рекламы. | 166/170 |
 
-**Description** (1635/4000)
+**Description** (2006/4000)
 
 ```
-«Ойна» по-казахски значит «играй». В Oina Games больше 50 мини-игр в одном приложении: на любое настроение найдётся быстрый аркадный раунд, спокойная головоломка или серьёзная тренировка для ума.
+«Ойна» по-казахски значит «играй». В Oina Games 35 мини-игр в одном приложении: на любое настроение найдётся быстрый аркадный раунд, спокойная головоломка, карточная партия с друзьями или серьёзная тренировка для ума.
 
-БЕЗ РЕКЛАМЫ. БЕЗ ПОКУПОК. ИНТЕРНЕТ НЕ НУЖЕН.
-Откройте приложение и играйте. Всё работает офлайн.
+БЕЗ РЕКЛАМЫ. БЕЗ ПОКУПОК.
+Одиночные игры работают офлайн: откройте приложение и играйте. Для игры с друзьями онлайн нужен интернет, а игра рядом работает по Bluetooth и Wi-Fi без него.
+
+ИГРАЙТЕ С ДРУЗЬЯМИ
+• Дурак на 2–6 игроков с переводом и блефом, а также «Виселица» и «Морской бой»
+• Добавляйте друзей по короткому коду, приглашайте их в зал или входите по коду зала
+• Игра рядом без интернета: телефоны соединяются по Bluetooth и Wi-Fi
+• Не с кем играть? Любую игру можно пройти в одиночку против компьютера
+• В профиле есть аватар, пара слов о себе и переключатели приватности: статус «в сети», статистика, список друзей и приглашения
+
+КРИСТАЛЛЫ
+• «Три в ряд» с каскадами и бомбами в трёх режимах: «Классика», «Аркада» и «Блиц» (гонка с друзьями)
 
 ЛОГИКА И ГОЛОВОЛОМКИ
 • Судоку 6×6 и 9×9 с заметками и подсказками
 • Сапёр трёх размеров
 • Шахматные задачи: найдите мат, пока не вышло время
-• Нонограммы, «Лампочки», трубы, лазеры и зеркала, заливка, «Пробка», пятнашки и многое другое: у каждой игры по 60 уровней и оценка звёздами
+• «Лампочки», Numberlink, Maze Paint, лазеры и зеркала, заливка, «Пробка», пятнашки, спички и сортировка воды
 • Arrow Escape: очистите поле, но каждое нажатие по заблокированной стрелке стоит жизни
 
 АРКАДЫ И РЕАКЦИЯ
-• Ракетный лабиринт: собирайте звёзды, разгоняйтесь, влетайте в портал
-• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop, Bounce, Slope, Space Dodge и Endless Climb
-• Whack-a-Mole, лопанье пузырей, точный момент, Simon и тест реакции
-
-ФИЗИКА И МЕТКОСТЬ
-• Баскетбол, мини-гольф, Plinko, Rope Cut, мост и Bottle Flip
-• Merge Fruit с цепочками слияний
-• Асық ату: традиционная казахская игра в асыки, теперь с соперником-компьютером
+• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop и Circle Pong
+• Whack-a-Mole, «Красный свет, зелёный свет», точный момент и Simon
+• Мини-гольф и Merge Fruit с цепочками слияний
 
 КЛАССИКА
 • Пасьянсы «Косынка», «Паук» и FreeCell с отменой хода, подсказками и автоходами
-• 2048, Block Blast, Water Sort, змейка, Quick Math
+• 2048, Block Blast и змейка
 
 ИГРАТЬ ПРИЯТНО
 • Приятные звуки и вибрация, а в каждой игре есть кнопка «без звука»
@@ -117,38 +127,43 @@ Pick a game, play one round, then another. Oina!
 | Поле | Текст | Длина |
 |---|---|---|
 | Name | Oina Games: Ойындар | 19/30 |
-| Subtitle | 50+ шағын ойын, интернетсіз | 27/30 |
-| Keywords | `судоку,2048,пасьянс,шахмат,сапёр,жылан,логика,ми,аркада,асық,ойын,жұмбақ,демалыс,қазақша,машықтану` | 98/100 |
-| Promotional Text | Бір қосымшада 53 шағын ойын: судоку, пасьянс, 2048, шахмат есептері, жылан, физика және аркада. Жарнамасыз, интернетсіз. Жылдам раундтар мен нағыз сын. | 151/170 |
+| Subtitle | 35 шағын ойын, достармен ойна | 29/30 |
+| Keywords | `судоку,2048,пасьянс,дурак,теңіз шайқасы,дарға,шахмат,сапёр,жылан,логика,ми,достар,жұмбақ,қазақша` | 96/100 |
+| Promotional Text | Бір қосымшада 35 шағын ойын: судоку, пасьянс, 2048, шахмат есептері, үш қатар және аркада. Дурак, «Дарға», «Теңіз шайқасы» достармен онлайн және жанында. Жарнамасыз. | 165/170 |
 
-**Description** (1671/4000)
+**Description** (2131/4000)
 
 ```
-«Ойна» дегеніміз ойнауға шақыру. Oina Games бір қосымшада 50-ден астам шағын ойынды біріктіреді: кез келген көңіл-күйге лайық жылдам аркада раунды да, тыныш жұмбақ та, ақылға шынайы жаттығу да табылады.
+«Ойна» дегеніміз ойнауға шақыру. Oina Games бір қосымшада 35 шағын ойынды біріктіреді: кез келген көңіл-күйге лайық жылдам аркада раунды да, тыныш жұмбақ та, достармен карта ойыны да, ақылға шынайы жаттығу да табылады.
 
-ЖАРНАМАСЫЗ. САТЫП АЛУСЫЗ. ИНТЕРНЕТ ҚАЖЕТ ЕМЕС.
-Қосымшаны ашып, ойнай беріңіз. Бәрі офлайн жұмыс істейді.
+ЖАРНАМАСЫЗ. САТЫП АЛУСЫЗ.
+Жалғыз ойнайтын ойындар офлайн жұмыс істейді: қосымшаны ашып, ойнай беріңіз. Достармен онлайн ойнау үшін интернет керек, ал жақын жердегілермен ойын интернетсіз, Bluetooth және Wi-Fi арқылы жұмыс істейді.
+
+ДОСТАРМЕН ОЙНАҢЫЗ
+• 2–6 ойыншыға арналған Дурак (аударумен және блефпен), сондай-ақ «Дарға» және «Теңіз шайқасы»
+• Достарды қысқа код арқылы қосыңыз, оларды бөлмеге шақырыңыз немесе бөлме коды арқылы кіріңіз
+• Интернетсіз жақын жердегілермен ойын: телефондар Bluetooth және Wi-Fi арқылы қосылады
+• Ойыншы жоқ па? Кез келген ойынды компьютерге қарсы жалғыз ойнауға болады
+• Профильде аватар, өзіңіз туралы бірер сөз және құпиялылық ауыстырып-қосқыштары бар: желідегі күй, статистика, достар тізімі және шақырулар
+
+ГЕМДЕР
+• Каскадтар мен бомбалары бар «үш қатар» үш режимде: «Классика», «Аркада» және «Блиц» (достармен жарыс)
 
 ЛОГИКА ЖӘНЕ ЖҰМБАҚТАР
 • 6×6 және 9×9 судоку: белгілер мен кеңестері бар
 • Үш өлшемді сапёр
 • Шахмат есептері: уақыт бітпей тұрып матты табыңыз
-• Нонограмма, шамдарды өшіру, құбырлар, лазер мен айналар, бояу, кептеліс, он бесті тастар және басқалар: әр ойында 60 деңгей мен жұлдыз бағасы бар
+• Шамдарды өшіру, Numberlink, Maze Paint, лазер мен айналар, бояу, кептеліс, он бесті тастар, сіріңке және су сұрыптау
 • Arrow Escape: алаңды тазалаңыз, бірақ бөгелген жебеге басу өмірге түседі
 
 АРКАДА ЖӘНЕ РЕАКЦИЯ
-• Зымыран лабиринті: жұлдыз жинап, жылдамдап, порталға ұшыңыз
-• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop, Bounce, Slope, Space Dodge және Endless Climb
-• Whack-a-Mole, көпіршік жару, нақты сәт, Simon және реакция тесті
-
-ФИЗИКА ЖӘНЕ ДӘЛДІК
-• Баскетбол, мини-гольф, Plinko, Rope Cut, көпір және Bottle Flip
-• Жеміс тізбегі бар Merge Fruit
-• Асық ату: қазақтың дәстүрлі ойыны, енді компьютермен қарсылас болып ойнауға болады
+• Stack, Knife Spin, Helix Drop, Flappy Flight, Road Hop және Circle Pong
+• Whack-a-Mole, «Қызыл жарық, жасыл жарық», нақты сәт және Simon
+• Мини-гольф және тізбекті Merge Fruit
 
 КЛАССИКА
 • «Косынка», «Өрмекші» және FreeCell пасьянстары: қадамды қайтару, кеңес және авто-жүріс бар
-• 2048, Block Blast, Water Sort, жылан, Quick Math
+• 2048, Block Blast және жылан
 
 ОЙНАУ ЖАЙЛЫ
 • Жағымды дыбыс пен діріл, әр ойында дыбысты өшіру батырмасы бар
@@ -162,70 +177,76 @@ Pick a game, play one round, then another. Oina!
 
 ## Советы по ключевым словам
 
-- Слова из Name и Subtitle (Oina, games, puzzle, arcade, mini, offline) в Keywords повторять не нужно: Apple и так их индексирует. Запятая без пробелов после неё.
-- Названия классических игр (sudoku, solitaire, 2048, minesweeper, snake, chess) — главный источник поискового трафика, поэтому они стоят первыми.
-- «asyk» и «kazakh» помогают в Казахстане и среди казахоязычных пользователей, где конкурентов почти нет.
+- Слова из Name и Subtitle (Oina, games, puzzle, arcade, mini, together) в Keywords повторять не нужно: Apple и так их индексирует. Запятая без пробелов после неё.
+- Названия классических игр (sudoku, solitaire, 2048, minesweeper, snake) и карточных игр с друзьями (durak, battleship, hangman, multiplayer) дают основной поисковый трафик, поэтому стоят первыми.
+- Асык и казахские игры сейчас скрыты в приложении, поэтому «asyk» и «kazakh» из ключевых слов убраны. Верните их, когда игры появятся снова.
 - Через 2–4 недели загляните в App Store Connect → Analytics → Sources и замените слова, которые не приводят установки.
 
 ## Что нового (версия 1.4)
 
 **English**
 ```
-• New games: Asyk, the traditional Kazakh knucklebone game
-• Rocket Maze: a fresh look and speed boosts
-• 60 generated levels with star ratings in puzzle games
-• Sound effects and a mute button in every game
-• Confetti and new-record celebrations
+• Play with friends: Durak, Hangman and Battleship, online or nearby over Bluetooth and Wi-Fi with no internet
+• Add friends by code, invite them to a room and set up your profile
+• New Gems match-3 in Classic, Arcade and Blitz modes
+• New Maze Paint puzzle
+• A tighter catalog: the 35 best games, polished
 • New dark app icon and the new name: Oina Games
 ```
 
 **Русский**
 ```
-• Новая игра «Асық ату»: традиционная казахская игра
-• Ракетный лабиринт: новая графика и ускорение
-• 60 уровней со звёздами в головоломках
-• Звуки и кнопка «без звука» в каждой игре
-• Конфетти и праздник за новый рекорд
+• Играйте с друзьями: Дурак, «Виселица» и «Морской бой» онлайн или рядом по Bluetooth и Wi-Fi без интернета
+• Добавляйте друзей по коду, приглашайте их в зал и оформляйте профиль
+• Новая игра Gems («три в ряд») в режимах «Классика», «Аркада» и «Блиц»
+• Новая головоломка Maze Paint
+• Каталог стал компактнее: 35 лучших игр, отполированных
 • Новая тёмная иконка и новое название: Oina Games
 ```
 
 **Қазақша**
 ```
-• Жаңа ойын: қазақтың дәстүрлі «Асық ату» ойыны
-• Зымыран лабиринті: жаңа графика және жылдамдау
-• Жұмбақтарда жұлдыз бағасы бар 60 деңгей
-• Әр ойында дыбыс және дыбысты өшіру батырмасы
-• Конфетти және жаңа рекордқа арналған тойлау
+• Достармен ойнаңыз: Дурак, «Дарға» және «Теңіз шайқасы» онлайн немесе жақын жердегілермен Bluetooth және Wi-Fi арқылы интернетсіз
+• Достарды код арқылы қосыңыз, оларды бөлмеге шақырыңыз және профиліңізді баптаңыз
+• Жаңа Gems («үш қатар») ойыны: «Классика», «Аркада» және «Блиц» режимдері
+• Жаңа Maze Paint жұмбағы
+• Каталог ықшамдалды: 35 үздік ойын, жетілдірілген
 • Жаңа қараңғы белгіше және жаңа атау: Oina Games
 ```
 
 ## Скриншоты (6.9″ и 6.5″ iPhone, 5–8 штук)
 
 Лучше всего работают живые кадры игр с короткой подписью сверху. Порядок:
-1. Главная: «53 игры в одном приложении»
-2. Судоку 9×9: «Головоломки на любой вкус»
-3. Rocket Maze: «Аркады, от которых не оторваться»
-4. Асық ату: «Традиционная казахская игра»
-5. Plinko или баскетбол: «Физика и меткость»
-6. Пасьянс «Косынка»: «Классика с подсказками и отменой»
-7. Конец раунда с конфетти: «Комбо, серии, рекорды»
-8. Каталог или поиск: «Играйте без интернета»
+1. Главная: «35 игр в одном приложении»
+2. Дурак за столом: «Играйте с друзьями»
+3. Экран «Друзья» или зал: «Друзья, залы и игра рядом без интернета»
+4. Gems: «Три в ряд с каскадами и бомбами»
+5. Судоку 9×9: «Головоломки на любой вкус»
+6. Block Blast или Stack: «Аркады, от которых не оторваться»
+7. Пасьянс «Косынка»: «Классика с подсказками и отменой»
+8. Конец раунда с конфетти: «Комбо, серии, рекорды»
 
 Подписи нужно перевести на языки, для которых делаются локализации. Иконка не нужна на скриншотах.
 
 ## Приватность (App Privacy в App Store Connect)
 
-В приложении подключён Firebase Analytics. Рекламных SDK нет, IDFA не собирается (в коде отключено), данные не продаются. Для анкеты:
+В приложении подключены Firebase Analytics, Firebase Auth (анонимный вход) и Firestore для друзей и онлайн-партий. Рекламных SDK нет, IDFA не собирается, данные не продаются. Для анкеты:
 
 - **Data Used to Track You:** нет.
-- **Data Linked to You:** нет.
-- **Data Not Linked to You:** Product Interaction (какие игры открывали), Other Usage Data, Device ID (идентификатор экземпляра приложения Firebase). Цель: Analytics.
-- Нужна ссылка на политику конфиденциальности (Privacy Policy URL) и Support URL. Простая страница с описанием аналитики подойдёт.
+- **Data Linked to You** (цель: App Functionality):
+  - User ID: анонимный идентификатор Firebase Auth;
+  - Name: имя в профиле, которое игрок задаёт сам;
+  - Other User Content: «о себе», аватар, код друга, список друзей, состояние онлайн-партий, статус «в сети» и последний вход (если игрок не выключил их в настройках приватности).
+- **Data Not Linked to You** (цель: Analytics): Product Interaction (какие игры открывали), Other Usage Data, Device ID (идентификатор экземпляра приложения Firebase).
+- Нужна ссылка на политику конфиденциальности (Privacy Policy URL) и Support URL. Политика обновлена под друзей и онлайн-игры: https://nuralisugirbekov.github.io/PuzzleBox/site/privacy.html
 
 ## Перед отправкой на проверку
 
-1. **Нужен файл `PrivacyInfo.xcprivacy` в приложении.** Сейчас его нет, а приложение использует UserDefaults и `systemUptime`, это «Required Reason APIs». Без манифеста Apple отклонит сборку (ITMS-91053). Нужные причины: UserDefaults — `CA92.1`, systemUptime — `35F9.1`. Могу добавить за пару минут.
-2. **Версия и сборка:** сейчас 1.3 (8). Поднимите перед загрузкой.
-3. **Bundle ID** `com.nurali.PuzzleBoxApp` не менялся. Название в App Store меняется отдельно от него.
-4. **Скриншоты и ссылки** (Support URL, Privacy Policy URL) обязательны.
-5. **Рейтинг контента:** пасьянсы и другие карточные игры здесь без ставок и призов, поэтому азартными не считаются. В вопроснике Apple про симулированный гемблинг отвечайте «нет».
+1. **Нужен файл `PrivacyInfo.xcprivacy` в приложении.** Сейчас его нет, а приложение использует UserDefaults и `systemUptime`, это «Required Reason APIs». Без манифеста Apple отклонит сборку (ITMS-91053). Нужные причины: UserDefaults — `CA92.1`, systemUptime — `35F9.1`. В манифесте также нужно перечислить собираемые данные (идентификатор, имя, пользовательский контент) в соответствии с анкетой выше.
+2. **Модерация пользовательского контента.** Теперь игроки видят имена и «о себе» друг друга. Правило Apple 1.2 для таких приложений требует способ пожаловаться на контент и заблокировать игрока, а также способ связаться с вами. В приложении этого пока нет, и без него проверка может быть отклонена. Это нужно решить до отправки.
+3. **Firebase Console (один раз):** включить Authentication → Anonymous, создать Firestore и опубликовать правила из `firestore.rules` (подробности в `docs/friends.md`). Без этого раздел «Друзья» покажет ошибку.
+4. **Версия и сборка:** сейчас 1.4 (11). Поднимите сборку перед загрузкой.
+5. **Bundle ID** `com.nurali.PuzzleBoxApp` не менялся. Название в App Store меняется отдельно от него.
+6. **Скриншоты и ссылки** (Support URL, Privacy Policy URL) обязательны.
+7. **Рейтинг контента:** пасьянсы и другие карточные игры здесь без ставок и призов, поэтому азартными не считаются. В вопроснике Apple про симулированный гемблинг отвечайте «нет». Про пользовательский контент отвечайте «да» (имена и «о себе» видны другим игрокам), чата нет.
+8. **Описание «Рядом без интернета»:** при первом запуске iOS спросит доступ к локальной сети и Bluetooth. Тексты запросов уже заданы в настройках проекта, но в них стоит название «PuzzleBox», а не «Oina Games»: поменяйте. Тексты в магазине обещают игру рядом, проверьте её на двух телефонах.
