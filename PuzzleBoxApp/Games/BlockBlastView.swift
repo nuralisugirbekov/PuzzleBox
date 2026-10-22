@@ -12,10 +12,18 @@ struct BBPiece: Identifiable, Equatable, Codable {
     var height: Int { (cells.map(\.r).max() ?? 0) + 1 }
 }
 
+/// How kindly the tray is dealt: easy hands out pieces that fit snugly and
+/// clear lines, hard hands out awkward ones. Every deal can still be placed.
+enum BlockBlastDifficulty: Int, CaseIterable, Codable {
+    case easy, medium, hard
+    var title: String { ["Easy", "Medium", "Hard"][rawValue] }
+}
+
 @MainActor
 @Observable
 final class BlockBlastEngine: GameEngine {
     static let size = 8
+    private static let difficultyKey = "blockBlastDifficulty"
     /// Figma accents; the system colours adapt to light and dark mode.
     static let colors: [Color] = [Color(.systemIndigo), Color(.systemGreen), Color(.systemPurple),
                                   Color(.systemPink), Color(.systemYellow)]
@@ -41,6 +49,7 @@ final class BlockBlastEngine: GameEngine {
         }
     }
 
+    private(set) var difficulty: BlockBlastDifficulty
     private(set) var grid: [[Int?]]
     private(set) var tray: [BBPiece?] = []
     private(set) var score = 0
@@ -60,7 +69,29 @@ final class BlockBlastEngine: GameEngine {
     var canUndo: Bool { state == .playing && !history.isEmpty }
     static let comboGrace = 3
 
+    /// The difficulty picked last, which the next game opens on.
+    static var savedDifficulty: BlockBlastDifficulty {
+        BlockBlastDifficulty(rawValue: UserDefaults.standard.integer(forKey: difficultyKey)) ?? .easy
+    }
+
+    /// Picked before the game opens. A saved round of another difficulty is
+    /// dropped, so the game opens on the difficulty that was asked for.
+    static func choose(_ difficulty: BlockBlastDifficulty) {
+        UserDefaults.standard.set(difficulty.rawValue, forKey: difficultyKey)
+        if let saved = GameSessionStore.load(.blockBlast),
+           (try? JSONDecoder().decode(SavedDifficulty.self, from: saved.payload))?.difficulty ?? .easy != difficulty {
+            GameSessionStore.delete(.blockBlast)
+        }
+    }
+
+    /// Just the difficulty of a saved round; rounds saved before there was
+    /// a choice were dealt like easy ones.
+    private struct SavedDifficulty: Decodable {
+        let difficulty: BlockBlastDifficulty?
+    }
+
     init() {
+        difficulty = Self.savedDifficulty
         grid = Array(repeating: Array(repeating: nil, count: Self.size), count: Self.size)
         refillTray()
     }
@@ -90,16 +121,14 @@ final class BlockBlastEngine: GameEngine {
         SoundFX.play(.tap)
     }
 
-    /// Deals three random pieces, re-rolling a few times so at least one fits.
+    /// Deals three pieces chosen for the board as it stands. Each one is
+    /// tried on a copy of the board, placed where it fits best, before the
+    /// next is chosen, so the whole set can always be placed in that order:
+    /// easy picks the best fits, hard the worst ones that still fit.
     private func refillTray() {
-        for attempt in 0..<12 {
-            let pieces = (0..<3).map { _ in
-                BBPiece(cells: Self.shapes.randomElement()!,
-                        colorIndex: Int.random(in: 0..<Self.colors.count))
-            }
-            tray = pieces
-            if attempt == 11 || pieces.contains(where: canPlaceAnywhere) { return }
-        }
+        var dealer = BlockBlastDealer(grid: grid.map { $0.map { $0 != nil } }, difficulty: difficulty)
+        let shapes = dealer.deal()
+        tray = shapes.map { BBPiece(cells: $0, colorIndex: Int.random(in: 0..<Self.colors.count)) }
     }
 
     func canPlace(_ piece: BBPiece, at origin: GridPos) -> Bool {
@@ -226,20 +255,31 @@ struct BlockBlastView: View {
     /// Upward finger travel is amplified by this much, so the top rows are
     /// reachable without stretching across the whole board.
     private static let reach: CGFloat = 1.8
+    /// Sideways finger travel is amplified the same way, so the side columns
+    /// are reachable from any tray slot.
+    private static let horizontalReach: CGFloat = 1.5
     /// Figma: 4pt gaps and padding on the board, 8pt between tray slots.
     private static let gap: CGFloat = 4
 
     var body: some View {
-        GameContainerView(gameID: .blockBlast, engine: engine) {
-            // Figma spaces these 32pt apart; 24pt keeps the board full width
-            // below the score row on a 6.3" screen.
-            VStack(spacing: 24) {
-                Spacer(minLength: 0)
+        GameContainerView(gameID: .blockBlast, engine: engine,
+                          resultSummary: L10n.text(engine.difficulty.title)) {
+            // Figma: a full-width 370pt board, 118pt tray slots and 32pt gaps.
+            // The board claims its square first, then the tray; the gaps
+            // shrink towards 8pt to make room below the score row.
+            VStack(spacing: 0) {
                 boardView
+                    .layoutPriority(2)
+                Spacer(minLength: 8).frame(maxHeight: 32)
                 trayView
+                    .layoutPriority(1)
+                Spacer(minLength: 8).frame(maxHeight: 32)
                 revertButton
-                Spacer(minLength: 0)
             }
+            .frame(maxHeight: .infinity)
+            // The Revert label may sit down to the home indicator; the
+            // container's bottom padding would otherwise squeeze the tray.
+            .padding(.bottom, -16)
             .coordinateSpace(name: Self.space)
             // Overlay so the dragged piece never affects layout — the board
             // must not move while a drag is in progress.
@@ -249,8 +289,9 @@ struct BlockBlastView: View {
 
     // MARK: Drop target math
 
+    /// Cell size plus one gap: the grid is `size` cells and `size - 1` gaps wide.
     private var cellPitch: CGFloat {
-        gridFrame.width / CGFloat(BlockBlastEngine.size)
+        (gridFrame.width + Self.gap) / CGFloat(BlockBlastEngine.size)
     }
 
     private typealias DropTarget = (origin: GridPos, valid: Bool, cells: Set<GridPos>, clears: Set<GridPos>)
@@ -261,20 +302,24 @@ struct BlockBlastView: View {
               let piece = engine.tray[index],
               gridFrame != .zero else { return nil }
         let center = pieceCenter(for: piece)
-        let x = (center.x - gridFrame.minX) / cellPitch - CGFloat(piece.width) / 2
-        let y = (center.y - gridFrame.minY) / cellPitch - CGFloat(piece.height) / 2
+        let x = (center.x - gridFrame.minX + Self.gap / 2) / cellPitch - CGFloat(piece.width) / 2
+        let y = (center.y - gridFrame.minY + Self.gap / 2) / cellPitch - CGFloat(piece.height) / 2
         let origin = GridPos(r: Int(y.rounded()), c: Int(x.rounded()))
         let cells = Set(piece.cells.map { GridPos(r: origin.r + $0.r, c: origin.c + $0.c) })
         return (origin, engine.canPlace(piece, at: origin), cells, engine.linesCompleted(by: piece, at: origin))
     }
 
     /// Where the dragged piece is drawn: above the finger, pulling further
-    /// ahead the higher the finger moves, but never past the top row.
+    /// ahead the further the finger moves up or sideways, but never past the
+    /// top row or the side columns.
     private func pieceCenter(for piece: BBPiece) -> CGPoint {
         let climbed = max(0, dragStart.y - dragLocation.y)
         let y = dragLocation.y - Self.lift - climbed * (Self.reach - 1)
-        let topRow = gridFrame.minY + CGFloat(piece.height) * cellPitch / 2
-        return CGPoint(x: dragLocation.x, y: max(y, topRow))
+        let topRow = gridFrame.minY + (CGFloat(piece.height) * cellPitch - Self.gap) / 2
+        let x = dragStart.x + (dragLocation.x - dragStart.x) * Self.horizontalReach
+        let halfWidth = (CGFloat(piece.width) * cellPitch - Self.gap) / 2
+        return CGPoint(x: min(max(x, gridFrame.minX + halfWidth), gridFrame.maxX - halfWidth),
+                       y: max(y, topRow))
     }
 
     // MARK: Board
@@ -336,14 +381,14 @@ struct BlockBlastView: View {
 
     // MARK: Tray
 
-    /// Figma: three square slots, 8pt apart and 8pt in from the board edges.
+    /// Figma: three square slots, 8pt apart, flush with the board edges.
     private var trayView: some View {
         HStack(spacing: 8) {
             ForEach(0..<3, id: \.self) { index in
                 traySlot(index)
             }
         }
-        .padding(.horizontal, 8)
+        .frame(maxHeight: 118)
     }
 
     @ViewBuilder
@@ -467,13 +512,14 @@ extension BlockBlastEngine: ResumableGame {
     private struct Session: Codable {
         let board: Snapshot
         let history: [Snapshot]
+        var difficulty: BlockBlastDifficulty?
     }
 
     func saveSession() -> Data? {
         guard state == .playing || state == .paused, !history.isEmpty else { return nil }
         return encodeSession(Session(board: Snapshot(grid: grid, tray: tray, score: score,
                                                      combo: combo, comboGraceLeft: comboGraceLeft),
-                                     history: history))
+                                     history: history, difficulty: difficulty))
     }
 
     func restoreSession(_ data: Data) -> Bool {
@@ -484,9 +530,108 @@ extension BlockBlastEngine: ResumableGame {
         combo = session.board.combo
         comboGraceLeft = session.board.comboGraceLeft
         history = session.history
+        difficulty = session.difficulty ?? .easy
         flashCells = [:]
         popups.clear()
         state = .playing
         return true
+    }
+}
+
+// MARK: - Dealing
+
+/// Picks the next three tray shapes for a board, by difficulty.
+private struct BlockBlastDealer {
+    var grid: [[Bool]]
+    let difficulty: BlockBlastDifficulty
+
+    private static let n = BlockBlastEngine.size
+
+    /// Where a shape fits best, and how well: cleared lines count most, then
+    /// how snugly it sits against blocks and walls, per block so big and
+    /// small pieces compare fairly.
+    private struct Fit {
+        let shape: [GridPos]
+        let origin: GridPos
+        let lines: Int
+        let snug: Int
+        var value: Int { lines * 100 + snug * 10 / shape.count }
+    }
+
+    mutating func deal() -> [[GridPos]] {
+        var dealt: [[GridPos]] = []
+        for _ in 0..<3 {
+            let fits = BlockBlastEngine.shapes.compactMap(bestFit)
+            // A full board takes nothing: deal at random and let the round end.
+            guard let fit = choose(from: fits) else {
+                dealt.append(BlockBlastEngine.shapes.randomElement()!)
+                continue
+            }
+            dealt.append(fit.shape)
+            place(fit)
+        }
+        return dealt.shuffled()
+    }
+
+    /// Easy mostly hands out one of the best fits, hard mostly one of the
+    /// worst; every so often either deals any shape that fits, so the tray
+    /// never feels scripted. Medium is plain random among shapes that fit.
+    private func choose(from fits: [Fit]) -> Fit? {
+        guard !fits.isEmpty else { return nil }
+        let ranked = fits.sorted { $0.value > $1.value }
+        let top = max(1, ranked.count / 4)
+        switch difficulty {
+        case .easy:
+            return Double.random(in: 0..<1) < 0.75 ? ranked.prefix(top).randomElement() : ranked.randomElement()
+        case .medium:
+            return ranked.randomElement()
+        case .hard:
+            // Among the awkward ones, the bigger the piece the harder it is.
+            let awkward = ranked.suffix(max(top, 6)).sorted { $0.shape.count > $1.shape.count }
+            return Double.random(in: 0..<1) < 0.7 ? awkward.prefix(top).randomElement() : ranked.randomElement()
+        }
+    }
+
+    private func bestFit(_ shape: [GridPos]) -> Fit? {
+        var best: Fit?
+        for r in 0..<Self.n {
+            for c in 0..<Self.n {
+                let origin = GridPos(r: r, c: c)
+                guard let fit = fit(shape, at: origin) else { continue }
+                if best.map({ fit.value > $0.value }) ?? true { best = fit }
+            }
+        }
+        return best
+    }
+
+    private func fit(_ shape: [GridPos], at origin: GridPos) -> Fit? {
+        let cells = shape.map { GridPos(r: origin.r + $0.r, c: origin.c + $0.c) }
+        guard cells.allSatisfy({ (0..<Self.n).contains($0.r) && (0..<Self.n).contains($0.c) && !grid[$0.r][$0.c] })
+        else { return nil }
+        let added = Set(cells)
+        func filled(_ r: Int, _ c: Int) -> Bool { grid[r][c] || added.contains(GridPos(r: r, c: c)) }
+        let rows = Set(cells.map(\.r)).filter { r in (0..<Self.n).allSatisfy { filled(r, $0) } }.count
+        let cols = Set(cells.map(\.c)).filter { c in (0..<Self.n).allSatisfy { filled($0, c) } }.count
+        var snug = 0
+        for cell in cells {
+            for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                let r = cell.r + dr, c = cell.c + dc
+                if !(0..<Self.n).contains(r) || !(0..<Self.n).contains(c) {
+                    snug += 1
+                } else if grid[r][c] {
+                    snug += 2
+                }
+            }
+        }
+        return Fit(shape: shape, origin: origin, lines: rows + cols, snug: snug)
+    }
+
+    /// Drops the piece on the copy of the board and clears what it completes.
+    private mutating func place(_ fit: Fit) {
+        for cell in fit.shape { grid[fit.origin.r + cell.r][fit.origin.c + cell.c] = true }
+        let rows = (0..<Self.n).filter { r in grid[r].allSatisfy { $0 } }
+        let cols = (0..<Self.n).filter { c in (0..<Self.n).allSatisfy { grid[$0][c] } }
+        for r in rows { for c in 0..<Self.n { grid[r][c] = false } }
+        for c in cols { for r in 0..<Self.n { grid[r][c] = false } }
     }
 }

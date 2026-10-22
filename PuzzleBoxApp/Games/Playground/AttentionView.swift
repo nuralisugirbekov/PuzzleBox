@@ -5,7 +5,7 @@ struct AttentionView: View {
     @Environment(\.scenePhase) private var scenePhase
     init(mode: AttentionMode) { _engine = State(initialValue: AttentionEngine(mode: mode)) }
     var body: some View {
-        GameContainerView(gameID: engine.mode.id,engine:engine,resultSummary:L10n.format("Rounds: %d",engine.round),centersContent:true) {
+        GameContainerView(gameID: engine.mode.id,engine:engine,resultSummary:L10n.format("Rounds: %d",engine.round)) {
             VStack(spacing:18) {
                 HStack(spacing:10) {
                     Label(String(format:"0:%02d",Int(ceil(engine.timeLeft))),systemImage:"timer")

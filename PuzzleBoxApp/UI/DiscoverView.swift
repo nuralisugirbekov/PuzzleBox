@@ -7,12 +7,15 @@ struct DiscoverView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    TabHeader(title: L10n.text("Discover"))
+                        .padding(.bottom, -12)
+
                     FeaturedGameCard(gameID: .gameOfTheDay,
                                      eyebrow: L10n.text("Game of the Day"),
                                      source: "discover_daily")
                         .padding(.horizontal)
 
-                    ForEach(GameCategory.allCases) { category in
+                    ForEach(GameCategory.listed) { category in
                         VStack(alignment: .leading, spacing: 12) {
                             ShelfHeader(title: L10n.text(category.rawValue)) {
                                 CategoryGamesView(category: category)
@@ -26,7 +29,7 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("Quick and Easy"))
-                        Shelf(items: GameID.visible.filter { $0.info.difficulty == .easy }, spacing: GameCard.spacing) { id in
+                        Shelf(items: GameID.catalog.filter { $0.info.difficulty == .easy }, spacing: GameCard.spacing) { id in
                             GameCard(gameID: id, source: "discover_easy")
                                 .frame(width: GameCard.width)
                         }
@@ -39,15 +42,14 @@ struct DiscoverView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         SectionTitle(title: L10n.text("All games"))
-                        GameGrid(games: GameID.visible, source: "discover_all")
+                        GameGrid(games: GameID.catalog, source: "discover_all")
                             .padding(.horizontal)
                     }
                 }
-                .padding(.vertical)
+                .padding(.bottom)
             }
             .background(Color(.systemBackground))
-            .navigationTitle(L10n.text("Discover"))
-            .toolbar { SettingsToolbarButton() }
+            .tabRoot(title: L10n.text("Discover"))
         }
     }
 }

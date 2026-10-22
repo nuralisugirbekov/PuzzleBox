@@ -160,7 +160,7 @@ struct AltybakanView: View {
 
     var body: some View {
         GameContainerView(gameID: .altybakan, engine: engine,
-                          resultSummary: L10n.format("Bells: %d", engine.bellsRung), centersContent: true) {
+                          resultSummary: L10n.format("Bells: %d", engine.bellsRung)) {
             VStack(spacing: 10) {
                 hud
                 GeometryReader { geo in

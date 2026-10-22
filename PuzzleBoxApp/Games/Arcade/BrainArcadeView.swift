@@ -214,7 +214,7 @@ struct BrainArcadeView: View {
         return L10n.format("Rounds: %d", engine.round)
     }
     var body: some View {
-        GameContainerView(gameID: engine.gameID, engine: engine, resultSummary: summary, centersContent: true) {
+        GameContainerView(gameID: engine.gameID, engine: engine, resultSummary: summary) {
             VStack(spacing: 18) {
                 switch engine.mode {
                 case .reaction: reaction
@@ -339,7 +339,6 @@ struct BrainArcadeView: View {
                 .animation(.easeOut(duration: 0.12), value: engine.highlighted)
             }
             .aspectRatio(1, contentMode: .fit)
-            .frame(maxWidth: 360)
             if !engine.started { startButton }
             Text(L10n.text("Repeat the growing sequence. It speeds up as it gets longer. One mistake is forgiven."))
                 .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)

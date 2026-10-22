@@ -214,7 +214,7 @@ struct BaigeView: View {
 
     var body: some View {
         GameContainerView(gameID: .baige, engine: engine,
-                          resultSummary: L10n.format("Distance: %d m", Int(engine.distance / 10)), centersContent: true) {
+                          resultSummary: L10n.format("Distance: %d m", Int(engine.distance / 10))) {
             VStack(spacing: 10) {
                 hud
                 GeometryReader { geo in

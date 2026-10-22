@@ -1,16 +1,21 @@
 import SwiftUI
 import StoreKit
 
-/// Shared wrapper for every mini-game: header with close/pause/restart and
-/// score display, plus the pause and game-over overlays. Records finished
+/// Shared wrapper for every mini-game: the Solitaire header (back, pause,
+/// restart, score, best and the round clock), plus the pause and game-over overlays. Records finished
 /// rounds into `StatsStore` automatically.
 struct GameContainerView<Engine: GameEngine, Content: View>: View {
     let gameID: GameID
     let engine: Engine
     var resultTitle: String? = nil
     var resultSummary: String? = nil
-    var centersContent = false
     var nextLevel: (() -> Void)? = nil
+    /// Shows the round clock under the score.
+    var showsClock = true
+    /// Drawn between the score and the best score (e.g. lives).
+    var headerAccessory: AnyView? = nil
+    /// The play area runs to the screen's side and bottom edges.
+    var fullBleed = false
     @ViewBuilder let content: () -> Content
 
     @Environment(\.playGame) private var playGame
@@ -36,7 +41,6 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     /// A saved round was restored; the "Continue previous game?" alert is up.
     private var offeringResume: Bool { resumeOffer.awaiting.contains(gameID) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(SoundFX.enabledKey) private var soundEnabled = true
     private var tutorial: GameTutorial? { GameTutorial.forGame(gameID) }
     private var tutorialKey: String { "gameTutorial.v1." + gameID.rawValue }
     private func showTutorial() {
@@ -45,14 +49,18 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         showingTutorial = true
     }
 
-    /// Games drawn in the Figma game chrome (back, title, pause, prominent
-    /// restart, score and best), rather than the original header.
-    private var usesFigmaChrome: Bool { hasCardTimer || gameID == .blockBlast }
+    /// Table games laid out from the top of the screen; the rest centre the
+    /// play area on the screen (see `ScreenCenteredLayout`).
+    private var fillsFromTop: Bool {
+        fullBleed || hasCardTimer || gameID == .blockBlast || gameID == .durak || gameID == .hangman
+            || gameID == .battleship
+    }
 
     private var isGameOver: Bool {
         if case .gameOver = engine.state { true } else { false }
     }
 
+    /// Card games turn a quick win into a time bonus. Every game shows its round time.
     private var hasCardTimer: Bool {
         switch gameID {
         case .solitaire, .spiderSolitaire, .freecell: true
@@ -69,34 +77,43 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
     private var info: GameInfo { gameID.info }
 
+    private var playArea: some View {
+        content()
+            // The play area takes all the room it can.
+            .layoutPriority(1)
+            // Undo the side padding the header keeps.
+            .padding(.horizontal, fullBleed ? -16 : 0)
+            .foregroundStyle(GameTheme.ink)
+            .tint(GameTheme.accent)
+            // The board settles in when a game or a new level opens.
+            .scaleEffect(contentShown || reduceMotion ? 1 : 0.95)
+            .opacity(contentShown ? 1 : 0)
+            // Only a live round takes input. After game over the board stays
+            // visible (and readable by VoiceOver once the result alert is
+            // closed) so the player can review it, but it can't be played.
+            .allowsHitTesting(engine.state == .playing)
+            .accessibilityHidden(engine.state == .paused || (isGameOver && !gameOverHidden))
+    }
+
     var body: some View {
         ZStack {
             GameTheme.background.ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                if usesFigmaChrome {
-                    cardHeader
+            Group {
+                if fillsFromTop {
+                    VStack(spacing: 16) {
+                        cardHeader
+                        playArea
+                    }
                 } else {
-                    header
-                    // An optional matching lower spacer centers the play area below the header.
-                    Spacer(minLength: 0)
-                }
-                content()
-                    .foregroundStyle(GameTheme.ink)
-                    .tint(GameTheme.accent)
-                    // The board settles in when a game or a new level opens.
-                    .scaleEffect(contentShown || reduceMotion ? 1 : 0.95)
-                    .opacity(contentShown ? 1 : 0)
-                    // Only a live round takes input. After game over the board stays
-                    // visible (and readable by VoiceOver once the result alert is
-                    // closed) so the player can review it, but it can't be played.
-                    .allowsHitTesting(engine.state == .playing)
-                    .accessibilityHidden(engine.state == .paused || (isGameOver && !gameOverHidden))
-                if centersContent {
-                    Spacer(minLength: 0)
+                    ScreenCenteredLayout(spacing: 16) {
+                        cardHeader
+                        playArea
+                    }
                 }
             }
-            .padding()
+            .padding(fullBleed ? [.top, .horizontal] : .all)
+            .ignoresSafeArea(edges: fullBleed ? .bottom : [])
 
             if engine.state == .paused && offeringResume {
                 ResumeAlert(continueGame: {
@@ -118,7 +135,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                engine.state = .playing
                            },
                            restart: restart,
-                           exit: { dismiss() })
+                           exit: { dismiss() },
+                           howToPlay: tutorial == nil ? nil : { showTutorial() })
             }
 
             if autoAdvancing {
@@ -164,7 +182,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             AppAnalytics.screen("game_\(gameID.rawValue)")
             if !hasStartedRound {
                 hasStartedRound = true
-                if hasCardTimer { cardClock.reset(active: scenePhase == .active && engine.state == .playing) }
+                cardClock.reset(active: scenePhase == .active && engine.state == .playing)
                 restoreSavedRound()
                 roundAnalytics.start(gameID, active: scenePhase == .active && engine.state == .playing)
             }
@@ -187,11 +205,11 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         .onChange(of: scenePhase) { _, phase in
             // Backgrounded apps may be killed without warning, so save now.
             if phase != .active { saveRound() }
-            if hasCardTimer { cardClock.setActive(phase == .active && engine.state == .playing) }
+            cardClock.setActive(phase == .active && engine.state == .playing)
             roundAnalytics.setActive(phase == .active && engine.state == .playing)
         }
         .onChange(of: engine.state) { _, newState in
-            if hasCardTimer { cardClock.setActive(scenePhase == .active && newState == .playing) }
+            cardClock.setActive(scenePhase == .active && newState == .playing)
             roundAnalytics.setActive(scenePhase == .active && newState == .playing)
             if newState == .paused {
                 roundAnalytics.event("game_pause", score: engine.score)
@@ -232,14 +250,6 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 }
             }
         }
-        .task {
-            guard hasCardTimer else { return }
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .milliseconds(250)) }
-                catch { return }
-                cardClock.tick()
-            }
-        }
     }
 
     // MARK: Saved rounds
@@ -254,7 +264,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             GameSessionStore.delete(gameID)
             return
         }
-        if hasCardTimer { cardClock.resume(from: session.elapsed, active: false) }
+        cardClock.resume(from: session.elapsed, active: false)
         resumeOffer.markAwaiting(gameID)
         engine.state = .paused
     }
@@ -263,7 +273,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     /// nothing to resume.
     private func saveRound() {
         guard let resumable = engine as? any ResumableGame else { return }
-        if hasCardTimer { cardClock.tick() }
+        cardClock.tick()
         if let payload = resumable.saveSession() {
             GameSessionStore.save(payload, for: gameID, elapsed: cardClock.elapsed)
         } else {
@@ -286,7 +296,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         isNewHighScore = false
         finalScore = nil
         awardedTimeBonus = 0
-        if hasCardTimer { cardClock.reset(active: scenePhase == .active) }
+        cardClock.reset(active: scenePhase == .active)
         GameSessionStore.delete(gameID)
         engine.restart()
         // Timed challenges return to setup; their new container starts the next round.
@@ -295,7 +305,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         }
     }
 
-    // MARK: Card-game chrome (Figma "Solitare")
+    // MARK: Game chrome (Figma "Solitare"), shared by every game
 
     /// Back, centred title, pause and a prominent restart; then score,
     /// best score and the round timer.
@@ -337,6 +347,10 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                         .font(.title2.bold().monospacedDigit())
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if let headerAccessory {
+                    // Level with the numbers below the captions.
+                    headerAccessory.padding(.top, 22)
+                }
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(L10n.text("Your best")).font(.caption)
                     Text(stats.highScore(for: gameID), format: .number)
@@ -348,17 +362,20 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             .foregroundStyle(.primary)
             .accessibilityElement(children: .combine)
 
-            if hasCardTimer {
-                HStack(spacing: 8) {
+            if showsClock {
+            HStack(spacing: 8) {
+                // Only the clock redraws each second, not the game below it.
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(cardClock.formattedTime)
                         .font(.title2.bold().monospacedDigit())
-                    Image(systemName: "timer")
-                        .font(.title3.weight(.semibold))
                 }
-                .foregroundStyle(.primary)
-                .padding(.top, 20)
-                .padding(.bottom, 22)
-                .accessibilityElement(children: .combine)
+                Image(systemName: "timer")
+                    .font(.title3.weight(.semibold))
+            }
+            .foregroundStyle(.primary)
+            .padding(.top, 20)
+            .padding(.bottom, 22)
+            .accessibilityElement(children: .combine)
             }
         }
     }
@@ -367,71 +384,6 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     private static var restartSymbol: String {
         let preferred = "arrow.trianglehead.counterclockwise.rotate.90"
         return UIImage(systemName: preferred) == nil ? "arrow.counterclockwise" : preferred
-    }
-
-    private var header: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 12) {
-                headerButton("xmark", label: L10n.text("Main Menu")) { dismiss() }
-                Text(info.title)
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                headerButton(soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
-                             label: L10n.text(soundEnabled ? "Sound On" : "Sound Off")) {
-                    Haptics.tap()
-                    soundEnabled.toggle()
-                }
-                headerButton("pause.fill", label: L10n.text("Paused")) {
-                    if engine.state == .playing {
-                        Haptics.tap()
-                        engine.state = .paused
-                    }
-                }
-                .disabled(engine.state != .playing)
-                headerButton("arrow.counterclockwise", label: L10n.text("Restart")) { restart() }
-            }
-            if tutorial != nil {
-                HStack {
-                    Spacer()
-                    Button { showTutorial() } label: {
-                        Label(L10n.text("How to play"), systemImage: "questionmark.circle")
-                            .font(.subheadline).frame(minHeight: 32)
-                    }
-                }
-            }
-            HStack(spacing: 12) {
-                scorePanel(title: L10n.text("Score"), value: displayedScore, symbol: "number", accent: true)
-                scorePanel(title: L10n.text("Your Records"), value: stats.highScore(for: gameID), symbol: "trophy", accent: false)
-            }
-        }
-    }
-
-    private func scorePanel(title: String, value: Int, symbol: String, accent: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(accent ? GameTheme.accent : GameTheme.textSecondary)
-                .frame(width: 32, height: 32)
-                .background(accent ? GameTheme.accent.opacity(0.1) : GameTheme.surfaceHigh, in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                Group {
-                    if accent { LiveScoreText(value: value) }
-                    else { Text(value, format: .number).contentTransition(.numericText()) }
-                }
-                .font(.title3.bold().monospacedDigit())
-                .foregroundStyle(.primary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .gameCard(cornerRadius: 22)
-        .accessibilityElement(children: .combine)
     }
 
     private func headerButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -505,6 +457,8 @@ struct PauseAlert: View {
     let resume: () -> Void
     let restart: () -> Void
     let exit: () -> Void
+    /// Opens the game's rules, for games that have them.
+    var howToPlay: (() -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -532,6 +486,10 @@ struct PauseAlert: View {
                                       prominent: true, action: resume)
                     AlertActionButton(title: L10n.text("Restart"), symbol: "arrow.counterclockwise",
                                       action: restart)
+                    if let howToPlay {
+                        AlertActionButton(title: L10n.text("How to play"), symbol: "questionmark.circle",
+                                          action: howToPlay)
+                    }
                     AlertActionButton(title: L10n.text("Home"), symbol: "house.fill",
                                       action: exit)
                 }
@@ -567,7 +525,7 @@ private struct AlertActionButton: View {
     }
 }
 
-private extension View {
+extension View {
     /// Liquid Glass alert background on iOS 26, a thick material before.
     @ViewBuilder
     func alertSurface(cornerRadius: CGFloat) -> some View {
@@ -578,6 +536,9 @@ private extension View {
             background(.thickMaterial, in: shape)
         }
     }
+}
+
+private extension View {
 
     /// Accent-tinted glass circle for the prominent toolbar action; the
     /// whole circle is tappable.
@@ -682,5 +643,30 @@ struct GameOverOverlay: View {
             withAnimation(.easeOut(duration: min(1.4, 0.5 + Double(score) / 4000)).delay(0.2)) { shownScore = Double(score) }
         }
         .onChange(of: score) { _, value in shownScore = Double(value) }
+    }
+}
+
+/// The header at the top and the play area centred on the screen, nudged
+/// down only as far as it takes to clear the header. A play area that wants
+/// all the room left (a `GeometryReader` board) simply fills it.
+private struct ScreenCenteredLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let header = subviews[0], play = subviews[1]
+        let headerHeight = header.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height
+        header.place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top,
+                     proposal: ProposedViewSize(width: bounds.width, height: headerHeight))
+        let top = bounds.minY + headerHeight + spacing
+        let room = max(0, bounds.maxY - top)
+        let height = min(play.sizeThatFits(ProposedViewSize(width: bounds.width, height: room)).height, room)
+        let y = min(max(bounds.midY - height / 2, top), bounds.maxY - height)
+        play.place(at: CGPoint(x: bounds.midX, y: y), anchor: .top,
+                   proposal: ProposedViewSize(width: bounds.width, height: height))
     }
 }

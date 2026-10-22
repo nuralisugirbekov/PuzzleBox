@@ -5,7 +5,7 @@ struct BounceView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        GameContainerView(gameID:.bounce,engine:engine,centersContent:true) {
+        GameContainerView(gameID:.bounce,engine:engine) {
             VStack(spacing:12) {
                 HStack {
                     Text(L10n.format("Level %d of %d",engine.levelIndex+1,BounceLevel.levels.count))
@@ -33,7 +33,7 @@ struct BounceView: View {
                                 .background(GameTheme.background.opacity(0.9),in:RoundedRectangle(cornerRadius:16))
                         }
                     }
-                }.aspectRatio(360.0/420,contentMode:.fit).frame(maxWidth:430,maxHeight:440)
+                }.arenaFit(360.0/420)
                 HStack(spacing:12) {
                     BounceControl(symbol:"arrow.left",label:L10n.text("Left"),set:engine.holdLeft)
                     BounceControl(symbol:"arrow.right",label:L10n.text("Right"),set:engine.holdRight)

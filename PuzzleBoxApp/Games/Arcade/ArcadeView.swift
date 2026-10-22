@@ -9,7 +9,7 @@ struct ArcadeView: View {
     init(mode: ArcadeMode) { _engine = State(initialValue: ArcadeEngine(mode: mode)) }
 
     var body: some View {
-        GameContainerView(gameID: engine.mode.gameID, engine: engine, centersContent: true) {
+        GameContainerView(gameID: engine.mode.gameID, engine: engine) {
             VStack(spacing: 12) {
                 if engine.mode == .knifeSpin {
                     HStack(spacing: 8) {
@@ -37,11 +37,17 @@ struct ArcadeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .overlay {
                         if !engine.started {
+                            // The rules sit on the start card rather than under the
+                            // board, so the board can take the whole width.
                             VStack(spacing: 12) {
                                 Image(systemName: "hand.tap.fill").font(.largeTitle)
                                 Text(L10n.text("Tap to start")).font(.headline)
+                                Text(L10n.text(engine.mode.hint))
+                                    .font(.footnote).foregroundStyle(GameTheme.textSecondary)
+                                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(24).background(GameTheme.background.opacity(0.88), in: RoundedRectangle(cornerRadius: 18))
+                            .padding(24).frame(maxWidth: 280)
+                            .background(GameTheme.background.opacity(0.88), in: RoundedRectangle(cornerRadius: 18))
                             .foregroundStyle(GameTheme.accent).allowsHitTesting(false)
                         }
                     }
@@ -62,11 +68,7 @@ struct ArcadeView: View {
                             }
                         })
                 }
-                .aspectRatio(2.0 / 3, contentMode: .fit)
-                .frame(maxWidth: 400, maxHeight: 480)
-                Text(L10n.text(engine.mode.hint))
-                    .font(.footnote).foregroundStyle(GameTheme.textSecondary)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .arenaFit(2.0 / 3)
             }
         }
         .onAppear { engine.active = scenePhase == .active }
@@ -103,13 +105,26 @@ struct ArcadeView: View {
 
     // MARK: Stack
 
-    private func stackBlock(_ context: inout GraphicsContext, _ rect: CGRect, hue: Double) {
-        let face = Color(hue: hue, saturation: 0.55, brightness: 0.92)
-        let shade = Color(hue: hue, saturation: 0.7, brightness: 0.62)
-        context.fill(Path(roundedRect: rect, cornerRadius: 4),
-                     with: .linearGradient(Gradient(colors: [face, shade]), startPoint: CGPoint(x: rect.minX, y: rect.minY), endPoint: CGPoint(x: rect.minX, y: rect.maxY)))
-        context.fill(Path(roundedRect: CGRect(x: rect.minX + 2, y: rect.minY + 1, width: max(0, rect.width - 4), height: 4), cornerRadius: 2),
-                     with: .color(.white.opacity(0.35)))
+    /// One block in isometric view: its top and the two faces toward the viewer,
+    /// each shaded as if lit from the upper left.
+    private func stackSlab(_ context: inout GraphicsContext, _ slab: StackSlab, alpha: Double = 1) {
+        let top = CGFloat(slab.level + 1) * StackSlab.height - slab.drop
+        let bottom = top - StackSlab.height
+        func p(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint { engine.stackScreen(x, y, z) }
+        func face(_ points: [CGPoint], _ color: Color) {
+            var path = Path(); path.addLines(points); path.closeSubpath()
+            context.fill(path, with: .color(color.opacity(alpha)))
+        }
+        let x0 = slab.x, x1 = slab.x + slab.w, z0 = slab.z, z1 = slab.z + slab.d
+        face([p(x0, top, z1), p(x1, top, z1), p(x1, bottom, z1), p(x0, bottom, z1)],
+             Color(hue: slab.hue, saturation: 0.62, brightness: 0.78))
+        face([p(x1, top, z0), p(x1, top, z1), p(x1, bottom, z1), p(x1, bottom, z0)],
+             Color(hue: slab.hue, saturation: 0.7, brightness: 0.58))
+        face([p(x0, top, z0), p(x1, top, z0), p(x1, top, z1), p(x0, top, z1)],
+             Color(hue: slab.hue, saturation: 0.5, brightness: 0.97))
+        // A light rim along the front edges of the top.
+        var rim = Path(); rim.addLines([p(x0, top, z1), p(x1, top, z1), p(x1, top, z0)])
+        context.stroke(rim, with: .color(.white.opacity(0.35 * alpha)), lineWidth: 1)
     }
 
     private func drawStack(_ context: inout GraphicsContext) {
@@ -119,28 +134,32 @@ struct ArcadeView: View {
                                            startPoint: .zero, endPoint: CGPoint(x: 0, y: 480)))
         // Faint height marker in the background.
         context.draw(Text("\(engine.placed)").font(.system(size: 120, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.07)),
-                     at: CGPoint(x: 160, y: 120))
-        var world = context
-        world.translateBy(x: 0, y: -engine.cameraLag)
-        for body in engine.bodies { stackBlock(&world, body.rect, hue: body.hue) }
+                     at: CGPoint(x: 160, y: 90))
+        // Pieces falling off the far sides go behind the tower, the rest in front.
+        let behind = engine.stackDebris.filter { $0.drift.dx < 0 || $0.drift.dy < 0 }
+        let front = engine.stackDebris.filter { !($0.drift.dx < 0 || $0.drift.dy < 0) }
+        for piece in behind { stackSlab(&context, piece, alpha: 0.9) }
+        let lowest = Int(engine.stackCamera) - 18
+        for slab in engine.slabs where slab.level >= lowest { stackSlab(&context, slab) }
         if let ripple = engine.ripple {
-            let grow = ripple.t * 40
-            world.stroke(Path(roundedRect: ripple.rect.insetBy(dx: -grow, dy: -grow * 0.5), cornerRadius: 6),
-                         with: .color(.white.opacity(Double(1 - ripple.t * 2))), lineWidth: 2.5)
+            let grow = ripple.t * 36, slab = ripple.slab
+            let y = CGFloat(slab.level + 1) * StackSlab.height
+            var outline = Path()
+            outline.addLines([engine.stackScreen(slab.x - grow, y, slab.z - grow), engine.stackScreen(slab.x + slab.w + grow, y, slab.z - grow),
+                              engine.stackScreen(slab.x + slab.w + grow, y, slab.z + slab.d + grow), engine.stackScreen(slab.x - grow, y, slab.z + slab.d + grow)])
+            outline.closeSubpath()
+            context.stroke(outline, with: .color(.white.opacity(Double(1 - ripple.t * 2))), lineWidth: 2.5)
         }
-        for piece in engine.debris {
-            var d = world
-            d.translateBy(x: piece.rect.midX, y: piece.rect.midY)
-            d.rotate(by: .radians(Double(piece.phase)))
-            d.opacity = 0.85
-            stackBlock(&d, CGRect(x: -piece.rect.width / 2, y: -11, width: piece.rect.width, height: 22), hue: piece.hue)
-        }
-        if engine.state == .playing {
-            let next = (0.52 + Double(engine.placed + 1) * 0.031).truncatingRemainder(dividingBy: 1)
-            stackBlock(&world, engine.movingBlock, hue: next)
+        for piece in front { stackSlab(&context, piece, alpha: 0.9) }
+        if engine.state == .playing, let moving = engine.movingSlab {
+            stackSlab(&context, moving)
             if engine.perfectStreak >= 2 {
-                world.stroke(Path(roundedRect: engine.movingBlock.insetBy(dx: -2, dy: -2), cornerRadius: 5),
-                             with: .color(.white.opacity(0.5 + 0.3 * Double(sin(engine.time * 8)))), lineWidth: 1.5)
+                let y = CGFloat(moving.level + 1) * StackSlab.height
+                var glow = Path()
+                glow.addLines([engine.stackScreen(moving.x, y, moving.z), engine.stackScreen(moving.x + moving.w, y, moving.z),
+                               engine.stackScreen(moving.x + moving.w, y, moving.z + moving.d), engine.stackScreen(moving.x, y, moving.z + moving.d)])
+                glow.closeSubpath()
+                context.stroke(glow, with: .color(.white.opacity(0.5 + 0.3 * Double(sin(engine.time * 8)))), lineWidth: 1.5)
             }
         }
     }

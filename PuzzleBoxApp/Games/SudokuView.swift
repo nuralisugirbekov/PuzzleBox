@@ -26,7 +26,6 @@ enum SudokuDifficulty: Int, CaseIterable, Codable {
 @MainActor
 @Observable
 final class SudokuEngine: GameEngine {
-    static let maxMistakes = 3
     static let hintCount = 3
     private static let difficultyKey = "sudokuDifficulty"
 
@@ -36,7 +35,6 @@ final class SudokuEngine: GameEngine {
     private(set) var board: [[Int?]] = []
     /// Pencil marks per cell.
     private(set) var notes: [[Set<Int>]] = []
-    private(set) var mistakes = 0
     private(set) var hintsLeft = SudokuEngine.hintCount
     var notesMode = false
     var state: GameState = .playing
@@ -46,19 +44,22 @@ final class SudokuEngine: GameEngine {
     var blockRows: Int { size == 6 ? 2 : 3 }
     var blockCols: Int { 3 }
 
+    /// Paid out only on a solved board: a score that grew with each correct
+    /// digit would tell the player which digits are wrong.
     var score: Int {
-        var s = 0
-        for r in 0..<size {
-            for c in 0..<size where !given[r][c] && board[r][c] == solution[r][c] {
-                s += 10
-            }
-        }
-        if case .gameOver(won: true) = state { s += difficulty.bonus + hintsLeft * 50 }
-        return max(0, s - mistakes * 20)
+        guard case .gameOver(won: true) = state else { return 0 }
+        let filled = given.joined().filter { !$0 }.count
+        return filled * 10 + difficulty.bonus + hintsLeft * 50
+    }
+
+    /// Every cell is filled but the board isn't the solution. Says that
+    /// something is wrong without saying where.
+    var isFullButWrong: Bool {
+        state == .playing && board.allSatisfy { $0.allSatisfy { $0 != nil } } && board != solution.map { $0.map { $0 } }
     }
 
     init() {
-        difficulty = SudokuDifficulty(rawValue: UserDefaults.standard.integer(forKey: Self.difficultyKey)) ?? .easy
+        difficulty = Self.savedDifficulty
         newPuzzle()
     }
 
@@ -67,11 +68,24 @@ final class SudokuEngine: GameEngine {
         state = .playing
     }
 
-    func setDifficulty(_ value: SudokuDifficulty) {
-        guard value != difficulty else { return }
-        difficulty = value
-        UserDefaults.standard.set(value.rawValue, forKey: Self.difficultyKey)
-        restart()
+    /// The difficulty picked last, which the next game opens on.
+    static var savedDifficulty: SudokuDifficulty {
+        SudokuDifficulty(rawValue: UserDefaults.standard.integer(forKey: difficultyKey)) ?? .easy
+    }
+
+    /// Picked before the game opens. A saved puzzle of another difficulty is
+    /// dropped, so the game opens on the difficulty that was asked for.
+    static func choose(_ difficulty: SudokuDifficulty) {
+        UserDefaults.standard.set(difficulty.rawValue, forKey: difficultyKey)
+        if let saved = GameSessionStore.load(.sudoku),
+           (try? JSONDecoder().decode(SavedDifficulty.self, from: saved.payload))?.difficulty != difficulty {
+            GameSessionStore.delete(.sudoku)
+        }
+    }
+
+    /// Just the difficulty of a saved puzzle.
+    private struct SavedDifficulty: Decodable {
+        let difficulty: SudokuDifficulty
     }
 
     private func newPuzzle() {
@@ -80,7 +94,6 @@ final class SudokuEngine: GameEngine {
         given = puzzle.given
         board = (0..<size).map { r in (0..<size).map { c in given[r][c] ? solution[r][c] : nil } }
         notes = Array(repeating: Array(repeating: [], count: size), count: size)
-        mistakes = 0
         hintsLeft = Self.hintCount
         selected = nil
         notesMode = false
@@ -212,17 +225,14 @@ final class SudokuEngine: GameEngine {
         }
         guard board[sel.r][sel.c] != value else { return }
         board[sel.r][sel.c] = value
-        if value == solution[sel.r][sel.c] {
-            notes[sel.r][sel.c] = []
-            clearNotes(value, around: sel)
-            Haptics.move(); SoundFX.play(.place)
-            celebrateCompletedUnits(at: sel)
-        } else {
-            mistakes += 1
-            Haptics.error(); SoundFX.play(.wrong)
-            if mistakes >= Self.maxMistakes { state = .gameOver(won: false); return }
-        }
+        // Right and wrong digits are entered alike, so the board never gives
+        // the answer away; only clashes in a row, column or block show red.
+        notes[sel.r][sel.c] = []
+        clearNotes(value, around: sel)
+        Haptics.move(); SoundFX.play(.place)
+        celebrateCompletedUnits(at: sel)
         checkCompletion()
+        if isFullButWrong { Haptics.error(); SoundFX.play(.wrong) }
     }
 
     /// Fills the selected empty cell (or a random one) with its correct digit.
@@ -248,9 +258,12 @@ final class SudokuEngine: GameEngine {
         } }
     }
 
+    /// A row or column filled without repeats, checked against the rules
+    /// rather than the solution so it can't confirm a guess.
     private func celebrateCompletedUnits(at pos: GridPos) {
-        let rowDone = (0..<size).allSatisfy { board[pos.r][$0] == solution[pos.r][$0] }
-        let colDone = (0..<size).allSatisfy { board[$0][pos.c] == solution[$0][pos.c] }
+        func complete(_ values: [Int?]) -> Bool { Set(values.compactMap { $0 }).count == size }
+        let rowDone = complete(board[pos.r])
+        let colDone = complete((0..<size).map { board[$0][pos.c] })
         if rowDone || colDone { SoundFX.play(.clear) }
     }
 
@@ -273,25 +286,22 @@ struct SudokuView: View {
         GameContainerView(gameID: .sudoku, engine: engine,
                           resultSummary: L10n.text(engine.difficulty.title)) {
             VStack(spacing: 16) {
-                Picker("", selection: Binding(get: { engine.difficulty }, set: { engine.setDifficulty($0) })) {
-                    ForEach(SudokuDifficulty.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                statusBar
                 board
+                    .overlay(alignment: .bottom) {
+                        if engine.isFullButWrong {
+                            Text(L10n.text("Some digits are wrong"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(.red.opacity(0.85), in: Capsule())
+                                .offset(y: 20)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.2), value: engine.isFullButWrong)
                 numberPad
             }
         }
-    }
-
-    private var statusBar: some View {
-        HStack {
-            Label(L10n.format("Mistakes: %d/%d", engine.mistakes, SudokuEngine.maxMistakes), systemImage: "exclamationmark.triangle.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(engine.mistakes > 0 ? .red : .secondary)
-            Spacer()
-        }
-        .padding(.horizontal, 4)
     }
 
     private var board: some View {
@@ -323,8 +333,8 @@ struct SudokuView: View {
         let value = engine.board[r][c]
         let isGiven = engine.given[r][c]
         let isSelected = engine.selected == pos
-        let isWrong = !isGiven && value != nil
-            && (conflicts.contains(pos) || value != engine.solution[r][c])
+        // Only clashes the player could spot themselves; never a check against the solution.
+        let isWrong = !isGiven && value != nil && conflicts.contains(pos)
         let sameUnit = isInSelectedUnit(pos)
         let selectedValue = engine.selected.flatMap { engine.board[$0.r][$0.c] }
         let sameValue = value != nil && value == selectedValue && !isSelected
@@ -457,7 +467,6 @@ extension SudokuEngine: ResumableGame {
         let given: [[Bool]]
         let board: [[Int?]]
         let notes: [[Set<Int>]]
-        let mistakes: Int
         let hintsLeft: Int
     }
 
@@ -466,9 +475,9 @@ extension SudokuEngine: ResumableGame {
         let touched = (0..<size).contains { r in
             (0..<size).contains { c in (!given[r][c] && board[r][c] != nil) || !notes[r][c].isEmpty }
         }
-        guard touched || mistakes > 0 else { return nil }
+        guard touched else { return nil }
         return encodeSession(Session(difficulty: difficulty, solution: solution, given: given, board: board,
-                                     notes: notes, mistakes: mistakes, hintsLeft: hintsLeft))
+                                     notes: notes, hintsLeft: hintsLeft))
     }
 
     func restoreSession(_ data: Data) -> Bool {
@@ -478,7 +487,6 @@ extension SudokuEngine: ResumableGame {
         given = session.given
         board = session.board
         notes = session.notes
-        mistakes = session.mistakes
         hintsLeft = session.hintsLeft
         selected = nil
         notesMode = false

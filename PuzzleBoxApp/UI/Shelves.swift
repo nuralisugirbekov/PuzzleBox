@@ -2,6 +2,64 @@ import SwiftUI
 
 // Apple Music–style building blocks shared by Home, Discover and Search.
 
+/// A tab's large title with its buttons and Settings in one row (Figma
+/// "All games" header). Tabs hide the navigation bar and put this at the top
+/// of their content, because the system large title always sits a row below
+/// the toolbar buttons.
+struct TabHeader<Trailing: View>: View {
+    let title: String
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.largeTitle.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            trailing()
+            SettingsButton()
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+}
+
+extension TabHeader where Trailing == EmptyView {
+    init(title: String) {
+        self.init(title: title) { EmptyView() }
+    }
+}
+
+/// 44pt glass circle with an SF Symbol, for `TabHeader` actions.
+struct HeaderCircleButton: View {
+    let symbol: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .glassCircle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
+extension View {
+    /// Root of a tab: no navigation bar, so `TabHeader` takes its place. The
+    /// title is kept as the back button label of pushed screens.
+    func tabRoot(title: String) -> some View {
+        navigationTitle(title)
+            .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
 /// Bold section title with an optional trailing chevron, like "Recently Played ›".
 struct ShelfHeader<Destination: View>: View {
     let title: String
@@ -104,6 +162,7 @@ extension GameCategory {
     var symbol: String {
         switch self {
         case .logic: "brain.head.profile"
+        case .casual: "sparkles"
         case .arcade: "arcade.stick"
         case .cards: "suit.spade.fill"
         case .attention: "eye.fill"
@@ -118,6 +177,7 @@ extension GameCategory {
     var tint: Color {
         switch self {
         case .logic: .indigo
+        case .casual: .pink
         case .arcade: .green
         case .cards: .teal
         case .attention: .cyan
@@ -130,8 +190,11 @@ extension GameCategory {
     }
 
     var games: [GameID] {
-        GameID.visible.filter { $0.info.category == self }
+        GameID.catalog.filter { $0.info.category == self }
     }
+
+    /// Categories with at least one game left after hiding.
+    static var listed: [GameCategory] { allCases.filter { !$0.games.isEmpty } }
 }
 
 /// Coloured category tile, like the genre tiles in Apple Music's Browse.
@@ -170,7 +233,7 @@ struct CategoryGrid: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
                             GridItem(.flexible(), spacing: 12)],
                   spacing: 12) {
-            ForEach(GameCategory.allCases) { CategoryTile(category: $0) }
+            ForEach(GameCategory.listed) { CategoryTile(category: $0) }
         }
         .padding(.horizontal)
     }
@@ -185,12 +248,12 @@ extension GameID {
         let gameKey = "dailyGame.id"
         if defaults.double(forKey: dateKey) == day,
            let raw = defaults.string(forKey: gameKey),
-           let saved = GameID(rawValue: raw) {
+           let saved = GameID(rawValue: raw), catalog.contains(saved) {
             return saved
         }
         let previous = defaults.string(forKey: gameKey)
-        let candidates = visible.filter { $0.rawValue != previous }
-        let selected = candidates.randomElement() ?? visible.randomElement() ?? .bounce
+        let candidates = catalog.filter { $0.rawValue != previous }
+        let selected = candidates.randomElement() ?? catalog.randomElement() ?? .bounce
         defaults.set(selected.rawValue, forKey: gameKey)
         defaults.set(day, forKey: dateKey)
         return selected

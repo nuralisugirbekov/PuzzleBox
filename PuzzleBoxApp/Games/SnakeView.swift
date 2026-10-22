@@ -246,7 +246,7 @@ struct SnakeView: View {
     @State private var engine = SnakeEngine()
 
     var body: some View {
-        GameContainerView(gameID: .snake, engine: engine, centersContent: true) {
+        GameContainerView(gameID: .snake, engine: engine) {
             VStack(spacing: 16) {
                 hud
                 board

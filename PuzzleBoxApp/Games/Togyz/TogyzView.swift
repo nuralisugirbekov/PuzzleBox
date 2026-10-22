@@ -184,7 +184,7 @@ struct TogyzView: View {
 
     var body: some View {
         GameContainerView(gameID: .togyzkumalak, engine: engine,
-                          resultTitle: nil, resultSummary: L10n.text(engine.mode.title), centersContent: true) {
+                          resultTitle: nil, resultSummary: L10n.text(engine.mode.title)) {
             VStack(spacing: 12) {
                 Picker("", selection: Binding(get: { engine.mode }, set: { engine.setMode($0) })) {
                     ForEach(TogyzMode.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }

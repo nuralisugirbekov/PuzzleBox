@@ -30,6 +30,7 @@ protocol GameEngine: AnyObject, Observable {
 
 enum GameCategory: String, CaseIterable, Identifiable {
     case logic = "Logic"
+    case casual = "Casual"
     case arcade = "Arcade"
     case cards = "Cards"
     case attention = "Attention"
@@ -100,6 +101,7 @@ enum GameID: String, CaseIterable, Identifiable {
     case nonogram
     case numberConnect
     case oneLine
+    case mazePaint
     case unblock
     case fifteenPuzzle
     case pipeConnect
@@ -125,8 +127,14 @@ enum GameID: String, CaseIterable, Identifiable {
     case solitaire
     case spiderSolitaire
     case freecell
+    case durak
+    case hangman
+    case battleship
     case minesweeper
     case checkmate
+    case gems
+    case gemsArcade
+    case gemsBlitz
     case crossword
     case asyk
     case togyzkumalak
@@ -135,12 +143,82 @@ enum GameID: String, CaseIterable, Identifiable {
     case baige
     var id: String { rawValue }
 
-    /// Games that stay in the code (and keep saved progress) but are not shown in the app yet.
-    static let hidden: Set<GameID> = [.crossword, .asyk, .togyzkumalak, .altybakan, .kokpar, .baige,
-                                     .quickMath, .bubblePop, .dots, .arrowMaze, .bottleFlip,
-                                     .drawBridge, .findColor, .rotatePuzzle, .slope, .chainReaction]
-    /// Everything the catalogue, search, home picks and random buttons may offer.
-    static var visible: [GameID] { allCases.filter { !hidden.contains($0) } }
+    /// Games that can be played against a friend as well as the bot.
+    var supportsFriends: Bool {
+        self == .durak || self == .hangman || self == .battleship || self == .gemsBlitz
+    }
+
+    /// Modes offered when the game is opened, the listed one first. Each mode
+    /// is its own id, so it keeps its own record and saved round.
+    var modes: [GameID] {
+        switch self {
+        case .gems, .gemsArcade, .gemsBlitz: [.gems, .gemsArcade, .gemsBlitz]
+        default: []
+        }
+    }
+
+    /// Short name of this mode in the mode picker.
+    var modeTitle: String {
+        switch self {
+        case .gemsBlitz: L10n.text("Blitz")
+        case .gemsArcade: L10n.text("Arcade mode")
+        case .gems: L10n.text("Classic")
+        default: info.title
+        }
+    }
+
+    /// Games shown in the catalog: modes other than the first are reached
+    /// only through the mode picker, and hidden games aren't listed at all.
+    static var catalog: [GameID] { allCases.filter { ($0.modes.first ?? $0 == $0) && !$0.isHidden } }
+
+    /// Kept out of every list in the app after the team's game review: dropped
+    /// for release, or waiting on a rework. Their code and saved records stay,
+    /// so taking one off this list brings it back.
+    static let hidden: Set<GameID> = [
+        // Dropped.
+        .quickMath, .bubblePop, .dots, .arrowMaze, .bottleFlip, .drawBridge, .findColor,
+        .rotatePuzzle, .slope, .chainReaction, .nonogram, .colorLines, .bounce, .plinko,
+        .ropeCut, .reactionTap,
+        // Replaced by Maze Paint.
+        .oneLine,
+        // Back after a rework.
+        .findPair, .pipeConnect, .basketShot, .endlessClimb, .spaceDodge,
+        // Not shown yet.
+        .crossword, .asyk, .togyzkumalak, .altybakan, .kokpar, .baige,
+    ]
+
+    var isHidden: Bool { Self.hidden.contains(self) }
+
+    /// Every game that isn't hidden, every mode included.
+    static var visible: [GameID] { allCases.filter { !$0.isHidden } }
+
+    /// How many can play one online game, the host included.
+    var playerRange: ClosedRange<Int> {
+        switch self {
+        case .durak: DurakState.playerRange
+        case .hangman: HangmanState.playerRange
+        case .battleship: BattleshipState.playerRange
+        case .gemsBlitz: Match3RaceState.playerRange
+        default: 1...1
+        }
+    }
+
+    /// "2–6 players", or "2 players" when the count is fixed.
+    var playerCountText: String {
+        let range = playerRange
+        return range.lowerBound == range.upperBound
+            ? L10n.format("%d players", range.lowerBound)
+            : L10n.format("%d–%d players", range.lowerBound, range.upperBound)
+    }
+
+    /// Games a game room can pick from: every one with `supportsFriends`.
+    static var multiplayer: [GameID] { allCases.filter(\.supportsFriends) }
+
+    /// Seats in a game room, before its game is picked: enough for the biggest one.
+    static var sessionPlayerRange: ClosedRange<Int> {
+        let ranges = multiplayer.map(\.playerRange)
+        return (ranges.map(\.lowerBound).min() ?? 2)...(ranges.map(\.upperBound).max() ?? 2)
+    }
 
     var info: GameInfo {
         switch self {
@@ -219,6 +297,9 @@ enum GameID: String, CaseIterable, Identifiable {
         case .numberConnect:
             GameInfo(title: L10n.text("Numberlink"), tagline: L10n.text(PuzzleMode.numberConnect.hint),
                      symbol: "point.topleft.down.to.point.bottomright.curvepath", tint: .pink, category: .japanese, difficulty: .medium)
+        case .mazePaint:
+            GameInfo(title: L10n.text("Maze Paint"), tagline: L10n.text("Swipe to paint every square"),
+                     symbol: "paintbrush.pointed.fill", tint: .pink, category: .logic, difficulty: .medium)
         case .oneLine:
             GameInfo(title: L10n.text("One Line"), tagline: L10n.text(PuzzleMode.oneLine.hint),
                      symbol: "pencil.tip", tint: .mint, category: .logic, difficulty: .medium)
@@ -322,6 +403,27 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .pink,
                      category: .cards,
                      difficulty: .hard)
+        case .durak:
+            GameInfo(title: L10n.text("Durak"),
+                     tagline: L10n.text("Beat the bot or a friend, don't be the fool"),
+                     symbol: "suit.spade.fill",
+                     tint: .orange,
+                     category: .cards,
+                     difficulty: .medium)
+        case .hangman:
+            GameInfo(title: L10n.text("Hangman"),
+                     tagline: L10n.text("Guess the word letter by letter with a bot or a friend"),
+                     symbol: "textformat.abc",
+                     tint: .teal,
+                     category: .logic,
+                     difficulty: .easy)
+        case .battleship:
+            GameInfo(title: L10n.text("Battleship"),
+                     tagline: L10n.text("Sink the enemy fleet with a bot or a friend"),
+                     symbol: "scope",
+                     tint: .blue,
+                     category: .logic,
+                     difficulty: .medium)
         case .minesweeper:
             GameInfo(title: L10n.text("Minesweeper"),
                      tagline: L10n.text("Flag the mines, clear the field"),
@@ -336,6 +438,27 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .yellow,
                      category: .logic,
                      difficulty: .hard)
+        case .gems:
+            GameInfo(title: L10n.text("Gems"),
+                     tagline: L10n.text("Swap gems, chain cascades, set off bombs"),
+                     symbol: "suit.diamond.fill",
+                     tint: .purple,
+                     category: .casual,
+                     difficulty: .easy)
+        case .gemsArcade:
+            GameInfo(title: L10n.text("Gems Arcade"),
+                     tagline: L10n.text("Clear levels on boards of every shape"),
+                     symbol: "square.grid.3x3.middle.filled",
+                     tint: .orange,
+                     category: .casual,
+                     difficulty: .medium)
+        case .gemsBlitz:
+            GameInfo(title: L10n.text("Gems Blitz"),
+                     tagline: L10n.text("Collect crystals before the time runs out"),
+                     symbol: "bolt.fill",
+                     tint: .cyan,
+                     category: .casual,
+                     difficulty: .medium)
         case .crossword:
             GameInfo(title: L10n.text("Crossword"),
                      tagline: L10n.text("Fill the grid from the clues"),
@@ -413,6 +536,7 @@ func gameView(for id: GameID) -> some View {
     case .nonogram: PuzzleCollectionView(mode: .nonogram)
     case .numberConnect: PuzzleCollectionView(mode: .numberConnect)
     case .oneLine: PuzzleCollectionView(mode: .oneLine)
+    case .mazePaint: MazePaintView()
     case .unblock: PuzzleCollectionView(mode: .unblock)
     case .fifteenPuzzle: PuzzleCollectionView(mode: .fifteenPuzzle)
     case .pipeConnect: PuzzleCollectionView(mode: .pipeConnect)
@@ -437,8 +561,14 @@ func gameView(for id: GameID) -> some View {
     case .solitaire: SolitaireView()
     case .spiderSolitaire: SpiderView()
     case .freecell: FreeCellView()
+    case .durak: DurakView()
+    case .hangman: HangmanView()
+    case .battleship: BattleshipView()
     case .minesweeper: MinesweeperView()
     case .checkmate: CheckmateView()
+    case .gems: Match3View(mode: .casual)
+    case .gemsArcade: Match3View(mode: .arcade)
+    case .gemsBlitz: Match3View(mode: .blitz)
     case .crossword: CrosswordView()
     case .asyk: AsykView()
     case .togyzkumalak: TogyzView()

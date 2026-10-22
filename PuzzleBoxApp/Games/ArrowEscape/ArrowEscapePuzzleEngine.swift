@@ -12,7 +12,9 @@ final class ArrowEscapePuzzleEngine: GameEngine {
     /// Arrows flying off, with the seconds since each was launched. Several
     /// can be in flight at once; each frees its cells the moment it launches.
     private(set) var moving: [Int: Double] = [:]
-    private(set) var blockedID: Int?
+    /// Arrows tapped while their path was blocked. They stay red for the rest
+    /// of the level, and tapping one again costs nothing.
+    private(set) var missed: Set<Int> = []
     private(set) var mistakes = 0
     static let maxLives = 3
     /// How long a launched arrow is kept for the view to fly it off screen.
@@ -24,7 +26,14 @@ final class ArrowEscapePuzzleEngine: GameEngine {
     private(set) var active = true
     @ObservationIgnored private var occupancy: [EscapeCell: Int] = [:]
 
-    init() { resetBoard() }
+    /// The level to open on next time, so leaving never loses progress.
+    static let levelKey = "arrowEscapeLevel"
+
+    init() {
+        levelIndex = max(0, min(ArrowEscapePuzzle.levelCount - 1, UserDefaults.standard.integer(forKey: Self.levelKey)))
+        puzzle = ArrowEscapePuzzle.make(level: levelIndex)
+        resetBoard()
+    }
     var hasNextLevel: Bool { levelIndex + 1 < ArrowEscapePuzzle.levelCount }
     /// Arrows not yet launched.
     var onBoardCount: Int { remaining.count - moving.count }
@@ -33,6 +42,7 @@ final class ArrowEscapePuzzleEngine: GameEngine {
     func selectLevel(_ index: Int) {
         guard (0..<ArrowEscapePuzzle.levelCount).contains(index), index != levelIndex else { return }
         levelIndex = index
+        UserDefaults.standard.set(index, forKey: Self.levelKey)
         puzzle = ArrowEscapePuzzle.make(level: index)
         resetBoard()
     }
@@ -48,9 +58,10 @@ final class ArrowEscapePuzzleEngine: GameEngine {
         guard active, state == .playing, let id = occupancy[cell] else { return }
         let arrow = puzzle.arrows[id]
         if !puzzle.canRemove(arrow, occupancy: occupancy) {
-            blockedID = id
-            mistakes += 1
             Haptics.error()
+            // Already marked: the player has been told, no second life lost.
+            guard missed.insert(id).inserted else { return }
+            mistakes += 1
             if lives == 0 {
                 state = .gameOver(won: false)
             } else {
@@ -58,7 +69,6 @@ final class ArrowEscapePuzzleEngine: GameEngine {
             }
             return
         }
-        if blockedID == id { blockedID = nil }
         for cell in arrow.cells { occupancy.removeValue(forKey: cell) }
         moving[id] = 0
         score = (puzzle.arrows.count - onBoardCount) * 10
@@ -82,6 +92,7 @@ final class ArrowEscapePuzzleEngine: GameEngine {
         }
         if remaining.isEmpty {
             score += 200 + lives * 150
+            UserDefaults.standard.set(min(ArrowEscapePuzzle.levelCount - 1, levelIndex + 1), forKey: Self.levelKey)
             state = .gameOver(won: true)
         }
     }
@@ -89,7 +100,7 @@ final class ArrowEscapePuzzleEngine: GameEngine {
     private func resetBoard() {
         animationToken += 1
         moving = [:]
-        blockedID = nil
+        missed = []
         mistakes = 0
         score = 0
         state = .playing
@@ -106,13 +117,16 @@ extension ArrowEscapePuzzleEngine: ResumableGame {
         /// Arrows still on the board; ones in flight count as gone.
         let onBoard: [Int]
         let mistakes: Int
+        /// Missing in rounds saved before misses were remembered.
+        var missed: [Int]? = nil
     }
 
     func saveSession() -> Data? {
         guard state == .playing || state == .paused else { return nil }
         let onBoard = remaining.subtracting(moving.keys)
         guard onBoard.count < puzzle.arrows.count || mistakes > 0, !onBoard.isEmpty else { return nil }
-        return encodeSession(Session(levelIndex: levelIndex, onBoard: onBoard.sorted(), mistakes: mistakes))
+        return encodeSession(Session(levelIndex: levelIndex, onBoard: onBoard.sorted(), mistakes: mistakes,
+                                     missed: missed.intersection(onBoard).sorted()))
     }
 
     func restoreSession(_ data: Data) -> Bool {
@@ -127,6 +141,7 @@ extension ArrowEscapePuzzleEngine: ResumableGame {
         occupancy = Dictionary(uniqueKeysWithValues: puzzle.arrows.filter { remaining.contains($0.id) }
             .flatMap { arrow in arrow.cells.map { ($0, arrow.id) } })
         mistakes = session.mistakes
+        missed = Set(session.missed ?? []).intersection(remaining)
         score = (puzzle.arrows.count - remaining.count) * 10
         return true
     }

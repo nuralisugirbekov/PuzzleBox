@@ -7,7 +7,7 @@ struct ArrowMazeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GameContainerView(gameID: .arrowMaze, engine: engine, centersContent: true,
+        GameContainerView(gameID: .arrowMaze, engine: engine,
                           nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil) {
             VStack(spacing: 12) {
                 HStack {
@@ -28,8 +28,7 @@ struct ArrowMazeView: View {
                         .monospacedDigit().foregroundStyle(Color.yellow)
                 }.font(.subheadline.weight(.semibold))
                 ArrowMazeSurface(engine: engine, reduceMotion: reduceMotion)
-                    .aspectRatio(360.0 / 460, contentMode: .fit)
-                    .frame(maxWidth: 440, maxHeight: 460)
+                    .arenaFit(360.0 / 460, stretch: 0.3)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .overlay {
                         if !engine.started {

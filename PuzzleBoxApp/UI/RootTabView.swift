@@ -4,7 +4,7 @@ import UIKit
 // MARK: - Tabs
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case home, discover, rating, games, search
+    case home, discover, friends, games, search
 
     var id: String { rawValue }
 
@@ -12,7 +12,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .home: L10n.text("Home")
         case .discover: L10n.text("Discover")
-        case .rating: L10n.text("Rating")
+        case .friends: L10n.text("Friends")
         case .games: L10n.text("Games")
         case .search: L10n.text("Search")
         }
@@ -22,25 +22,76 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .home: "house.fill"
         case .discover: "globe"
-        case .rating: "flag.and.flag.filled.crossed"
+        case .friends: "person.2"
         case .games: "gamecontroller.fill"
         case .search: "magnifyingglass"
         }
     }
 
-    static let mainTabs: [AppTab] = [.home, .discover, .rating, .games]
+    static let mainTabs: [AppTab] = [.home, .discover, .friends, .games]
+}
+
+/// What the full-screen game cover is showing.
+enum PresentedGame: Identifiable, Hashable {
+    case solo(GameID)
+    case online(MatchRef)
+    case nearby(NearbyMatchRef)
+
+    var id: String {
+        switch self {
+        case .solo(let game): "solo-" + game.rawValue
+        case .online(let match): "online-" + match.id
+        case .nearby(let match): "nearby-" + match.id
+        }
+    }
 }
 
 /// Apple Music–style shell: four content tabs plus a detached search tab.
 /// Owns game presentation so every screen launches games the same way.
 struct RootTabView: View {
     @Environment(StatsStore.self) private var stats
+    @Environment(FriendsStore.self) private var friends
+    @Environment(NearbyStore.self) private var nearby
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppTheme.storageKey) private var theme: AppTheme = .system
     @State private var selection: AppTab = .home
-    @State private var activeGame: GameID?
+    @State private var presented: PresentedGame?
+    /// A two-player game waiting for "vs Bot" or "vs Friend", or a game
+    /// waiting for its mode to be picked.
+    @State private var choosingOpponent: GameID?
+    /// A game to open once the opponent picker has finished closing.
+    @State private var queued: PresentedGame?
+    /// A game (Minesweeper, Block Blast, 2048 or Sudoku) waiting for its difficulty to be picked.
+    @State private var choosingDifficulty: GameID?
 
     var body: some View {
         tabs
+            .overlay {
+                switch choosingDifficulty {
+                case .minesweeper:
+                    MinesweeperDifficultyAlert { difficulty in
+                        MinesweeperEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .minesweeper)
+                    } cancel: { closeDifficultyAlert() }
+                case .sudoku:
+                    SudokuDifficultyAlert { difficulty in
+                        SudokuEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .sudoku)
+                    } cancel: { closeDifficultyAlert() }
+                case .game2048:
+                    Game2048DifficultyAlert { difficulty in
+                        Game2048Engine.choose(difficulty)
+                        open(afterChoosingDifficulty: .game2048)
+                    } cancel: { closeDifficultyAlert() }
+                case .blockBlast:
+                    BlockBlastDifficultyAlert { difficulty in
+                        BlockBlastEngine.choose(difficulty)
+                        open(afterChoosingDifficulty: .blockBlast)
+                    } cancel: { closeDifficultyAlert() }
+                default:
+                    EmptyView()
+                }
+            }
             // Set on the window rather than via preferredColorScheme, which
             // doesn't reliably revert open sheets when switching back to system.
             .onChange(of: theme, initial: true) { _, theme in
@@ -49,15 +100,104 @@ struct RootTabView: View {
             .environment(\.playGame, PlayGameAction { id, source in
                 Haptics.tap()
                 AppAnalytics.selectGame(id, source: source)
-                stats.markOpened(id)
-                activeGame = id
+                if [.blockBlast, .minesweeper, .game2048, .sudoku].contains(id) {
+                    withAnimation(.easeOut(duration: 0.2)) { choosingDifficulty = id }
+                } else if id.supportsFriends || !id.modes.isEmpty {
+                    choosingOpponent = id
+                } else {
+                    stats.markOpened(id)
+                    presented = .solo(id)
+                }
             })
-            .fullScreenCover(item: $activeGame) { id in
-                GameSessionView(initialGame: id)
+            .sheet(item: $choosingOpponent, onDismiss: {
+                if let queued {
+                    self.queued = nil
+                    presented = queued
+                }
+            }) { game in
+                if game.modes.first != game {
+                    OpponentPickerView(game: game) {
+                        stats.markOpened(game)
+                        present(.solo(game))
+                    }
+                } else {
+                    GameModePickerView(game: game) { mode in
+                        if mode.supportsFriends {
+                            // Blitz can be raced against friends: its own picker takes over.
+                            choosingOpponent = mode
+                        } else {
+                            stats.markOpened(mode)
+                            present(.solo(mode))
+                        }
+                    }
+                }
+            }
+            .fullScreenCover(item: $presented, onDismiss: {
+                // Swapping one game for another dismisses too; only a closed cover ends the match.
+                guard presented == nil else { return }
+                friends.roomMatchFinished()
+                // The nearby game screen was closed: leave its room. Done here rather than
+                // when the screen disappears, which can happen without the player leaving.
+                if nearby.matchState != nil { nearby.leave() }
+            }) { item in
+                Group {
+                    switch item {
+                    case .solo(let id): GameSessionView(initialGame: id)
+                    case .online(let match): onlineGameView(for: match)
+                    case .nearby(let match): matchView(for: match.game, transport: NearbyMatchSession(store: nearby, game: match.game))
+                    }
+                }
+                .roomLobby()
+                .incomingInviteBanner()
+            }
+            .roomLobby()
+            .incomingInviteBanner()
+            .onChange(of: friends.pendingMatch) { _, match in
+                guard let match else { return }
+                friends.pendingMatch = nil
+                stats.markOpened(match.game)
+                present(.online(match))
+            }
+            .onChange(of: nearby.pendingMatch) { _, match in
+                guard let match else { return }
+                nearby.pendingMatch = nil
+                stats.markOpened(match.game)
+                present(.nearby(match))
             }
             .onChange(of: selection, initial: true) { _, tab in
                 AppAnalytics.screen(tab.rawValue)
             }
+            .task { await friends.start() }
+            .onChange(of: scenePhase) { _, phase in
+                friends.setActive(phase == .active)
+            }
+            // Keeps the stats on the player's profile current (unless they hide them).
+            .onChange(of: StatsSnapshot(stats: stats, ready: friends.status == .ready), initial: true) { _, snapshot in
+                if snapshot.ready { friends.publish(PublicStats(stats: stats)) }
+            }
+    }
+
+    private func open(afterChoosingDifficulty game: GameID) {
+        choosingDifficulty = nil
+        stats.markOpened(game)
+        presented = .solo(game)
+    }
+
+    private func closeDifficultyAlert() {
+        withAnimation(.easeOut(duration: 0.2)) { choosingDifficulty = nil }
+    }
+
+    /// Opens `game` full screen. With the opponent picker up (and the nearby
+    /// room sheet on top of it), the picker closes first: covering it while
+    /// it's still closing can make UIKit drop the cover again, which for a
+    /// nearby game used to end it for everyone.
+    private func present(_ game: PresentedGame) {
+        if choosingOpponent != nil {
+            queued = game
+            choosingOpponent = nil
+        } else {
+            presented = game
+        }
     }
 
     @ViewBuilder
@@ -76,7 +216,7 @@ struct RootTabView: View {
             .minimizeTabBarOnScroll()
         } else {
             TabView(selection: $selection) {
-                ForEach(AppTab.allCases) { tab in
+                ForEach(AppTab.mainTabs + [.search]) { tab in
                     screen(for: tab)
                         .tabItem { Label(tab.title, systemImage: tab.symbol) }
                         .tag(tab)
@@ -90,7 +230,7 @@ struct RootTabView: View {
         switch tab {
         case .home: HomeView()
         case .discover: DiscoverView()
-        case .rating: RatingView()
+        case .friends: FriendsView()
         case .games: MyGamesView { selection = .discover }
         case .search: SearchView()
         }
@@ -171,24 +311,16 @@ enum AppTheme: String, CaseIterable, Identifiable {
 // MARK: - Settings
 
 /// Gear button shown in every tab's navigation bar.
-struct SettingsToolbarButton: ToolbarContent {
+/// Gear in a glass circle that opens Settings; sits in each tab's `TabHeader`.
+struct SettingsButton: View {
     @State private var showingSettings = false
 
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "gear")
-                    // The toolbar pads this to its 44pt glass circle; the frame makes
-                    // that whole circle, not only the glyph, take the tap.
-                    .frame(width: 32, height: 32)
-                    .contentShape(.circle)
-            }
-            .accessibilityLabel(L10n.text("Settings"))
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-            }
+    var body: some View {
+        HeaderCircleButton(symbol: "gear", label: L10n.text("Settings")) {
+            showingSettings = true
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
     }
 }
@@ -292,10 +424,25 @@ private struct GameSessionView: View {
             .id(currentGame)
             .environment(\.resumeOffer, resumeOffer)
             .environment(\.playGame, PlayGameAction { id, source in
+                // Games switched to from here (e.g. a random pick) are played against the bot.
                 AppAnalytics.selectGame(id, source: source)
                 stats.markOpened(id)
                 resumeOffer.open(id)
                 currentGame = id
             })
+    }
+}
+
+/// What changes the shared stats, so they are published only when needed.
+private struct StatsSnapshot: Equatable {
+    let played: Int
+    let favorites: Int
+    let ready: Bool
+
+    @MainActor
+    init(stats: StatsStore, ready: Bool) {
+        played = stats.totalPlayed
+        favorites = stats.favoriteGames.count
+        self.ready = ready
     }
 }

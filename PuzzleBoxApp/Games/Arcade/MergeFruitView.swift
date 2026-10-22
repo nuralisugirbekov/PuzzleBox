@@ -247,7 +247,7 @@ struct MergeFruitView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        GameContainerView(gameID: .mergeFruit, engine: engine, centersContent: true) {
+        GameContainerView(gameID: .mergeFruit, engine: engine) {
             VStack(spacing: 12) {
                 HStack {
                     Text(L10n.text("Next fruit"))
@@ -272,7 +272,7 @@ struct MergeFruitView: View {
                                     .onEnded { value in engine.drop(x: value.location.x / geometry.size.width * 320) })
                         }
                 }
-                .aspectRatio(2.0 / 3, contentMode: .fit).frame(maxWidth: 400, maxHeight: 480)
+                .aspectRatio(2.0 / 3, contentMode: .fit)
                 Text(L10n.text("Drag to aim and release to drop. Quick merges build a combo, and two watermelons make a melon party!"))
                     .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
             }

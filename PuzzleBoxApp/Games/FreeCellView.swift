@@ -126,15 +126,20 @@ final class FreeCellEngine: GameEngine {
         }
     }
 
-    private func moveSelection(toCascade col: Int) -> Bool {
+    private func canMoveSelection(toCascade col: Int) -> Bool {
         if case .cascade(let c, _) = selection, c == col { return false }
         let cards = selectedCards()
         guard let first = cards.first,
               cards.count <= moveCapacity(excludingTarget: col) else { return false }
-
         if let target = cascades[col].last {
-            guard target.rank == first.rank + 1, target.isRed != first.isRed else { return false }
+            return target.rank == first.rank + 1 && target.isRed != first.isRed
         }
+        return true
+    }
+
+    private func moveSelection(toCascade col: Int) -> Bool {
+        guard canMoveSelection(toCascade: col) else { return false }
+        let cards = selectedCards()
 
         saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -185,17 +190,19 @@ final class FreeCellEngine: GameEngine {
         Haptics.tap(); SoundFX.play(.tap)
     }
 
-    private func moveSelection(toFoundation pile: Int) -> Bool {
+    private func canMoveSelection(toFoundation pile: Int) -> Bool {
         // A selected foundation card can return to play, not to another foundation.
         if case .foundation = selection { return false }
         let cards = selectedCards()
         guard cards.count == 1, let card = cards.first else { return false }
-
         if let top = foundations[pile].last {
-            guard top.suit == card.suit, card.rank == top.rank + 1 else { return false }
-        } else {
-            guard card.rank == 1 else { return false }
+            return top.suit == card.suit && card.rank == top.rank + 1
         }
+        return card.rank == 1
+    }
+
+    private func moveSelection(toFoundation pile: Int) -> Bool {
+        guard canMoveSelection(toFoundation: pile), let card = selectedCards().first else { return false }
 
         saveForUndo()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -215,6 +222,45 @@ final class FreeCellEngine: GameEngine {
     func isSelected(col: Int, index: Int) -> Bool {
         if case .cascade(let c, let i) = selection { return c == col && index >= i }
         return false
+    }
+
+    // MARK: Drag and drop
+
+    /// Picks up `source`; returns the cards that travel with it.
+    func beginDrag(_ source: Selection) -> [Card]? {
+        guard state == .playing else { return nil }
+        if case .cascade(let col, let index) = source, !isValidRun(col: col, from: index) { return nil }
+        selection = source
+        let cards = selectedCards()
+        if cards.isEmpty { selection = nil; return nil }
+        return cards
+    }
+
+    /// Whether the picked-up cards may go on `pile`.
+    func canDrop(on pile: CardPile) -> Bool {
+        switch pile {
+        case .column(let col): canMoveSelection(toCascade: col)
+        case .foundation(let index): canMoveSelection(toFoundation: index)
+        case .freeCell(let cell): freeCells[cell] == nil && selectedCards().count == 1
+        case .table: false
+        }
+    }
+
+    /// Drops the picked-up cards on `pile`; nil cancels the drag.
+    func drop(on pile: CardPile?) -> Bool {
+        var moved = false
+        switch pile {
+        case .column(let col)?: moved = moveSelection(toCascade: col)
+        case .foundation(let index)?: moved = moveSelection(toFoundation: index)
+        case .freeCell(let cell)? where freeCells[cell] == nil:
+            // An empty cell takes a single card; tapFreeCell plays it (and the
+            // safe cards after it) and clears the selection.
+            tapFreeCell(cell)
+            if selection == nil { return true }
+        default: break
+        }
+        if moved { autoPlaySafeCards() } else { selection = nil }
+        return moved
     }
 
     /// Foundation first, then a cascade with cards, then an empty cascade, then a free cell.
@@ -265,6 +311,7 @@ final class FreeCellEngine: GameEngine {
 
 struct FreeCellView: View {
     @State private var engine = FreeCellEngine()
+    @State private var drag = CardDragController()
 
     var body: some View {
         GameContainerView(gameID: .freecell, engine: engine) {
@@ -280,6 +327,7 @@ struct FreeCellView: View {
                 .overlay(alignment: .bottom) {
                     CardGameControls(canUndo: engine.canUndo, undo: engine.undo)
                 }
+                .cardTable(drag)
             }
         }
     }
@@ -292,22 +340,30 @@ struct FreeCellView: View {
                     if let card = engine.freeCells[i] {
                         CardView(card: card, width: cardWidth,
                                  highlighted: engine.selection == .freeCell(i))
+                            .cardDraggable(card, drag: drag,
+                                           begin: { engine.beginDrag(.freeCell(i)) },
+                                           canDrop: engine.canDrop, drop: engine.drop)
                     } else {
                         CardSlot(width: cardWidth)
                     }
                 }
-                .onTapGesture { engine.tapFreeCell(i) }
+                .onTapGesture { drag.tap { engine.tapFreeCell(i) } }
+                .cardDropTarget(.freeCell(i), drag: drag)
             }
             ForEach(0..<4, id: \.self) { pile in
                 Group {
                     if let top = engine.foundations[pile].last {
                         CardView(card: top, width: cardWidth,
                                  highlighted: engine.selection == .foundation(pile))
+                            .cardDraggable(top, drag: drag,
+                                           begin: { engine.beginDrag(.foundation(pile)) },
+                                           canDrop: engine.canDrop, drop: engine.drop)
                     } else {
                         CardSlot(width: cardWidth, label: "A")
                     }
                 }
-                .onTapGesture { engine.tapFoundation(pile) }
+                .onTapGesture { drag.tap { engine.tapFoundation(pile) } }
+                .cardDropTarget(.foundation(pile), drag: drag)
             }
         }
     }
@@ -326,15 +382,21 @@ struct FreeCellView: View {
                                       maxHeight: maxHeight)
         return ZStack(alignment: .top) {
             CardSlot(width: cardWidth)
-                .onTapGesture { engine.tapCascade(col, index: nil) }
+                .cardDropHighlight(.column(col), drag: drag, when: cards.isEmpty)
+                .onTapGesture { drag.tap { engine.tapCascade(col, index: nil) } }
             ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                 CardView(card: card, width: cardWidth,
                          highlighted: engine.isSelected(col: col, index: i))
+                    .cardDraggable(card, drag: drag,
+                                   begin: { engine.beginDrag(.cascade(col: col, index: i)) },
+                                   canDrop: engine.canDrop, drop: engine.drop)
+                    .cardDropHighlight(.column(col), drag: drag, when: i == cards.count - 1)
                     .offset(y: offsets[i])
-                    .onTapGesture { engine.tapCascade(col, index: i) }
+                    .onTapGesture { drag.tap { engine.tapCascade(col, index: i) } }
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .cardDropTarget(.column(col), drag: drag, highlights: false)
     }
 }
 

@@ -202,7 +202,7 @@ struct KokparView: View {
 
     var body: some View {
         GameContainerView(gameID: .kokpar, engine: engine,
-                          resultSummary: L10n.format("Goals: %d", engine.goals), centersContent: true) {
+                          resultSummary: L10n.format("Goals: %d", engine.goals)) {
             VStack(spacing: 10) {
                 hud
                 GeometryReader { geo in

@@ -26,7 +26,7 @@ struct HomeView: View {
 
     private var popular: [GameID] {
         func rank(_ id: GameID) -> Int { Self.curated.firstIndex(of: id) ?? Self.curated.count }
-        return GameID.visible.sorted {
+        return GameID.catalog.sorted {
             let lhs = stats.gamesPlayed(for: $0), rhs = stats.gamesPlayed(for: $1)
             return lhs != rhs ? lhs > rhs : rank($0) < rank($1)
         }
@@ -38,6 +38,9 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
+                    TabHeader(title: L10n.text("Home"))
+                        .padding(.bottom, -16)
+
                     section {
                         SectionTitle(title: L10n.text("Top picks for you"))
                     } content: {
@@ -80,12 +83,11 @@ struct HomeView: View {
                 .padding(.bottom)
             }
             .background(Color(.systemBackground))
-            .navigationTitle(L10n.text("Home"))
-            .toolbar { SettingsToolbarButton() }
+            .tabRoot(title: L10n.text("Home"))
             .onAppear {
                 if pickSelection.isEmpty {
                     let today = GameID.gameOfTheDay
-                    pickSelection = Array(GameID.visible.filter { $0 != today }.shuffled().prefix(4))
+                    pickSelection = Array(GameID.catalog.filter { $0 != today }.shuffled().prefix(4))
                 }
             }
         }
@@ -117,7 +119,7 @@ struct HomeView: View {
     /// Figma "Random game": a full-width row with a glass chevron.
     private var randomGameCard: some View {
         Button {
-            if let game = GameID.visible.randomElement() {
+            if let game = GameID.catalog.randomElement() {
                 playGame(game, source: "random")
             }
         } label: {

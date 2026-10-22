@@ -9,7 +9,7 @@ struct ToyView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     init(mode:ToyMode) { _engine = State(initialValue:ToyEngine(mode:mode)) }
     var body: some View {
-        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.level),centersContent:true) {
+        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.level)) {
             VStack(spacing:12) {
                 hud
                 GeometryReader { geometry in
@@ -34,7 +34,7 @@ struct ToyView: View {
                                 else { engine.gesture(from:normalized(v.startLocation,geometry.size),to:normalized(v.location,geometry.size)) }
                                 engine.endTouch(); finger = nil; dragStart = nil; blade = []
                             })
-                }.aspectRatio(320.0/460,contentMode:.fit).frame(maxWidth:380,maxHeight:460)
+                }.arenaFit(320.0/460)
 
                 if engine.mode == .drawBridge {
                     HStack {

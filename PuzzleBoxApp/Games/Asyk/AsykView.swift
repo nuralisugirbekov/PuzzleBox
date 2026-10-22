@@ -285,7 +285,6 @@ struct AsykView: View {
     var body: some View {
         GameContainerView(gameID: .asyk, engine: engine,
                           resultSummary: L10n.format("Level %d", engine.level),
-                          centersContent: true,
                           nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil) {
             VStack(spacing: 10) {
                 hud

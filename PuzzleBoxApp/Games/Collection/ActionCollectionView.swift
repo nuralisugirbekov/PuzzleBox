@@ -8,8 +8,7 @@ struct ActionCollectionView: View {
 
     var body: some View {
         GameContainerView(gameID: engine.mode.id, engine: engine,
-                          resultSummary: engine.mode == .chainReaction ? L10n.format("Level %d", engine.level) : nil,
-                          centersContent: true) {
+                          resultSummary: engine.mode == .chainReaction ? L10n.format("Level %d", engine.level) : nil) {
             VStack(spacing: 12) {
                 hud
                 GeometryReader { geometry in
@@ -39,7 +38,7 @@ struct ActionCollectionView: View {
                             }
                         })
                 }
-                .aspectRatio(320.0 / 460, contentMode: .fit).frame(maxWidth: 380, maxHeight: 460)
+                .arenaFit(320.0 / 460)
                 Text(L10n.text(engine.mode.rules)).font(.footnote).multilineTextAlignment(.center)
                     .foregroundStyle(GameTheme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -160,36 +159,8 @@ struct ActionCollectionView: View {
                 if fade < 0.3 && p.kind != 2 { circle(p.p, r + 4, .red.opacity(0.6 * (0.3 - fade) / 0.3), stroke: 2) }
             }
         case .whackMole:
-            box(CGRect(x: 0, y: 0, width: 320, height: 460), Color(red: 0.25, green: 0.5, blue: 0.22), 0)
-            for i in 0..<9 {
-                let p = ActionCollectionEngine.holeCenter(i)
-                context.fill(Path(ellipseIn: CGRect(x: p.x - 42, y: p.y + 2, width: 84, height: 34)), with: .color(Color(red: 0.25, green: 0.15, blue: 0.08)))
-                if let mole = engine.holes[i] {
-                    // Rise out of the hole, then duck back down.
-                    let t = mole.age / mole.life
-                    let rise = CGFloat(min(1, min(t, 1 - t) * 6))
-                    var m = context
-                    m.clip(to: Path(CGRect(x: p.x - 45, y: p.y - 70, width: 90, height: 90)))
-                    let c = CGPoint(x: p.x, y: p.y + 30 - rise * 34)
-                    let body: (Color, Color) = mole.kind == 1 ? (.yellow, .orange) : (Color(red: 0.7, green: 0.5, blue: 0.35), Color(red: 0.45, green: 0.3, blue: 0.18))
-                    m.fill(Path(roundedRect: CGRect(x: c.x - 26, y: c.y - 26, width: 52, height: 60), cornerRadius: 26),
-                           with: .linearGradient(Gradient(colors: [body.0, body.1]), startPoint: CGPoint(x: c.x, y: c.y - 26), endPoint: CGPoint(x: c.x, y: c.y + 30)))
-                    if mole.whacked {
-                        m.draw(Text(verbatim: "x  x").font(.system(size: 12, weight: .black)).foregroundStyle(.black), at: CGPoint(x: c.x, y: c.y - 6))
-                    } else {
-                        m.fill(Path(ellipseIn: CGRect(x: c.x - 13, y: c.y - 12, width: 7, height: 8)), with: .color(.black))
-                        m.fill(Path(ellipseIn: CGRect(x: c.x + 6, y: c.y - 12, width: 7, height: 8)), with: .color(.black))
-                    }
-                    m.fill(Path(ellipseIn: CGRect(x: c.x - 6, y: c.y - 3, width: 12, height: 8)), with: .color(.pink))
-                    if mole.kind == 2 {
-                        let bomb = CGPoint(x: c.x + 22, y: c.y + 6)
-                        m.fill(Path(ellipseIn: CGRect(x: bomb.x - 11, y: bomb.y - 11, width: 22, height: 22)), with: .color(.black))
-                        m.fill(Path(ellipseIn: CGRect(x: bomb.x + 2, y: bomb.y - 17, width: 6, height: 6)), with: .color(sin(engine.clock * 25) > 0 ? .orange : .yellow))
-                    }
-                }
-                // Front lip of the hole hides the mole's lower body.
-                context.fill(Path(ellipseIn: CGRect(x: p.x - 44, y: p.y + 20, width: 88, height: 26)), with: .color(Color(red: 0.32, green: 0.6, blue: 0.27)))
-            }
+            drawMeadow(&context)
+            for i in 0..<9 { drawHole(&context, i) }
         case .chainReaction:
             for p in engine.particles { shiny(p.p, p.radius, .white, ActionCollectionEngine.chainColor(p.kind)) }
             for p in engine.blasts {
@@ -200,6 +171,124 @@ struct ActionCollectionView: View {
             if !engine.usedTap && engine.started {
                 label(L10n.format("Destroy %d", engine.chainTarget), CGPoint(x: 160, y: 30), 16, .white.opacity(0.7))
             }
+        }
+    }
+
+    // MARK: Whack-a-Mole
+
+    private static let grassLight = Color(red: 0.36, green: 0.62, blue: 0.28)
+    private static let grassDark = Color(red: 0.22, green: 0.46, blue: 0.19)
+    private static let rim = Color(red: 0.52, green: 0.34, blue: 0.18)
+    private static let rimLight = Color(red: 0.66, green: 0.45, blue: 0.25)
+
+    /// Mown grass: a soft gradient with lighter lanes and a few tufts.
+    private func drawMeadow(_ context: inout GraphicsContext) {
+        context.fill(Path(CGRect(x: 0, y: 0, width: 320, height: 460)),
+                     with: .linearGradient(Gradient(colors: [Self.grassLight, Self.grassDark]),
+                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: 460)))
+        for lane in stride(from: 0, to: 460, by: 92) {
+            context.fill(Path(CGRect(x: 0, y: CGFloat(lane), width: 320, height: 46)), with: .color(.white.opacity(0.04)))
+        }
+        for k in 0..<14 {
+            let x = CGFloat((k * 89 + 23) % 300) + 10, y = CGFloat((k * 157 + 41) % 440) + 10
+            var tuft = Path()
+            for (dx, height) in [(-3.0, 5.0), (0.0, 7.0), (3.0, 5.0)] {
+                tuft.move(to: CGPoint(x: x, y: y)); tuft.addQuadCurve(to: CGPoint(x: x + dx * 1.6, y: y - height), control: CGPoint(x: x + dx * 0.3, y: y - height * 0.6))
+            }
+            context.stroke(tuft, with: .color(Self.grassDark.opacity(0.55)), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+        }
+    }
+
+    /// The lower half of an ellipse from its right end to its left end.
+    private func lowerHalf(_ path: inout Path, center c: CGPoint, rx: CGFloat, ry: CGFloat, reversed: Bool = false) {
+        let k: CGFloat = 0.5523 // Cubic approximation of a quarter ellipse.
+        let (from, to): (CGFloat, CGFloat) = reversed ? (-1, 1) : (1, -1)
+        path.addCurve(to: CGPoint(x: c.x, y: c.y + ry),
+                      control1: CGPoint(x: c.x + from * rx, y: c.y + ry * k), control2: CGPoint(x: c.x + from * rx * k, y: c.y + ry))
+        path.addCurve(to: CGPoint(x: c.x + to * rx, y: c.y),
+                      control1: CGPoint(x: c.x + to * rx * k, y: c.y + ry), control2: CGPoint(x: c.x + to * rx, y: c.y + ry * k))
+    }
+
+    /// A dirt mound with a hole; the mole climbs out of the hole and the
+    /// front of the mound hides its lower body.
+    private func drawHole(_ context: inout GraphicsContext, _ i: Int) {
+        let p = ActionCollectionEngine.holeCenter(i)
+        let hole = CGPoint(x: p.x, y: p.y + 18)
+        let outer = (rx: CGFloat(48), ry: CGFloat(19)), inner = (rx: CGFloat(37), ry: CGFloat(13))
+        context.fill(Path(ellipseIn: CGRect(x: hole.x - outer.rx - 3, y: hole.y - outer.ry + 6, width: outer.rx * 2 + 6, height: outer.ry * 2)),
+                     with: .color(.black.opacity(0.18)))
+        context.fill(Path(ellipseIn: CGRect(x: hole.x - outer.rx, y: hole.y - outer.ry, width: outer.rx * 2, height: outer.ry * 2)),
+                     with: .linearGradient(Gradient(colors: [Self.rimLight, Self.rim]), startPoint: CGPoint(x: 0, y: hole.y - outer.ry), endPoint: CGPoint(x: 0, y: hole.y + outer.ry)))
+        context.fill(Path(ellipseIn: CGRect(x: hole.x - inner.rx, y: hole.y - inner.ry, width: inner.rx * 2, height: inner.ry * 2)),
+                     with: .linearGradient(Gradient(colors: [Color(red: 0.08, green: 0.05, blue: 0.03), Color(red: 0.2, green: 0.12, blue: 0.06)]),
+                                           startPoint: CGPoint(x: 0, y: hole.y - inner.ry), endPoint: CGPoint(x: 0, y: hole.y + inner.ry)))
+
+        if let mole = engine.holes[i] {
+            // Rise out of the hole, then duck back down.
+            let t = mole.age / mole.life
+            let rise = CGFloat(min(1, min(t, 1 - t) * 6))
+            var clip = Path()
+            clip.move(to: CGPoint(x: hole.x - 60, y: hole.y - 120))
+            clip.addLine(to: CGPoint(x: hole.x + 60, y: hole.y - 120))
+            clip.addLine(to: CGPoint(x: hole.x + 60, y: hole.y))
+            clip.addLine(to: CGPoint(x: hole.x + inner.rx, y: hole.y))
+            lowerHalf(&clip, center: hole, rx: inner.rx, ry: inner.ry)
+            clip.addLine(to: CGPoint(x: hole.x - 60, y: hole.y))
+            clip.closeSubpath()
+            var m = context
+            m.clip(to: clip)
+            drawMole(&m, mole, at: CGPoint(x: hole.x, y: hole.y + 48 - rise * 66))
+        }
+
+        // The front of the mound, in front of the mole.
+        var lip = Path()
+        lip.move(to: CGPoint(x: hole.x + outer.rx, y: hole.y))
+        lowerHalf(&lip, center: hole, rx: outer.rx, ry: outer.ry)
+        lip.addLine(to: CGPoint(x: hole.x - inner.rx, y: hole.y))
+        lowerHalf(&lip, center: hole, rx: inner.rx, ry: inner.ry, reversed: true)
+        lip.closeSubpath()
+        context.fill(lip, with: .linearGradient(Gradient(colors: [Self.rimLight, Self.rim]),
+                                                startPoint: CGPoint(x: 0, y: hole.y), endPoint: CGPoint(x: 0, y: hole.y + outer.ry)))
+        var edge = Path()
+        edge.move(to: CGPoint(x: hole.x + inner.rx, y: hole.y))
+        lowerHalf(&edge, center: hole, rx: inner.rx, ry: inner.ry)
+        context.stroke(edge, with: .color(Color(red: 0.8, green: 0.6, blue: 0.38).opacity(0.7)), lineWidth: 2)
+    }
+
+    /// `c` is the centre of the face; the body runs down into the hole.
+    private func drawMole(_ m: inout GraphicsContext, _ mole: ActionMole, at c: CGPoint) {
+        let golden = mole.kind == 1
+        let fur: (Color, Color) = golden ? (Color(red: 1, green: 0.85, blue: 0.3), .orange)
+                                         : (Color(red: 0.62, green: 0.44, blue: 0.3), Color(red: 0.4, green: 0.26, blue: 0.16))
+        let muzzle = golden ? Color(red: 1, green: 0.95, blue: 0.7) : Color(red: 0.86, green: 0.7, blue: 0.54)
+        m.fill(Path(roundedRect: CGRect(x: c.x - 25, y: c.y - 30, width: 50, height: 80), cornerRadius: 25),
+               with: .linearGradient(Gradient(colors: [fur.0, fur.1]), startPoint: CGPoint(x: c.x, y: c.y - 30), endPoint: CGPoint(x: c.x, y: c.y + 30)))
+        m.fill(Path(ellipseIn: CGRect(x: c.x - 13, y: c.y - 3, width: 26, height: 20)), with: .color(muzzle))
+        if mole.whacked {
+            for dx in [-9.0, 9.0] {
+                var cross = Path()
+                cross.move(to: CGPoint(x: c.x + dx - 4, y: c.y - 15)); cross.addLine(to: CGPoint(x: c.x + dx + 4, y: c.y - 7))
+                cross.move(to: CGPoint(x: c.x + dx + 4, y: c.y - 15)); cross.addLine(to: CGPoint(x: c.x + dx - 4, y: c.y - 7))
+                m.stroke(cross, with: .color(.black), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            }
+        } else {
+            for dx in [-9.0, 9.0] {
+                m.fill(Path(ellipseIn: CGRect(x: c.x + dx - 5, y: c.y - 17, width: 10, height: 12)), with: .color(.white))
+                m.fill(Path(ellipseIn: CGRect(x: c.x + dx - 2.5, y: c.y - 13, width: 5.5, height: 6.5)), with: .color(.black))
+            }
+        }
+        m.fill(Path(ellipseIn: CGRect(x: c.x - 6, y: c.y - 2, width: 12, height: 8)), with: .color(Color(red: 0.95, green: 0.45, blue: 0.55)))
+        m.fill(Path(roundedRect: CGRect(x: c.x - 4, y: c.y + 7, width: 8, height: 6), cornerRadius: 1.5), with: .color(.white))
+        if golden {
+            m.draw(Text(Image(systemName: "sparkle")).font(.system(size: 12, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: c.x + 17, y: c.y - 24))
+        }
+        if mole.kind == 2 {
+            let bomb = CGPoint(x: c.x + 20, y: c.y + 12)
+            m.fill(Path(ellipseIn: CGRect(x: bomb.x - 11, y: bomb.y - 11, width: 22, height: 22)), with: .color(Color(white: 0.12)))
+            m.fill(Path(ellipseIn: CGRect(x: bomb.x - 6, y: bomb.y - 7, width: 6, height: 5)), with: .color(.white.opacity(0.35)))
+            var fuse = Path(); fuse.move(to: CGPoint(x: bomb.x + 5, y: bomb.y - 9)); fuse.addQuadCurve(to: CGPoint(x: bomb.x + 9, y: bomb.y - 17), control: CGPoint(x: bomb.x + 10, y: bomb.y - 11))
+            m.stroke(fuse, with: .color(Color(red: 0.6, green: 0.45, blue: 0.3)), lineWidth: 2)
+            m.fill(Path(ellipseIn: CGRect(x: bomb.x + 6, y: bomb.y - 20, width: 6, height: 6)), with: .color(sin(engine.clock * 25) > 0 ? .orange : .yellow))
         }
     }
 }

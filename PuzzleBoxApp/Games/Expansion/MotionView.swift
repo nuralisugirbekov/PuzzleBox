@@ -6,7 +6,7 @@ struct MotionView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     init(mode: MotionMode) { _engine = State(initialValue: MotionEngine(mode: mode)) }
     var body: some View {
-        GameContainerView(gameID: engine.mode.gameID, engine: engine, centersContent: true) {
+        GameContainerView(gameID: engine.mode.gameID, engine: engine) {
             VStack(spacing: 12) {
                 GeometryReader { geometry in
                     Canvas { context, size in
@@ -32,7 +32,7 @@ struct MotionView: View {
                         .onChanged { v in engine.touch(normalize(v.location, geometry.size)) }
                         .onEnded { _ in engine.start() })
                 }
-                .aspectRatio(320.0 / 460, contentMode: .fit).frame(maxWidth: 380, maxHeight: 460)
+                .arenaFit(320.0 / 460)
                 VStack(spacing: 4) {
                     Text(L10n.text(engine.mode.hint))
                     Text(L10n.text(engine.mode.bonusHint)).foregroundStyle(GameTheme.accent)
