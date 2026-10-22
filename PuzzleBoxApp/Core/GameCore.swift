@@ -135,6 +135,12 @@ enum GameID: String, CaseIterable, Identifiable {
     case gems
     case gemsArcade
     case gemsBlitz
+    case crossword
+    case asyk
+    case togyzkumalak
+    case altybakan
+    case kokpar
+    case baige
     var id: String { rawValue }
 
     /// Games that can be played against a friend as well as the bot.
@@ -177,9 +183,14 @@ enum GameID: String, CaseIterable, Identifiable {
         .oneLine,
         // Back after a rework.
         .findPair, .pipeConnect, .basketShot, .endlessClimb, .spaceDodge,
+        // Not shown yet.
+        .crossword,
     ]
 
     var isHidden: Bool { Self.hidden.contains(self) }
+
+    /// Every game that isn't hidden, every mode included.
+    static var visible: [GameID] { allCases.filter { !$0.isHidden } }
 
     /// How many can play one online game, the host included.
     var playerRange: ClosedRange<Int> {
@@ -448,6 +459,48 @@ enum GameID: String, CaseIterable, Identifiable {
                      tint: .cyan,
                      category: .casual,
                      difficulty: .medium)
+        case .crossword:
+            GameInfo(title: L10n.text("Crossword"),
+                     tagline: L10n.text("Fill the grid from the clues"),
+                     symbol: "character.textbox",
+                     tint: .indigo,
+                     category: .logic,
+                     difficulty: .medium)
+        case .togyzkumalak:
+            GameInfo(title: L10n.text("Togyzkumalak"),
+                     tagline: L10n.text("The Kazakh strategy game of nine pebbles"),
+                     symbol: "circle.grid.2x2.fill",
+                     tint: .brown,
+                     category: .logic,
+                     difficulty: .hard)
+        case .altybakan:
+            GameInfo(title: L10n.text("Altybakan"),
+                     tagline: L10n.text("Swing higher and ring the bells"),
+                     symbol: "bell.fill",
+                     tint: .yellow,
+                     category: .reaction,
+                     difficulty: .medium)
+        case .kokpar:
+            GameInfo(title: L10n.text("Kokpar"),
+                     tagline: L10n.text("Ride, dodge rivals, deliver the serke"),
+                     symbol: "hare.fill",
+                     tint: .green,
+                     category: .arcade,
+                     difficulty: .medium)
+        case .baige:
+            GameInfo(title: L10n.text("Baige"),
+                     tagline: L10n.text("Gallop, jump, collect, win the race"),
+                     symbol: "figure.equestrian.sports",
+                     tint: .orange,
+                     category: .arcade,
+                     difficulty: .medium)
+        case .asyk:
+            GameInfo(title: L10n.text("Asyk"),
+                     tagline: L10n.text("Knock the asyks out of the ring"),
+                     symbol: "scope",
+                     tint: .orange,
+                     category: .physics,
+                     difficulty: .medium)
         }
     }
 }
@@ -516,6 +569,12 @@ func gameView(for id: GameID) -> some View {
     case .gems: Match3View(mode: .casual)
     case .gemsArcade: Match3View(mode: .arcade)
     case .gemsBlitz: Match3View(mode: .blitz)
+    case .crossword: CrosswordView()
+    case .asyk: AsykView()
+    case .togyzkumalak: TogyzView()
+    case .altybakan: AltybakanView()
+    case .kokpar: KokparView()
+    case .baige: BaigeView()
     }
 }
 

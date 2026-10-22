@@ -7,7 +7,7 @@ struct RatingContent: View {
     @Environment(\.playGame) private var playGame
 
     private var ranked: [GameID] {
-        GameID.allCases.filter { !$0.isHidden }.sorted {
+        GameID.visible.sorted {
             let lhs = stats.highScore(for: $0), rhs = stats.highScore(for: $1)
             return lhs != rhs ? lhs > rhs : stats.gamesPlayed(for: $0) > stats.gamesPlayed(for: $1)
         }
@@ -37,7 +37,7 @@ struct RatingContent: View {
     }
 
     private var summary: some View {
-        let played = GameID.allCases.filter { stats.gamesPlayed(for: $0) > 0 }.count
+        let played = GameID.visible.filter { stats.gamesPlayed(for: $0) > 0 }.count
         return HStack(spacing: 12) {
             statTile(value: stats.totalPlayed, title: L10n.text("Games played"), symbol: "play.fill", tint: .blue)
             statTile(value: played, title: L10n.text("Games tried"), symbol: "checkmark.seal.fill", tint: .green)

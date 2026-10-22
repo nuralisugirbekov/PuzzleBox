@@ -18,6 +18,14 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         return base == "zh" ? .chinese : AppLanguage(rawValue: base)
     }
 
+    /// The first of the user's preferred system languages that the app is translated into, else English.
+    static var systemDefault: AppLanguage {
+        for identifier in Locale.preferredLanguages {
+            if let match = matching(identifier) { return match }
+        }
+        return .english
+    }
+
     var id: String { rawValue }
     var name: String {
         switch self {
@@ -37,7 +45,7 @@ enum L10n {
     static let languageKey = "appLanguage"
 
     static var language: AppLanguage {
-        AppLanguage(rawValue: UserDefaults.standard.string(forKey: languageKey) ?? "") ?? .english
+        AppLanguage(rawValue: UserDefaults.standard.string(forKey: languageKey) ?? "") ?? .systemDefault
     }
 
     static func text(_ key: String, language: AppLanguage? = nil) -> String {
