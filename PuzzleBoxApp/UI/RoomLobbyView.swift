@@ -30,7 +30,7 @@ struct RoomLobbyView: View {
 
                 Section {
                     ForEach(Array(zip(room.players, room.names)), id: \.0) { uid, name in
-                        playerRow(name: name, isHost: uid == room.host, isMe: uid == friends.uid)
+                        playerRow(uid: uid, name: name, isHost: uid == room.host, isMe: uid == friends.uid)
                     }
                     ForEach(0..<max(0, room.maxPlayers - room.players.count), id: \.self) { _ in
                         emptySeat
@@ -109,9 +109,9 @@ struct RoomLobbyView: View {
 
     private var shareText: String {
         if room.isSession || room.game == nil {
-            return L10n.format("Join my game room in PuzzleBox! Code: %@", room.code)
+            return L10n.format("Join my game room in Oina Games! Code: %@", room.code)
         }
-        return L10n.format("Join my %@ room in PuzzleBox! Code: %@", room.game?.info.title ?? "", room.code)
+        return L10n.format("Join my %@ room in Oina Games! Code: %@", room.game?.info.title ?? "", room.code)
     }
 
     // MARK: Game
@@ -162,24 +162,8 @@ struct RoomLobbyView: View {
 
     // MARK: Players
 
-    private func playerRow(name: String, isHost: Bool, isMe: Bool) -> some View {
-        HStack(spacing: 12) {
-            Text(name.first.map { String($0).uppercased() } ?? "?")
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(GameTheme.accent.gradient, in: Circle())
-            Text(isMe ? L10n.format("%@ (you)", name) : name)
-                .font(.body.weight(isMe ? .semibold : .regular))
-            Spacer()
-            if isHost {
-                Label(L10n.text("Host"), systemImage: "crown.fill")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.yellow)
-                    .accessibilityLabel(L10n.text("Host"))
-            }
-        }
-        .transition(.move(edge: .leading).combined(with: .opacity))
+    private func playerRow(uid: String, name: String, isHost: Bool, isMe: Bool) -> some View {
+        LobbyPlayerRow(id: uid, name: name, isHost: isHost, isMe: isMe)
     }
 
     private var emptySeat: some View {

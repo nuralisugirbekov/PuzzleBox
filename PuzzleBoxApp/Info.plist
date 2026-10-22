@@ -2,18 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
 	<true/>
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
 	<false/>
 	<key>GOOGLE_ANALYTICS_IDFA_COLLECTION_ENABLED</key>
 	<false/>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>PuzzleBox uses Bluetooth to connect to phones nearby so you can play together without internet.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>PuzzleBox connects to phones nearby so you can play together without internet.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_pbx-room._tcp</string>

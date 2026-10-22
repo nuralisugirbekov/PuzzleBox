@@ -63,7 +63,7 @@ struct FriendsView: View {
                             Text(me.code)
                                 .font(.body.monospaced().weight(.semibold))
                                 .textSelection(.enabled)
-                            ShareLink(item: L10n.format("Add me in PuzzleBox! My friend code: %@", me.code)) {
+                            ShareLink(item: L10n.format("Add me in Oina Games! My friend code: %@", me.code)) {
                                 Image(systemName: "square.and.arrow.up")
                             }
                             .accessibilityLabel(L10n.text("Share"))
@@ -278,7 +278,7 @@ struct AddFriendView: View {
                         HStack {
                             Text(me.code).font(.title3.monospaced().weight(.semibold))
                             Spacer()
-                            ShareLink(item: L10n.format("Add me in PuzzleBox! My friend code: %@", me.code)) {
+                            ShareLink(item: L10n.format("Add me in Oina Games! My friend code: %@", me.code)) {
                                 Label(L10n.text("Share"), systemImage: "square.and.arrow.up")
                             }
                         }

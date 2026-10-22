@@ -219,6 +219,27 @@ struct GameRoom: Identifiable, Equatable {
     var canStart: Bool { game?.playerRange.contains(players.count) ?? false }
 }
 
+/// A player this one chose not to hear from.
+struct BlockedPlayer: Identifiable, Equatable {
+    let id: String
+    let name: String
+}
+
+/// Why a player is reported; moderators read these in the `reports` collection.
+enum ReportReason: String, CaseIterable, Identifiable {
+    case name, about, harassment, other
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .name: L10n.text("Inappropriate name")
+        case .about: L10n.text("Inappropriate bio")
+        case .harassment: L10n.text("Harassment or abuse")
+        case .other: L10n.text("Something else")
+        }
+    }
+}
+
 enum FriendsError: LocalizedError {
     case notReady, codeNotFound, ownCode, alreadyFriends
     case roomNotFound, roomFull, roomStarted, notEnoughPlayers
@@ -258,6 +279,8 @@ final class FriendsStore {
     private(set) var status: Status = .idle
     private(set) var me: FriendProfile?
     private(set) var friends: [FriendProfile] = []
+    /// Players this one blocked: no invites from them, and not friends.
+    private(set) var blocked: [BlockedPlayer] = []
     /// The newest pending invite addressed to this player.
     private(set) var incomingInvite: GameInvite?
     /// The room this player is in, until its game starts.
@@ -413,6 +436,14 @@ final class FriendsStore {
                 let ids = snapshot.documents.map(\.documentID)
                 MainActor.assumeIsolated { self.syncFriendListeners(ids) }
             },
+            db.collection("users").document(uid).collection("blocked").addSnapshotListener { [weak self] snapshot, _ in
+                guard let self, let snapshot else { return }
+                let list = snapshot.documents.map { BlockedPlayer(id: $0.documentID, name: $0.data()["name"] as? String ?? "") }
+                MainActor.assumeIsolated {
+                    self.blocked = list.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    if let invite = self.incomingInvite, self.isBlocked(invite.from) { self.incomingInvite = nil }
+                }
+            },
             db.collection("invites")
                 .whereField("to", isEqualTo: uid)
                 .whereField("status", isEqualTo: GameInvite.Status.pending.rawValue)
@@ -421,7 +452,7 @@ final class FriendsStore {
                     let invites = snapshot.documents.compactMap { GameInvite(id: $0.documentID, data: $0.data()) }
                     MainActor.assumeIsolated {
                         self.incomingInvite = invites
-                            .filter { $0.isFresh && !self.dismissedInvites.contains($0.id) }
+                            .filter { $0.isFresh && !self.dismissedInvites.contains($0.id) && !self.isBlocked($0.from) }
                             .max { $0.createdAt < $1.createdAt }
                     }
                 }
@@ -539,6 +570,77 @@ final class FriendsStore {
         batch.deleteDocument(db.collection("users").document(friend.id).collection("friends").document(uid))
         batch.commit()
         AppAnalytics.log("friend_removed")
+    }
+
+    // MARK: Safety
+
+    func isBlocked(_ id: String) -> Bool { blocked.contains { $0.id == id } }
+
+    /// Blocks `id`: ends the friendship on both sides and stops their invites.
+    func block(_ id: String, name: String) {
+        guard let uid, id != uid, !isBlocked(id) else { return }
+        let batch = db.batch()
+        batch.setData(["name": name, "at": FieldValue.serverTimestamp()],
+                      forDocument: db.collection("users").document(uid).collection("blocked").document(id))
+        batch.deleteDocument(db.collection("users").document(uid).collection("friends").document(id))
+        batch.deleteDocument(db.collection("users").document(id).collection("friends").document(uid))
+        batch.commit()
+        blocked.append(BlockedPlayer(id: id, name: name))
+        friends.removeAll { $0.id == id }
+        if incomingInvite?.from == id { incomingInvite = nil }
+        AppAnalytics.log("player_blocked")
+    }
+
+    func unblock(_ id: String) {
+        guard let uid else { return }
+        db.collection("users").document(uid).collection("blocked").document(id).delete()
+        blocked.removeAll { $0.id == id }
+        AppAnalytics.log("player_unblocked")
+    }
+
+    /// Sends a report for the team to review.
+    func report(_ id: String, name: String, reason: ReportReason, context: String) {
+        guard let uid else { return }
+        db.collection("reports").document().setData([
+            "reporter": uid, "reported": id, "reportedName": name,
+            "reason": reason.rawValue, "context": context,
+            "createdAt": FieldValue.serverTimestamp()
+        ])
+        AppAnalytics.log("player_reported", parameters: ["reason": reason.rawValue])
+    }
+
+    /// Deletes the profile, friendships, blocks and invites from the servers, then the sign-in itself.
+    /// Game progress on this phone is not touched. Next time the Friends tab opens, a fresh profile is made.
+    func deleteAccount() async throws {
+        guard status == .ready, let uid else { throw FriendsError.notReady }
+        heartbeatTask?.cancel()
+        leaveRoom()
+        let user = db.collection("users").document(uid)
+        var refs: [DocumentReference] = []
+        for friend in try await user.collection("friends").getDocuments().documents {
+            refs.append(friend.reference)
+            refs.append(db.collection("users").document(friend.documentID).collection("friends").document(uid))
+        }
+        for block in try await user.collection("blocked").getDocuments().documents { refs.append(block.reference) }
+        for invite in try await db.collection("invites").whereField("from", isEqualTo: uid).getDocuments().documents {
+            refs.append(invite.reference)
+        }
+        refs.append(user)
+        // A batch holds at most 500 writes.
+        for start in stride(from: 0, to: refs.count, by: 400) {
+            let batch = db.batch()
+            refs[start..<min(start + 400, refs.count)].forEach { batch.deleteDocument($0) }
+            try await batch.commit()
+        }
+        listeners.forEach { $0.remove() }
+        listeners = []
+        friendListeners.values.forEach { $0.remove() }
+        friendListeners = [:]
+        do { try await Auth.auth().currentUser?.delete() } catch { try? Auth.auth().signOut() }
+        UserDefaults.standard.removeObject(forKey: Self.nameKey)
+        me = nil; friends = []; blocked = []; incomingInvite = nil; dismissedInvites = []; lastPublishedStats = nil
+        status = .idle
+        AppAnalytics.log("account_deleted")
     }
 
     // MARK: Rooms

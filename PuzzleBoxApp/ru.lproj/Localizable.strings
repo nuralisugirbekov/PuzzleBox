@@ -421,7 +421,7 @@
 "Try Again" = "Повторить";
 "Me" = "Я";
 "Friend code" = "Код друга";
-"Add me in PuzzleBox! My friend code: %@" = "Добавь меня в PuzzleBox! Мой код: %@";
+"Add me in Oina Games! My friend code: %@" = "Добавь меня в PuzzleBox! Мой код: %@";
 "Share" = "Поделиться";
 "No friends yet" = "Пока нет друзей";
 "Share your code or add a friend by theirs to play together." = "Поделитесь своим кодом или добавьте друга по его коду, чтобы играть вместе.";
@@ -514,7 +514,7 @@
 "Close room" = "Закрыть зал";
 "Everyone in it will be sent back." = "Всех, кто в нём, вернёт назад.";
 "Copy" = "Копировать";
-"Join my %@ room in PuzzleBox! Code: %@" = "Заходи в мой зал «%@» в PuzzleBox! Код: %@";
+"Join my %@ room in Oina Games! Code: %@" = "Заходи в мой зал «%@» в PuzzleBox! Код: %@";
 "%@ (you)" = "%@ (вы)";
 "Host" = "Создатель";
 "Free seat" = "Свободное место";
@@ -599,7 +599,7 @@
 "Pick a game to play." = "Выберите игру.";
 "%@ is for up to %d players." = "%@ — не больше %d игроков.";
 "Play %@ (%d)" = "Играть: %@ (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "Заходи в мой игровой зал в PuzzleBox! Код: %@";
+"Join my game room in Oina Games! Code: %@" = "Заходи в мой игровой зал в PuzzleBox! Код: %@";
 "invites you to a game room" = "приглашает в игровой зал";
 "Create a game room" = "Создать игровой зал";
 "Play together" = "Играть вместе";
@@ -738,3 +738,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Свайпай влево или вправо, чтобы менять полосу. Можно также нажимать на левую или правую часть поля.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Скачи как можно дальше. Перепрыгивай заборы, камни и канавы, собирай монеты и хватай золотую камчу для рывка. Столкновение отнимает жизнь, а всего их три.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Нажми — прыжок. Удерживай палец для более высокого прыжка, а нажми чуть до приземления, чтобы сразу прыгнуть снова.";
+
+// Safety: report, block, delete account
+"Report" = "Пожаловаться";
+"Report or block" = "Пожаловаться или заблокировать";
+"Block" = "Заблокировать";
+"Block %@?" = "Заблокировать «%@»?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "Игрок будет удалён из друзей и не сможет присылать вам приглашения. Разблокировать можно в профиле.";
+"Why are you reporting %@?" = "Почему вы жалуетесь на «%@»?";
+"Inappropriate name" = "Неприемлемое имя";
+"Inappropriate bio" = "Неприемлемое «о себе»";
+"Harassment or abuse" = "Оскорбления или травля";
+"Something else" = "Другое";
+"Thanks, we'll review it." = "Спасибо, мы проверим.";
+"Blocked players" = "Заблокированные игроки";
+"No blocked players" = "Нет заблокированных игроков";
+"Player" = "Игрок";
+"Safety" = "Безопасность";
+"Contact us" = "Связаться с нами";
+"Report a player from their profile or from a room's player list." = "Пожаловаться на игрока можно в его профиле или в списке игроков зала.";
+"Account" = "Аккаунт";
+"Delete account" = "Удалить аккаунт";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "Удаляет ваш профиль, друзей и онлайн-данные с наших серверов. Прогресс на этом телефоне сохранится.";
+"Delete account and data?" = "Удалить аккаунт и данные?";
+"Your profile, friends and online data are removed. This can't be undone." = "Профиль, друзья и онлайн-данные будут удалены. Это нельзя отменить.";
+"Delete" = "Удалить";
+"Account deleted." = "Аккаунт удалён.";
+"Couldn't delete the account. Check your connection and try again." = "Не удалось удалить аккаунт. Проверьте подключение и попробуйте снова.";

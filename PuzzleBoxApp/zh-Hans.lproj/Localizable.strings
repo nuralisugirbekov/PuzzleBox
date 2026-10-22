@@ -418,7 +418,7 @@
 "Try Again" = "重试";
 "Me" = "我";
 "Friend code" = "好友码";
-"Add me in PuzzleBox! My friend code: %@" = "在 PuzzleBox 加我好友！我的好友码：%@";
+"Add me in Oina Games! My friend code: %@" = "在 PuzzleBox 加我好友！我的好友码：%@";
 "Share" = "分享";
 "No friends yet" = "还没有好友";
 "Share your code or add a friend by theirs to play together." = "分享你的好友码，或输入好友的码来一起玩。";
@@ -511,7 +511,7 @@
 "Close room" = "关闭房间";
 "Everyone in it will be sent back." = "房间里的所有人都会被送回。";
 "Copy" = "复制";
-"Join my %@ room in PuzzleBox! Code: %@" = "来 PuzzleBox 加入我的%@房间！代码：%@";
+"Join my %@ room in Oina Games! Code: %@" = "来 PuzzleBox 加入我的%@房间！代码：%@";
 "%@ (you)" = "%@（你）";
 "Host" = "房主";
 "Free seat" = "空位";
@@ -596,7 +596,7 @@
 "Pick a game to play." = "请选择一款游戏。";
 "%@ is for up to %d players." = "%@ 最多 %d 名玩家。";
 "Play %@ (%d)" = "开始%@（%d）";
-"Join my game room in PuzzleBox! Code: %@" = "来 PuzzleBox 加入我的游戏房间！房间码：%@";
+"Join my game room in Oina Games! Code: %@" = "来 PuzzleBox 加入我的游戏房间！房间码：%@";
 "invites you to a game room" = "邀请你加入游戏房间";
 "Create a game room" = "创建游戏房间";
 "Play together" = "一起玩";
@@ -735,3 +735,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "左右滑动切换赛道，也可以点击场地的左侧或右侧。";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "尽可能跑得更远。越过围栏、岩石和沟渠，收集金币，拾取金鞭加速。被撞到会失去一条命，一共只有三条。";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "点击跳跃。按住手指跳得更高；落地前一刻点击可立即再跳。";
+
+// Safety: report, block, delete account
+"Report" = "举报";
+"Report or block" = "举报或屏蔽";
+"Block" = "屏蔽";
+"Block %@?" = "屏蔽 %@？";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "对方将被移出好友列表，且无法再向你发送邀请。你可以在个人资料中解除屏蔽。";
+"Why are you reporting %@?" = "你为什么要举报 %@？";
+"Inappropriate name" = "名称不当";
+"Inappropriate bio" = "简介不当";
+"Harassment or abuse" = "骚扰或辱骂";
+"Something else" = "其他";
+"Thanks, we'll review it." = "谢谢，我们会进行审核。";
+"Blocked players" = "已屏蔽的玩家";
+"No blocked players" = "没有已屏蔽的玩家";
+"Player" = "玩家";
+"Safety" = "安全";
+"Contact us" = "联系我们";
+"Report a player from their profile or from a room's player list." = "可在玩家的个人资料或房间玩家列表中举报。";
+"Account" = "账户";
+"Delete account" = "删除账户";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "从我们的服务器删除你的个人资料、好友和在线数据。本机上的进度会保留。";
+"Delete account and data?" = "删除账户和数据？";
+"Your profile, friends and online data are removed. This can't be undone." = "你的个人资料、好友和在线数据将被删除，且无法撤销。";
+"Delete" = "删除";
+"Account deleted." = "账户已删除。";
+"Couldn't delete the account. Check your connection and try again." = "无法删除账户。请检查网络连接后重试。";

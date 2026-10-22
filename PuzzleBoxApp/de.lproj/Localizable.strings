@@ -417,7 +417,7 @@
 "Try Again" = "Erneut versuchen";
 "Me" = "Ich";
 "Friend code" = "Freundescode";
-"Add me in PuzzleBox! My friend code: %@" = "Füg mich in PuzzleBox hinzu! Mein Freundescode: %@";
+"Add me in Oina Games! My friend code: %@" = "Füg mich in PuzzleBox hinzu! Mein Freundescode: %@";
 "Share" = "Teilen";
 "No friends yet" = "Noch keine Freunde";
 "Share your code or add a friend by theirs to play together." = "Teile deinen Code oder füge Freunde mit ihrem Code hinzu, um zusammen zu spielen.";
@@ -510,7 +510,7 @@
 "Close room" = "Raum schließen";
 "Everyone in it will be sent back." = "Alle darin werden zurückgeschickt.";
 "Copy" = "Kopieren";
-"Join my %@ room in PuzzleBox! Code: %@" = "Komm in meinen %@-Raum in PuzzleBox! Code: %@";
+"Join my %@ room in Oina Games! Code: %@" = "Komm in meinen %@-Raum in Oina Games! Code: %@";
 "%@ (you)" = "%@ (du)";
 "Host" = "Gastgeber";
 "Free seat" = "Freier Platz";
@@ -595,7 +595,7 @@
 "Pick a game to play." = "Wähle ein Spiel.";
 "%@ is for up to %d players." = "%@ ist für höchstens %d Spieler.";
 "Play %@ (%d)" = "%@ spielen (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "Komm in meinen Spielraum in PuzzleBox! Code: %@";
+"Join my game room in Oina Games! Code: %@" = "Komm in meinen Spielraum in Oina Games! Code: %@";
 "invites you to a game room" = "lädt dich in einen Spielraum ein";
 "Create a game room" = "Spielraum erstellen";
 "Play together" = "Zusammen spielen";
@@ -734,3 +734,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Wische nach links oder rechts, um die Spur zu wechseln. Du kannst auch auf die linke oder rechte Feldseite tippen.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Galoppiere so weit du kannst. Spring über Zäune, Felsen und Gräben, sammle Münzen und schnapp dir die goldene Peitsche für einen Geschwindigkeitsschub. Ein Treffer kostet ein Leben, und du hast nur drei.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Tippen zum Springen. Finger gedrückt halten für einen höheren Sprung; kurz vor der Landung tippen, um sofort erneut zu springen.";
+
+// Safety: report, block, delete account
+"Report" = "Melden";
+"Report or block" = "Melden oder blockieren";
+"Block" = "Blockieren";
+"Block %@?" = "%@ blockieren?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "Die Person wird aus deinen Freunden entfernt und kann dir keine Einladungen schicken. Du kannst sie in deinem Profil wieder entblocken.";
+"Why are you reporting %@?" = "Warum meldest du %@?";
+"Inappropriate name" = "Unangemessener Name";
+"Inappropriate bio" = "Unangemessene Beschreibung";
+"Harassment or abuse" = "Belästigung oder Beleidigung";
+"Something else" = "Etwas anderes";
+"Thanks, we'll review it." = "Danke, wir prüfen das.";
+"Blocked players" = "Blockierte Spieler";
+"No blocked players" = "Keine blockierten Spieler";
+"Player" = "Spieler";
+"Safety" = "Sicherheit";
+"Contact us" = "Kontakt";
+"Report a player from their profile or from a room's player list." = "Melde einen Spieler in seinem Profil oder in der Spielerliste eines Raums.";
+"Account" = "Konto";
+"Delete account" = "Konto löschen";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "Entfernt dein Profil, deine Freunde und Online-Daten von unseren Servern. Der Fortschritt auf diesem Handy bleibt erhalten.";
+"Delete account and data?" = "Konto und Daten löschen?";
+"Your profile, friends and online data are removed. This can't be undone." = "Profil, Freunde und Online-Daten werden entfernt. Das lässt sich nicht rückgängig machen.";
+"Delete" = "Löschen";
+"Account deleted." = "Konto gelöscht.";
+"Couldn't delete the account. Check your connection and try again." = "Das Konto konnte nicht gelöscht werden. Prüfe deine Verbindung und versuche es erneut.";

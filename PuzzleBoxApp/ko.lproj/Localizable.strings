@@ -417,7 +417,7 @@
 "Try Again" = "다시 시도";
 "Me" = "나";
 "Friend code" = "친구 코드";
-"Add me in PuzzleBox! My friend code: %@" = "PuzzleBox에서 나를 추가해 줘! 내 친구 코드: %@";
+"Add me in Oina Games! My friend code: %@" = "PuzzleBox에서 나를 추가해 줘! 내 친구 코드: %@";
 "Share" = "공유";
 "No friends yet" = "아직 친구가 없어요";
 "Share your code or add a friend by theirs to play together." = "내 코드를 공유하거나 친구 코드로 추가해 함께 플레이하세요.";
@@ -510,7 +510,7 @@
 "Close room" = "방 닫기";
 "Everyone in it will be sent back." = "방에 있는 모든 사람이 돌아가게 됩니다.";
 "Copy" = "복사";
-"Join my %@ room in PuzzleBox! Code: %@" = "PuzzleBox의 내 %@ 방에 들어와! 코드: %@";
+"Join my %@ room in Oina Games! Code: %@" = "PuzzleBox의 내 %@ 방에 들어와! 코드: %@";
 "%@ (you)" = "%@ (나)";
 "Host" = "방장";
 "Free seat" = "빈자리";
@@ -595,7 +595,7 @@
 "Pick a game to play." = "플레이할 게임을 고르세요.";
 "%@ is for up to %d players." = "%@ 게임은 최대 %d명까지 할 수 있습니다.";
 "Play %@ (%d)" = "%@ 시작 (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "PuzzleBox 게임 방에 들어와! 코드: %@";
+"Join my game room in Oina Games! Code: %@" = "PuzzleBox 게임 방에 들어와! 코드: %@";
 "invites you to a game room" = "님이 게임 방에 초대했습니다";
 "Create a game room" = "게임 방 만들기";
 "Play together" = "함께 플레이";
@@ -734,3 +734,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "좌우로 스와이프해 차선을 바꾸세요. 필드의 왼쪽이나 오른쪽을 탭해도 됩니다.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "최대한 멀리 달리세요. 울타리, 바위, 도랑을 넘고 코인을 모으며 황금 채찍으로 속도를 올리세요. 부딪히면 목숨을 잃고, 목숨은 세 개뿐입니다.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "탭하면 점프합니다. 손가락을 누르고 있으면 더 높이 뛰고, 착지 직전에 탭하면 바로 다시 뜁니다.";
+
+// Safety: report, block, delete account
+"Report" = "신고";
+"Report or block" = "신고 또는 차단";
+"Block" = "차단";
+"Block %@?" = "%@ 님을 차단할까요?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "친구 목록에서 삭제되며 초대를 보낼 수 없게 됩니다. 프로필에서 차단을 해제할 수 있습니다.";
+"Why are you reporting %@?" = "%@ 님을 신고하는 이유는 무엇인가요?";
+"Inappropriate name" = "부적절한 이름";
+"Inappropriate bio" = "부적절한 소개";
+"Harassment or abuse" = "괴롭힘 또는 욕설";
+"Something else" = "기타";
+"Thanks, we'll review it." = "감사합니다. 검토하겠습니다.";
+"Blocked players" = "차단한 플레이어";
+"No blocked players" = "차단한 플레이어가 없습니다";
+"Player" = "플레이어";
+"Safety" = "안전";
+"Contact us" = "문의하기";
+"Report a player from their profile or from a room's player list." = "플레이어의 프로필이나 방의 플레이어 목록에서 신고할 수 있습니다.";
+"Account" = "계정";
+"Delete account" = "계정 삭제";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "프로필, 친구, 온라인 데이터를 서버에서 삭제합니다. 이 휴대폰의 진행 상황은 유지됩니다.";
+"Delete account and data?" = "계정과 데이터를 삭제할까요?";
+"Your profile, friends and online data are removed. This can't be undone." = "프로필, 친구, 온라인 데이터가 삭제됩니다. 되돌릴 수 없습니다.";
+"Delete" = "삭제";
+"Account deleted." = "계정이 삭제되었습니다.";
+"Couldn't delete the account. Check your connection and try again." = "계정을 삭제하지 못했습니다. 연결을 확인하고 다시 시도하세요.";

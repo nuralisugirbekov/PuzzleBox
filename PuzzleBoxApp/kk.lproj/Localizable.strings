@@ -421,7 +421,7 @@
 "Try Again" = "Қайталау";
 "Me" = "Мен";
 "Friend code" = "Дос коды";
-"Add me in PuzzleBox! My friend code: %@" = "PuzzleBox-та мені қос! Менің кодым: %@";
+"Add me in Oina Games! My friend code: %@" = "Oina Games-та мені қос! Менің кодым: %@";
 "Share" = "Бөлісу";
 "No friends yet" = "Әзірге дос жоқ";
 "Share your code or add a friend by theirs to play together." = "Бірге ойнау үшін кодыңызбен бөлісіңіз немесе досыңызды оның коды арқылы қосыңыз.";
@@ -514,7 +514,7 @@
 "Close room" = "Залды жабу";
 "Everyone in it will be sent back." = "Ондағылардың бәрі кері қайтарылады.";
 "Copy" = "Көшіру";
-"Join my %@ room in PuzzleBox! Code: %@" = "PuzzleBox-тағы «%@» залыма кір! Код: %@";
+"Join my %@ room in Oina Games! Code: %@" = "Oina Games-тағы «%@» залыма кір! Код: %@";
 "%@ (you)" = "%@ (сіз)";
 "Host" = "Зал иесі";
 "Free seat" = "Бос орын";
@@ -599,7 +599,7 @@
 "Pick a game to play." = "Ойынды таңдаңыз.";
 "%@ is for up to %d players." = "%@ — ең көбі %d ойыншы.";
 "Play %@ (%d)" = "Ойнау: %@ (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "PuzzleBox-тағы ойын залыма кел! Код: %@";
+"Join my game room in Oina Games! Code: %@" = "Oina Games-тағы ойын залыма кел! Код: %@";
 "invites you to a game room" = "ойын залына шақырады";
 "Create a game room" = "Ойын залын ашу";
 "Play together" = "Бірге ойнау";
@@ -738,3 +738,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Жолақты ауыстыру үшін солға немесе оңға сырғыт. Алаңның сол немесе оң жағын басуға да болады.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Мүмкіндігінше алысқа шап. Қоршау, тас, орлардан секір, тиын жина, жылдамдау үшін алтын қамшыны ал. Соғылсаң бір өмір кетеді, барлығы үшеу.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Секіру үшін бас. Биіктеу секіру үшін саусағыңды ұстап тұр, қонар алдында басып, бірден қайта секір.";
+
+// Safety: report, block, delete account
+"Report" = "Шағымдану";
+"Report or block" = "Шағымдану немесе бұғаттау";
+"Block" = "Бұғаттау";
+"Block %@?" = "«%@» бұғатталсын ба?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "Ойыншы достарыңыздан жойылады және сізге шақыру жібере алмайды. Профильде бұғаттан шығаруға болады.";
+"Why are you reporting %@?" = "«%@» туралы неге шағымданасыз?";
+"Inappropriate name" = "Орынсыз есім";
+"Inappropriate bio" = "Орынсыз «өзім туралы»";
+"Harassment or abuse" = "Қорлау немесе қысым көрсету";
+"Something else" = "Басқа";
+"Thanks, we'll review it." = "Рахмет, біз тексереміз.";
+"Blocked players" = "Бұғатталған ойыншылар";
+"No blocked players" = "Бұғатталған ойыншылар жоқ";
+"Player" = "Ойыншы";
+"Safety" = "Қауіпсіздік";
+"Contact us" = "Бізбен байланысу";
+"Report a player from their profile or from a room's player list." = "Ойыншы туралы оның профилінде немесе залдың ойыншылар тізімінде шағымдануға болады.";
+"Account" = "Тіркелгі";
+"Delete account" = "Тіркелгіні жою";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "Профиліңізді, достарыңызды және онлайн-деректерді біздің серверлерден жояды. Осы телефондағы ілгерілеу сақталады.";
+"Delete account and data?" = "Тіркелгі мен деректер жойылсын ба?";
+"Your profile, friends and online data are removed. This can't be undone." = "Профиль, достар және онлайн-деректер жойылады. Мұны қайтару мүмкін емес.";
+"Delete" = "Жою";
+"Account deleted." = "Тіркелгі жойылды.";
+"Couldn't delete the account. Check your connection and try again." = "Тіркелгіні жою мүмкін болмады. Байланысты тексеріп, қайталап көріңіз.";

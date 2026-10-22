@@ -8,6 +8,9 @@ struct MyProfileView: View {
     @Environment(FriendsStore.self) private var friends
     @Environment(StatsStore.self) private var stats
     @State private var editing = false
+    @State private var confirmingDelete = false
+    @State private var deleting = false
+    @State private var deleteResult: String?
 
     var body: some View {
         List {
@@ -31,7 +34,7 @@ struct MyProfileView: View {
                             Image(systemName: "doc.on.doc")
                         }
                         .accessibilityLabel(L10n.text("Copy"))
-                        ShareLink(item: L10n.format("Add me in PuzzleBox! My friend code: %@", me.code)) {
+                        ShareLink(item: L10n.format("Add me in Oina Games! My friend code: %@", me.code)) {
                             Image(systemName: "square.and.arrow.up")
                         }
                         .accessibilityLabel(L10n.text("Share"))
@@ -55,6 +58,35 @@ struct MyProfileView: View {
                 PrivacySection(privacy: me.privacy) { privacy in
                     friends.setPrivacy(privacy, stats: PublicStats(stats: stats))
                 }
+
+                Section {
+                    NavigationLink {
+                        BlockedPlayersView()
+                    } label: {
+                        Label(L10n.text("Blocked players"), systemImage: "hand.raised")
+                            .badge(friends.blocked.count)
+                    }
+                    Link(destination: URL(string: "mailto:taimanovb@gmail.com")!) {
+                        Label(L10n.text("Contact us"), systemImage: "envelope")
+                    }
+                } header: {
+                    Text(L10n.text("Safety"))
+                } footer: {
+                    Text(L10n.text("Report a player from their profile or from a room's player list."))
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        confirmingDelete = true
+                    } label: {
+                        if deleting { ProgressView() } else { Label(L10n.text("Delete account"), systemImage: "trash") }
+                    }
+                    .disabled(deleting)
+                } header: {
+                    Text(L10n.text("Account"))
+                } footer: {
+                    Text(L10n.text("Removes your profile, friends and online data from our servers. Progress on this phone stays."))
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -66,6 +98,26 @@ struct MyProfileView: View {
             }
         }
         .sheet(isPresented: $editing) { EditProfileView() }
+        .alert(L10n.text("Delete account and data?"), isPresented: $confirmingDelete) {
+            Button(L10n.text("Delete"), role: .destructive) {
+                deleting = true
+                Task {
+                    do {
+                        try await friends.deleteAccount()
+                        deleteResult = L10n.text("Account deleted.")
+                    } catch {
+                        deleteResult = L10n.text("Couldn't delete the account. Check your connection and try again.")
+                    }
+                    deleting = false
+                }
+            }
+            Button(L10n.text("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L10n.text("Your profile, friends and online data are removed. This can't be undone."))
+        }
+        .alert(deleteResult ?? "", isPresented: Binding(get: { deleteResult != nil }, set: { if !$0 { deleteResult = nil } })) {
+            Button(L10n.text("OK"), role: .cancel) {}
+        }
         .onAppear { AppAnalytics.screen("profile") }
     }
 }
@@ -323,6 +375,8 @@ struct FriendProfileView: View {
     @State private var theirFriends: [FriendProfile]?
     @State private var loadFailed = false
     @State private var confirmingRemove = false
+    @State private var reporting = false
+    @State private var blocking = false
 
     private var friend: FriendProfile? { friends.friends.first { $0.id == friendID } }
 
@@ -380,6 +434,8 @@ struct FriendProfileView: View {
 
                 Section {
                     Button(L10n.text("Remove friend"), role: .destructive) { confirmingRemove = true }
+                    Button(L10n.text("Report"), systemImage: "exclamationmark.bubble") { reporting = true }
+                    Button(L10n.text("Block"), systemImage: "hand.raised", role: .destructive) { blocking = true }
                 }
             } else {
                 ContentUnavailableView(L10n.text("Not friends any more"), systemImage: "person.crop.circle.badge.xmark")
@@ -396,6 +452,8 @@ struct FriendProfileView: View {
             }
             Button(L10n.text("Cancel"), role: .cancel) {}
         }
+        .playerSafety(id: friendID, name: friend?.name ?? "", context: "profile", reporting: $reporting,
+                      blocking: $blocking) { dismiss() }
         .onAppear { AppAnalytics.screen("friend_profile") }
     }
 

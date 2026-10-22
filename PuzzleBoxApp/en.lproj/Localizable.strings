@@ -421,7 +421,7 @@
 "Try Again" = "Try Again";
 "Me" = "Me";
 "Friend code" = "Friend code";
-"Add me in PuzzleBox! My friend code: %@" = "Add me in PuzzleBox! My friend code: %@";
+"Add me in Oina Games! My friend code: %@" = "Add me in Oina Games! My friend code: %@";
 "Share" = "Share";
 "No friends yet" = "No friends yet";
 "Share your code or add a friend by theirs to play together." = "Share your code or add a friend by theirs to play together.";
@@ -514,7 +514,7 @@
 "Close room" = "Close room";
 "Everyone in it will be sent back." = "Everyone in it will be sent back.";
 "Copy" = "Copy";
-"Join my %@ room in PuzzleBox! Code: %@" = "Join my %@ room in PuzzleBox! Code: %@";
+"Join my %@ room in Oina Games! Code: %@" = "Join my %@ room in Oina Games! Code: %@";
 "%@ (you)" = "%@ (you)";
 "Host" = "Host";
 "Free seat" = "Free seat";
@@ -599,7 +599,7 @@
 "Pick a game to play." = "Pick a game to play.";
 "%@ is for up to %d players." = "%@ is for up to %d players.";
 "Play %@ (%d)" = "Play %@ (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "Join my game room in PuzzleBox! Code: %@";
+"Join my game room in Oina Games! Code: %@" = "Join my game room in Oina Games! Code: %@";
 "invites you to a game room" = "invites you to a game room";
 "Create a game room" = "Create a game room";
 "Play together" = "Play together";
@@ -738,3 +738,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Swipe left or right to change lanes. You can also tap the left or right side of the field.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once.";
+
+// Safety: report, block, delete account
+"Report" = "Report";
+"Report or block" = "Report or block";
+"Block" = "Block";
+"Block %@?" = "Block %@?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "They are removed from your friends and can't send you invites. You can unblock them in your profile.";
+"Why are you reporting %@?" = "Why are you reporting %@?";
+"Inappropriate name" = "Inappropriate name";
+"Inappropriate bio" = "Inappropriate bio";
+"Harassment or abuse" = "Harassment or abuse";
+"Something else" = "Something else";
+"Thanks, we'll review it." = "Thanks, we'll review it.";
+"Blocked players" = "Blocked players";
+"No blocked players" = "No blocked players";
+"Player" = "Player";
+"Safety" = "Safety";
+"Contact us" = "Contact us";
+"Report a player from their profile or from a room's player list." = "Report a player from their profile or from a room's player list.";
+"Account" = "Account";
+"Delete account" = "Delete account";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "Removes your profile, friends and online data from our servers. Progress on this phone stays.";
+"Delete account and data?" = "Delete account and data?";
+"Your profile, friends and online data are removed. This can't be undone." = "Your profile, friends and online data are removed. This can't be undone.";
+"Delete" = "Delete";
+"Account deleted." = "Account deleted.";
+"Couldn't delete the account. Check your connection and try again." = "Couldn't delete the account. Check your connection and try again.";

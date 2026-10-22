@@ -17,7 +17,16 @@ service cloud.firestore {
         allow read: if request.auth.uid == uid
           || (signedIn() && get(/databases/$(database)/documents/users/$(uid)).data
                 .get('privacy', {}).get('showFriends', false) == true);
-        allow write: if request.auth.uid == uid || request.auth.uid == friendId;
+        // Either friend may end a friendship. Only a player who isn't blocked may start one.
+        allow delete: if request.auth.uid == uid || request.auth.uid == friendId;
+        allow create, update: if request.auth.uid == uid
+          || (request.auth.uid == friendId
+              && !exists(/databases/$(database)/documents/users/$(uid)/blocked/$(request.auth.uid)));
+      }
+
+      // Players this one blocked. Only the owner sees or changes the list.
+      match /blocked/{blockedId} {
+        allow read, write: if request.auth.uid == uid;
       }
     }
 
@@ -36,10 +45,21 @@ service cloud.firestore {
     match /invites/{inviteId} {
       allow read, update: if signedIn()
         && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      // Anyone in an invite may delete it, e.g. when the sender deletes their account.
+      allow delete: if signedIn()
+        && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
       // Players who turned invites off get none.
       allow create: if signedIn() && request.resource.data.from == request.auth.uid
         && get(/databases/$(database)/documents/users/$(request.resource.data.to)).data
-             .get('privacy', {}).get('allowInvites', true) != false;
+             .get('privacy', {}).get('allowInvites', true) != false
+        // A blocked player can't invite the player who blocked them.
+        && !exists(/databases/$(database)/documents/users/$(request.resource.data.to)/blocked/$(request.auth.uid));
+    }
+
+    // Reports of players. Anyone may file one; nobody can read them in the app.
+    // The team reads them in Firebase Console.
+    match /reports/{reportId} {
+      allow create: if signedIn() && request.resource.data.reporter == request.auth.uid;
     }
 
     match /matches/{matchId} {

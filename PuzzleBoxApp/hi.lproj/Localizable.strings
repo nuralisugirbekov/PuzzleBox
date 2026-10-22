@@ -417,7 +417,7 @@
 "Try Again" = "फिर से कोशिश करें";
 "Me" = "मैं";
 "Friend code" = "मित्र कोड";
-"Add me in PuzzleBox! My friend code: %@" = "PuzzleBox में मुझे जोड़ें! मेरा मित्र कोड: %@";
+"Add me in Oina Games! My friend code: %@" = "PuzzleBox में मुझे जोड़ें! मेरा मित्र कोड: %@";
 "Share" = "साझा करें";
 "No friends yet" = "अभी कोई मित्र नहीं";
 "Share your code or add a friend by theirs to play together." = "साथ खेलने के लिए अपना कोड साझा करें या मित्र के कोड से उसे जोड़ें।";
@@ -510,7 +510,7 @@
 "Close room" = "रूम बंद करें";
 "Everyone in it will be sent back." = "इसमें मौजूद सभी लोग वापस भेज दिए जाएँगे।";
 "Copy" = "कॉपी करें";
-"Join my %@ room in PuzzleBox! Code: %@" = "PuzzleBox में मेरे %@ रूम में आओ! कोड: %@";
+"Join my %@ room in Oina Games! Code: %@" = "PuzzleBox में मेरे %@ रूम में आओ! कोड: %@";
 "%@ (you)" = "%@ (आप)";
 "Host" = "होस्ट";
 "Free seat" = "खाली सीट";
@@ -595,7 +595,7 @@
 "Pick a game to play." = "खेलने के लिए गेम चुनें।";
 "%@ is for up to %d players." = "%@ में अधिकतम %d खिलाड़ी खेल सकते हैं।";
 "Play %@ (%d)" = "%@ खेलें (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "PuzzleBox में मेरे गेम रूम में आओ! कोड: %@";
+"Join my game room in Oina Games! Code: %@" = "PuzzleBox में मेरे गेम रूम में आओ! कोड: %@";
 "invites you to a game room" = "आपको गेम रूम में बुला रहे हैं";
 "Create a game room" = "गेम रूम बनाएँ";
 "Play together" = "साथ खेलें";
@@ -734,3 +734,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "लेन बदलने के लिए बाएँ या दाएँ स्वाइप करें। आप मैदान के बाएँ या दाएँ हिस्से पर टैप भी कर सकते हैं।";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "जितना दूर हो सके दौड़ें। बाड़, पत्थर और खाइयाँ पार करें, सिक्के जमा करें और तेज़ी के लिए सुनहरा कोड़ा उठाएँ। टक्कर से एक जान जाती है, और कुल तीन ही हैं।";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "कूदने के लिए टैप करें। ऊँचे कूदने के लिए उँगली दबाए रखें, और उतरने से ठीक पहले टैप करें ताकि तुरंत फिर कूद सकें।";
+
+// Safety: report, block, delete account
+"Report" = "रिपोर्ट करें";
+"Report or block" = "रिपोर्ट या ब्लॉक करें";
+"Block" = "ब्लॉक करें";
+"Block %@?" = "%@ को ब्लॉक करें?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "उन्हें आपके मित्रों से हटा दिया जाएगा और वे आपको आमंत्रण नहीं भेज पाएँगे। आप प्रोफ़ाइल में उन्हें अनब्लॉक कर सकते हैं।";
+"Why are you reporting %@?" = "आप %@ को रिपोर्ट क्यों कर रहे हैं?";
+"Inappropriate name" = "अनुचित नाम";
+"Inappropriate bio" = "अनुचित परिचय";
+"Harassment or abuse" = "उत्पीड़न या दुर्व्यवहार";
+"Something else" = "कुछ और";
+"Thanks, we'll review it." = "धन्यवाद, हम इसकी जाँच करेंगे।";
+"Blocked players" = "ब्लॉक किए गए खिलाड़ी";
+"No blocked players" = "कोई ब्लॉक किया गया खिलाड़ी नहीं";
+"Player" = "खिलाड़ी";
+"Safety" = "सुरक्षा";
+"Contact us" = "हमसे संपर्क करें";
+"Report a player from their profile or from a room's player list." = "किसी खिलाड़ी को उसकी प्रोफ़ाइल या रूम की खिलाड़ी सूची से रिपोर्ट करें।";
+"Account" = "खाता";
+"Delete account" = "खाता हटाएँ";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "आपकी प्रोफ़ाइल, मित्र और ऑनलाइन डेटा हमारे सर्वर से हटा देता है। इस फ़ोन की प्रगति बनी रहेगी।";
+"Delete account and data?" = "खाता और डेटा हटाएँ?";
+"Your profile, friends and online data are removed. This can't be undone." = "आपकी प्रोफ़ाइल, मित्र और ऑनलाइन डेटा हटा दिए जाएँगे। इसे वापस नहीं किया जा सकता।";
+"Delete" = "हटाएँ";
+"Account deleted." = "खाता हटा दिया गया।";
+"Couldn't delete the account. Check your connection and try again." = "खाता हटाया नहीं जा सका। अपना कनेक्शन जाँचें और फिर कोशिश करें।";

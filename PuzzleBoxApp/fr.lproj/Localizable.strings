@@ -417,7 +417,7 @@
 "Try Again" = "Réessayer";
 "Me" = "Moi";
 "Friend code" = "Code ami";
-"Add me in PuzzleBox! My friend code: %@" = "Ajoute-moi sur PuzzleBox ! Mon code ami : %@";
+"Add me in Oina Games! My friend code: %@" = "Ajoute-moi sur PuzzleBox ! Mon code ami : %@";
 "Share" = "Partager";
 "No friends yet" = "Pas encore d’amis";
 "Share your code or add a friend by theirs to play together." = "Partagez votre code ou ajoutez un ami avec le sien pour jouer ensemble.";
@@ -510,7 +510,7 @@
 "Close room" = "Fermer le salon";
 "Everyone in it will be sent back." = "Tous ceux qui s'y trouvent seront renvoyés.";
 "Copy" = "Copier";
-"Join my %@ room in PuzzleBox! Code: %@" = "Rejoins mon salon %@ dans PuzzleBox ! Code : %@";
+"Join my %@ room in Oina Games! Code: %@" = "Rejoins mon salon %@ dans PuzzleBox ! Code : %@";
 "%@ (you)" = "%@ (vous)";
 "Host" = "Hôte";
 "Free seat" = "Place libre";
@@ -595,7 +595,7 @@
 "Pick a game to play." = "Choisissez un jeu.";
 "%@ is for up to %d players." = "%@ se joue à %d joueurs maximum.";
 "Play %@ (%d)" = "Jouer à %@ (%d)";
-"Join my game room in PuzzleBox! Code: %@" = "Rejoins ma salle de jeu sur PuzzleBox ! Code : %@";
+"Join my game room in Oina Games! Code: %@" = "Rejoins ma salle de jeu sur PuzzleBox ! Code : %@";
 "invites you to a game room" = "vous invite dans une salle de jeu";
 "Create a game room" = "Créer une salle de jeu";
 "Play together" = "Jouer ensemble";
@@ -734,3 +734,30 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Balayez à gauche ou à droite pour changer de couloir. Vous pouvez aussi toucher le côté gauche ou droit du terrain.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Galopez le plus loin possible. Sautez barrières, rochers et fossés, ramassez des pièces et prenez le fouet doré pour accélérer. Un choc coûte une vie, et vous n’en avez que trois.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Touchez pour sauter. Maintenez le doigt pour un saut plus haut, et touchez juste avant l’atterrissage pour resauter aussitôt.";
+
+// Safety: report, block, delete account
+"Report" = "Signaler";
+"Report or block" = "Signaler ou bloquer";
+"Block" = "Bloquer";
+"Block %@?" = "Bloquer %@ ?";
+"They are removed from your friends and can't send you invites. You can unblock them in your profile." = "Cette personne est retirée de vos amis et ne peut plus vous envoyer d'invitations. Vous pouvez la débloquer dans votre profil.";
+"Why are you reporting %@?" = "Pourquoi signalez-vous %@ ?";
+"Inappropriate name" = "Nom inapproprié";
+"Inappropriate bio" = "Bio inappropriée";
+"Harassment or abuse" = "Harcèlement ou abus";
+"Something else" = "Autre chose";
+"Thanks, we'll review it." = "Merci, nous allons examiner cela.";
+"Blocked players" = "Joueurs bloqués";
+"No blocked players" = "Aucun joueur bloqué";
+"Player" = "Joueur";
+"Safety" = "Sécurité";
+"Contact us" = "Nous contacter";
+"Report a player from their profile or from a room's player list." = "Signalez un joueur depuis son profil ou depuis la liste des joueurs d'un salon.";
+"Account" = "Compte";
+"Delete account" = "Supprimer le compte";
+"Removes your profile, friends and online data from our servers. Progress on this phone stays." = "Supprime votre profil, vos amis et vos données en ligne de nos serveurs. La progression sur ce téléphone est conservée.";
+"Delete account and data?" = "Supprimer le compte et les données ?";
+"Your profile, friends and online data are removed. This can't be undone." = "Votre profil, vos amis et vos données en ligne seront supprimés. Cette action est irréversible.";
+"Delete" = "Supprimer";
+"Account deleted." = "Compte supprimé.";
+"Couldn't delete the account. Check your connection and try again." = "Impossible de supprimer le compte. Vérifiez votre connexion et réessayez.";
