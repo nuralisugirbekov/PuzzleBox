@@ -35,6 +35,8 @@ struct Match3View: View {
             }
         }
         .task { await engine.runClock() }
+        // A new Arcade level starts with a fresh container, which clears the "Level complete!" banner.
+        .id(engine.mode == .arcade ? engine.arcade.number : 0)
     }
 }
 
