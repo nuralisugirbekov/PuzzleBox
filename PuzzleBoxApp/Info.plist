@@ -19,6 +19,17 @@
 		<string>_pbx-room._tcp</string>
 		<string>_pbx-room._udp</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>room</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>oina</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

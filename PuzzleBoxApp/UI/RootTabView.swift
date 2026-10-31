@@ -148,10 +148,10 @@ struct RootTabView: View {
                     }
                 }
                 .roomLobby()
-                .incomingInviteBanner()
             }
             .roomLobby()
-            .incomingInviteBanner()
+            .toasts()
+            .onOpenURL(perform: openLink)
             .onChange(of: friends.pendingMatch) { _, match in
                 guard let match else { return }
                 friends.pendingMatch = nil
@@ -208,6 +208,7 @@ struct RootTabView: View {
                     Tab(tab.title, systemImage: tab.symbol, value: tab) {
                         screen(for: tab)
                     }
+                    .badge(badge(for: tab))
                 }
                 Tab(value: AppTab.search, role: .search) {
                     screen(for: .search)
@@ -219,8 +220,28 @@ struct RootTabView: View {
                 ForEach(AppTab.mainTabs + [.search]) { tab in
                     screen(for: tab)
                         .tabItem { Label(tab.title, systemImage: tab.symbol) }
+                        .badge(badge(for: tab))
                         .tag(tab)
                 }
+            }
+        }
+    }
+
+    /// Invites waiting for an answer, on the Friends tab.
+    private func badge(for tab: AppTab) -> Int {
+        tab == .friends ? friends.invites.count : 0
+    }
+
+    /// `oina://room/K7PX2Q`, shared from a lobby: joins that room.
+    private func openLink(_ url: URL) {
+        guard let code = RoomLink.code(in: url) else { return }
+        AppAnalytics.log("room_link_opened")
+        Task {
+            await friends.start()
+            do {
+                try await friends.joinRoom(code: code)
+            } catch {
+                friends.roomNotice = error.localizedDescription
             }
         }
     }
@@ -321,6 +342,7 @@ struct SettingsButton: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+                .closesWhenRoomOpens()
         }
     }
 }

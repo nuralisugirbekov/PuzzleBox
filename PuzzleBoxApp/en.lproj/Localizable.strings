@@ -738,3 +738,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Swipe left or right to change lanes. You can also tap the left or right side of the field.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once.";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "This player doesn't accept game invites.";
+"can't play right now" = "can't play right now";
+"joined the room" = "joined the room";
+"%@ closed the room." = "%@ closed the room.";
+"Not now" = "Not now";
+"Play" = "Play";
+"%d min left" = "%d min left";
+"Invites" = "Invites";
+"Invites · %d" = "Invites · %d";
+"Missed · %@" = "Missed · %@";
+"Invite back" = "Invite back";
+"With friends" = "With friends";
+"Create a room and invite friends" = "Create a room and invite friends";
+"Start right away" = "Start right away";
+"Bluetooth and Wi-Fi between phones" = "Bluetooth and Wi-Fi between phones";
+"Have a code from a friend?" = "Have a code from a friend?";
+"Pick later, in the room" = "Pick later, in the room";
+"%@ gets an invite at the top of their screen." = "%@ gets an invite at the top of their screen.";
+"Play with %@" = "Play with %@";
+"%@, host" = "%@, host";
+"Invited · %@" = "Invited · %@";
+"Didn't answer" = "Didn't answer";
+"Can't play right now" = "Can't play right now";
+"Already invited" = "Already invited";
+"Waiting…" = "Waiting…";
+"%@ hasn't picked a game yet." = "%@ hasn't picked a game yet.";
+"Or send a link" = "Or send a link";
+"Anyone with the code can join from “Join by code”." = "Anyone with the code can join from “Join by code”.";
+"Invite a friend to start." = "Invite a friend to start.";
+"Wait" = "Wait";
+"Start" = "Start";
+"Step %d of 3: %@" = "Step %d of 3: %@";

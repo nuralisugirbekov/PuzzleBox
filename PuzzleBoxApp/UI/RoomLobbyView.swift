@@ -2,8 +2,9 @@ import SwiftUI
 
 // MARK: - Lobby
 
-/// The room this player is in, until the host starts the game: the code to
-/// share, who has joined, invites for friends, and Start for the host.
+/// The room this player is in, between matches. The host is led through
+/// three steps: invite friends, wait for them, start. Everyone sees who is
+/// here, can invite their own friends and share a link with the code.
 struct RoomLobbyView: View {
     let room: GameRoom
 
@@ -15,37 +16,27 @@ struct RoomLobbyView: View {
     private var isHost: Bool { room.host == friends.uid }
     private var hostName: String { room.names.first ?? "" }
 
-    private var title: String {
-        room.isSession ? L10n.text("Game room") : room.game?.info.title ?? ""
-    }
-
     var body: some View {
         NavigationStack {
             List {
-                Section { codeCard }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-
-                if room.isSession { gameSection }
-
                 Section {
-                    ForEach(Array(zip(room.players, room.names)), id: \.0) { uid, name in
-                        playerRow(name: name, isHost: uid == room.host, isMe: uid == friends.uid)
+                    VStack(spacing: 14) {
+                        if isHost { LobbyStepBar(step: step) }
+                        seats
                     }
-                    ForEach(0..<max(0, room.maxPlayers - room.players.count), id: \.self) { _ in
-                        emptySeat
-                    }
-                } header: {
-                    Text(L10n.format("Players %d/%d", room.players.count, room.maxPlayers))
+                    .padding(.vertical, 4)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
 
+                inviteSection
+                gameSection
                 if room.game == .durak { rulesSection }
-
-                if isHost { inviteSection }
+                codeSection
             }
             .listStyle(.insetGrouped)
             .safeAreaInset(edge: .bottom) { footer }
-            .navigationTitle(title)
+            .navigationTitle(L10n.text("Game room"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -62,72 +53,210 @@ struct RoomLobbyView: View {
             }
         }
         .animation(.snappy, value: room)
+        .animation(.snappy, value: friends.sentInvites)
     }
 
-    // MARK: Code
+    // MARK: Steps
 
-    private var codeCard: some View {
-        VStack(spacing: 10) {
-            Group {
-                if let game = room.game {
-                    GamePreviewArt(gameID: game, fade: false)
-                } else {
-                    Image(systemName: "person.3.fill")
-                        .font(.title)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(GameTheme.accent.gradient)
-                }
+    private var step: LobbyStepBar.Step {
+        if room.canStart { return .start }
+        let waiting = friends.sentInvites.values.contains { $0.status == .pending && $0.isFresh(at: friends.clock) }
+        return room.players.count > 1 || waiting ? .wait : .invite
+    }
+
+    // MARK: Seats
+
+    /// Seats for the game picked, or for the room before a game is picked.
+    private var seatCount: Int {
+        min(room.maxPlayers, max(room.players.count, room.game?.playerRange.upperBound ?? room.maxPlayers))
+    }
+
+    private var seats: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ForEach(Array(zip(room.players, room.names)), id: \.0) { uid, name in
+                seat(uid: uid, name: name)
+                    .transition(.scale.combined(with: .opacity))
             }
-            .frame(width: 64, height: 64)
-            .clipShape(.rect(cornerRadius: 14))
-            Text(L10n.text("Room code"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Text(room.code)
-                .font(.system(size: 40, weight: .bold, design: .monospaced))
-                .tracking(4)
-                .textSelection(.enabled)
-            HStack(spacing: 10) {
-                Button {
-                    UIPasteboard.general.string = room.code
-                    Haptics.success()
-                } label: {
-                    Label(L10n.text("Copy"), systemImage: "doc.on.doc")
+            ForEach(0..<max(0, seatCount - room.players.count), id: \.self) { _ in
+                VStack(spacing: 4) {
+                    Circle()
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .overlay { Image(systemName: "plus").foregroundStyle(.secondary) }
+                    // Keeps the row aligned with the names under taken seats.
+                    Text(" ").font(.caption2)
                 }
-                .buttonStyle(.bordered)
-                ShareLink(item: shareText) {
-                    Label(L10n.text("Share"), systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(.bordered)
+                .frame(width: 52)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L10n.text("Free seat"))
             }
-            .buttonBorderShape(.capsule)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
     }
 
-    private var shareText: String {
-        if room.isSession || room.game == nil {
-            return L10n.format("Join my game room in PuzzleBox! Code: %@", room.code)
+    private func seat(uid: String, name: String) -> some View {
+        let isMe = uid == friends.uid
+        let profile = isMe ? friends.me : friends.friends.first { $0.id == uid }
+        return VStack(spacing: 4) {
+            Group {
+                if let profile {
+                    FriendAvatar(profile: profile, online: nil, size: 44)
+                } else {
+                    Text(name.first.map { String($0).uppercased() } ?? "?")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(GameTheme.accent.gradient, in: Circle())
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if uid == room.host {
+                    Image(systemName: "crown.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                        .offset(x: 4, y: -4)
+                }
+            }
+            Text(isMe ? L10n.text("You") : name)
+                .font(.caption2.weight(isMe ? .semibold : .regular))
+                .lineLimit(1)
         }
-        return L10n.format("Join my %@ room in PuzzleBox! Code: %@", room.game?.info.title ?? "", room.code)
+        .frame(width: 52)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(uid == room.host ? L10n.format("%@, host", name) : name)
+    }
+
+    // MARK: Invites
+
+    @ViewBuilder
+    private var inviteSection: some View {
+        Section {
+            if friends.friends.isEmpty {
+                Text(L10n.text("Add friends on the Friends tab, or share the code."))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(friends.friends) { friend in
+                inviteRow(friend)
+            }
+        } header: {
+            Text(L10n.text("Invite friends"))
+        } footer: {
+            if !friends.friends.isEmpty {
+                Text(L10n.text("Friends get an invite at the top of their screen."))
+            }
+        }
+    }
+
+    private enum InviteStatus {
+        case inRoom, invitesOff, open, waiting(GameInvite), noAnswer, declined, invitedByOther
+    }
+
+    private func status(of friend: FriendProfile) -> InviteStatus {
+        if room.players.contains(friend.id) { return .inRoom }
+        if !friend.privacy.allowInvites { return .invitesOff }
+        if let sent = friends.sentInvites[friend.id] {
+            switch sent.status {
+            case .pending: return sent.isFresh(at: friends.clock) ? .waiting(sent) : .noAnswer
+            case .declined: return .declined
+            default: return .noAnswer
+            }
+        }
+        return room.invited.contains(friend.id) ? .invitedByOther : .open
+    }
+
+    private func inviteRow(_ friend: FriendProfile) -> some View {
+        let status = status(of: friend)
+        return HStack(spacing: 12) {
+            FriendAvatar(profile: friend, online: friend.privacy.showOnline ? friend.isOnline : nil, size: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(friend.name).font(.body.weight(.medium)).lineLimit(1)
+                statusLine(status, friend: friend)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            inviteControl(status, friend: friend)
+        }
+    }
+
+    @ViewBuilder
+    private func statusLine(_ status: InviteStatus, friend: FriendProfile) -> some View {
+        switch status {
+        case .inRoom: Text(L10n.text("In the room")).foregroundStyle(.green)
+        case .waiting(let invite):
+            Text(L10n.format("Invited · %@", inviteTimeLeft(invite, now: friends.clock))).foregroundStyle(.secondary)
+        case .noAnswer: Text(L10n.text("Didn't answer")).foregroundStyle(.orange)
+        case .declined: Text(L10n.text("Can't play right now")).foregroundStyle(.orange)
+        case .invitedByOther: Text(L10n.text("Already invited")).foregroundStyle(.secondary)
+        case .invitesOff, .open:
+            Text(friend.presenceText)
+                .foregroundStyle(friend.privacy.showOnline && friend.isOnline ? .green : .secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func inviteControl(_ status: InviteStatus, friend: FriendProfile) -> some View {
+        switch status {
+        case .inRoom:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.green)
+                .accessibilityLabel(L10n.text("In the room"))
+        case .invitesOff:
+            Text(L10n.text("No invites"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .waiting:
+            Text(L10n.text("Waiting…"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(.tertiarySystemFill), in: Capsule())
+        case .open:
+            inviteButton(L10n.text("Invite"), friend: friend, prominent: true)
+        case .noAnswer, .declined, .invitedByOther:
+            inviteButton(L10n.text("Invite again"), friend: friend, prominent: false)
+        }
+    }
+
+    private func inviteButton(_ title: String, friend: FriendProfile, prominent: Bool) -> some View {
+        Button {
+            Haptics.tap()
+            friends.inviteToRoom(friend)
+        } label: {
+            Text(title).font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(prominent ? GameTheme.accent : GameTheme.accent.opacity(0.15))
+        .foregroundStyle(prominent ? Color.white : GameTheme.accent)
+        .controlSize(.small)
+        .disabled(room.isFull)
     }
 
     // MARK: Game
 
-    /// A game room's games: the host picks the next one, the rest see the pick.
+    /// The host picks the next game; the others see the pick.
+    @ViewBuilder
     private var gameSection: some View {
         Section {
-            ForEach(GameID.multiplayer) { game in
-                Button {
-                    Haptics.tap()
-                    friends.setRoomGame(game)
-                } label: {
-                    gameRow(game)
+            if isHost {
+                ForEach(GameID.multiplayer) { game in
+                    Button {
+                        Haptics.tap()
+                        friends.setRoomGame(game)
+                    } label: {
+                        gameRow(game)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(!isHost)
+            } else if let game = room.game {
+                gameRow(game)
+            } else {
+                Text(L10n.format("%@ hasn't picked a game yet.", hostName))
+                    .foregroundStyle(.secondary)
             }
         } header: {
             Text(L10n.text("Game"))
@@ -151,46 +280,15 @@ struct RoomLobbyView: View {
                     .foregroundStyle(fits || room.players.count < game.playerRange.lowerBound ? Color.secondary : Color.orange)
             }
             Spacer()
-            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                .font(.title3)
-                .foregroundStyle(selected ? GameTheme.accent : Color.secondary.opacity(isHost ? 1 : 0))
+            if isHost {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? GameTheme.accent : Color.secondary)
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    // MARK: Players
-
-    private func playerRow(name: String, isHost: Bool, isMe: Bool) -> some View {
-        HStack(spacing: 12) {
-            Text(name.first.map { String($0).uppercased() } ?? "?")
-                .font(.headline)
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(GameTheme.accent.gradient, in: Circle())
-            Text(isMe ? L10n.format("%@ (you)", name) : name)
-                .font(.body.weight(isMe ? .semibold : .regular))
-            Spacer()
-            if isHost {
-                Label(L10n.text("Host"), systemImage: "crown.fill")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.yellow)
-                    .accessibilityLabel(L10n.text("Host"))
-            }
-        }
-        .transition(.move(edge: .leading).combined(with: .opacity))
-    }
-
-    private var emptySeat: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-            Text(L10n.text("Free seat"))
-                .foregroundStyle(.secondary)
-        }
     }
 
     // MARK: Rules
@@ -217,52 +315,47 @@ struct RoomLobbyView: View {
                 })
     }
 
-    // MARK: Invites
+    // MARK: Code
 
-    @ViewBuilder
-    private var inviteSection: some View {
+    /// The fallback for anyone who isn't a friend yet: a link, or the code to type.
+    private var codeSection: some View {
         Section {
-            if friends.friends.isEmpty {
-                Text(L10n.text("Add friends on the Friends tab, or share the code."))
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(friends.friends) { friend in
-                HStack {
-                    FriendRow(profile: friend)
-                    inviteButton(for: friend)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.text("Room code"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(room.code)
+                        .font(.title2.monospaced().weight(.bold))
+                        .tracking(3)
+                        .textSelection(.enabled)
                 }
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = room.code
+                    Haptics.success()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel(L10n.text("Copy"))
+                ShareLink(item: shareText) {
+                    Label(L10n.text("Share"), systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
             }
         } header: {
-            Text(L10n.text("Invite friends"))
+            Text(L10n.text("Or send a link"))
         } footer: {
-            Text(L10n.text("Friends get an invite at the top of their screen."))
+            Text(L10n.text("Anyone with the code can join from “Join by code”."))
         }
     }
 
-    @ViewBuilder
-    private func inviteButton(for friend: FriendProfile) -> some View {
-        if room.players.contains(friend.id) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .accessibilityLabel(L10n.text("In the room"))
-        } else if !friend.privacy.allowInvites {
-            Text(L10n.text("No invites"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else {
-            let invited = room.invited.contains(friend.id)
-            Button {
-                Haptics.tap()
-                friends.inviteToRoom(friend)
-            } label: {
-                Text(L10n.text(invited ? "Invite again" : "Invite"))
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .tint(invited ? .secondary : GameTheme.accent)
-            .disabled(room.isFull)
-        }
+    private var shareText: String {
+        L10n.format("Join my game room in PuzzleBox! Code: %@", room.code) + "\n" + RoomLink.url(code: room.code).absoluteString
     }
 
     // MARK: Footer
@@ -280,7 +373,7 @@ struct RoomLobbyView: View {
                 Button(action: start) {
                     Group {
                         if starting { ProgressView().tint(.white) }
-                        else if room.isSession, let game = room.game {
+                        else if let game = room.game {
                             Text(L10n.format("Play %@ (%d)", game.info.title, room.players.count))
                         } else { Text(L10n.format("Start game (%d)", room.players.count)) }
                     }
@@ -298,7 +391,7 @@ struct RoomLobbyView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .frame(minHeight: 52)
+                .frame(maxWidth: .infinity, minHeight: 52)
             }
         }
         .padding(.horizontal)
@@ -311,8 +404,8 @@ struct RoomLobbyView: View {
         if room.players.count > game.playerRange.upperBound {
             return L10n.format("%@ is for up to %d players.", game.info.title, game.playerRange.upperBound)
         }
-        if !room.canStart { return L10n.text("Waiting for players to join…") }
-        if room.isFull { return L10n.text("Everyone's here.") }
+        if room.players.count < game.playerRange.lowerBound { return L10n.text("Invite a friend to start.") }
+        if room.isFull || room.players.count == game.playerRange.upperBound { return L10n.text("Everyone's here.") }
         return L10n.text("Wait for everyone, or start with the players already here.")
     }
 
@@ -328,6 +421,60 @@ struct RoomLobbyView: View {
             }
             starting = false
         }
+    }
+}
+
+/// Invite → Wait → Start, with the current step lit.
+struct LobbyStepBar: View {
+    enum Step: Int, CaseIterable {
+        case invite, wait, start
+
+        var title: String {
+            switch self {
+            case .invite: L10n.text("Invite")
+            case .wait: L10n.text("Wait")
+            case .start: L10n.text("Start")
+            }
+        }
+    }
+
+    let step: Step
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Step.allCases, id: \.self) { item in
+                let done = item.rawValue < step.rawValue
+                let color: Color = done ? .green : item == step ? GameTheme.accent : Color(.systemGray4)
+                VStack(alignment: .leading, spacing: 5) {
+                    Capsule().fill(color).frame(height: 4)
+                    HStack(spacing: 4) {
+                        if done { Image(systemName: "checkmark") }
+                        Text("\(item.rawValue + 1). \(item.title)")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.rawValue > step.rawValue ? Color.secondary : color)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.format("Step %d of 3: %@", step.rawValue + 1, step.title))
+    }
+}
+
+/// `oina://room/K7PX2Q`: a link that opens the app and joins the room.
+enum RoomLink {
+    static let scheme = "oina"
+
+    static func url(code: String) -> URL {
+        URL(string: "\(scheme)://room/\(code)")!
+    }
+
+    static func code(in url: URL) -> String? {
+        guard url.scheme?.lowercased() == scheme, url.host?.lowercased() == "room",
+              let code = url.pathComponents.last(where: { $0 != "/" }), code.count >= 4 else { return nil }
+        return code
     }
 }
 

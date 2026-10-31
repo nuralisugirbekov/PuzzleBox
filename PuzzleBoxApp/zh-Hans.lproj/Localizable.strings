@@ -735,3 +735,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "左右滑动切换赛道，也可以点击场地的左侧或右侧。";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "尽可能跑得更远。越过围栏、岩石和沟渠，收集金币，拾取金鞭加速。被撞到会失去一条命，一共只有三条。";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "点击跳跃。按住手指跳得更高；落地前一刻点击可立即再跳。";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "该玩家不接受游戏邀请。";
+"can't play right now" = "现在无法玩";
+"joined the room" = "加入了房间";
+"%@ closed the room." = "%@ 关闭了房间。";
+"Not now" = "稍后";
+"Play" = "开始玩";
+"%d min left" = "还剩 %d 分钟";
+"Invites" = "邀请";
+"Invites · %d" = "邀请 · %d";
+"Missed · %@" = "已错过 · %@";
+"Invite back" = "回邀";
+"With friends" = "和朋友玩";
+"Create a room and invite friends" = "创建房间并邀请朋友";
+"Start right away" = "立即开始";
+"Bluetooth and Wi-Fi between phones" = "手机之间的蓝牙和 Wi‑Fi";
+"Have a code from a friend?" = "有朋友给的代码？";
+"Pick later, in the room" = "稍后在房间里选";
+"%@ gets an invite at the top of their screen." = "%@ 会在屏幕顶部收到邀请。";
+"Play with %@" = "和 %@ 一起玩";
+"%@, host" = "%@，房主";
+"Invited · %@" = "已邀请 · %@";
+"Didn't answer" = "未回应";
+"Can't play right now" = "现在不方便";
+"Already invited" = "已邀请";
+"Waiting…" = "等待中…";
+"%@ hasn't picked a game yet." = "%@ 还没选游戏。";
+"Or send a link" = "或发送链接";
+"Anyone with the code can join from “Join by code”." = "任何有代码的人都能通过“用代码加入”进来。";
+"Invite a friend to start." = "邀请一位朋友才能开始。";
+"Wait" = "等待";
+"Start" = "开始";
+"Step %d of 3: %@" = "第 %d 步，共 3 步：%@";

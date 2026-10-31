@@ -734,3 +734,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "좌우로 스와이프해 차선을 바꾸세요. 필드의 왼쪽이나 오른쪽을 탭해도 됩니다.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "최대한 멀리 달리세요. 울타리, 바위, 도랑을 넘고 코인을 모으며 황금 채찍으로 속도를 올리세요. 부딪히면 목숨을 잃고, 목숨은 세 개뿐입니다.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "탭하면 점프합니다. 손가락을 누르고 있으면 더 높이 뛰고, 착지 직전에 탭하면 바로 다시 뜁니다.";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "이 플레이어는 게임 초대를 받지 않습니다.";
+"can't play right now" = "지금은 플레이할 수 없어요";
+"joined the room" = "방에 들어왔어요";
+"%@ closed the room." = "%@ 님이 방을 닫았습니다.";
+"Not now" = "나중에";
+"Play" = "플레이";
+"%d min left" = "%d분 남음";
+"Invites" = "초대";
+"Invites · %d" = "초대 · %d";
+"Missed · %@" = "놓침 · %@";
+"Invite back" = "다시 초대";
+"With friends" = "친구와 함께";
+"Create a room and invite friends" = "방을 만들고 친구를 초대하세요";
+"Start right away" = "바로 시작";
+"Bluetooth and Wi-Fi between phones" = "휴대폰 간 블루투스와 Wi‑Fi";
+"Have a code from a friend?" = "친구에게 받은 코드가 있나요?";
+"Pick later, in the room" = "나중에 방에서 선택";
+"%@ gets an invite at the top of their screen." = "%@ 님의 화면 상단에 초대가 표시됩니다.";
+"Play with %@" = "%@ 님과 플레이";
+"%@, host" = "%@, 방장";
+"Invited · %@" = "초대함 · %@";
+"Didn't answer" = "응답 없음";
+"Can't play right now" = "지금은 어려워요";
+"Already invited" = "이미 초대됨";
+"Waiting…" = "기다리는 중…";
+"%@ hasn't picked a game yet." = "%@ 님이 아직 게임을 고르지 않았어요.";
+"Or send a link" = "또는 링크 보내기";
+"Anyone with the code can join from “Join by code”." = "코드가 있으면 누구나 ‘코드로 참가’에서 들어올 수 있어요.";
+"Invite a friend to start." = "친구를 초대해야 시작할 수 있어요.";
+"Wait" = "대기";
+"Start" = "시작";
+"Step %d of 3: %@" = "%d/3단계: %@";

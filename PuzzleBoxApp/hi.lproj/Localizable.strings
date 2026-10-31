@@ -734,3 +734,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "लेन बदलने के लिए बाएँ या दाएँ स्वाइप करें। आप मैदान के बाएँ या दाएँ हिस्से पर टैप भी कर सकते हैं।";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "जितना दूर हो सके दौड़ें। बाड़, पत्थर और खाइयाँ पार करें, सिक्के जमा करें और तेज़ी के लिए सुनहरा कोड़ा उठाएँ। टक्कर से एक जान जाती है, और कुल तीन ही हैं।";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "कूदने के लिए टैप करें। ऊँचे कूदने के लिए उँगली दबाए रखें, और उतरने से ठीक पहले टैप करें ताकि तुरंत फिर कूद सकें।";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "यह खिलाड़ी गेम के न्योते नहीं लेता।";
+"can't play right now" = "अभी नहीं खेल सकते";
+"joined the room" = "रूम में आ गए";
+"%@ closed the room." = "%@ ने रूम बंद कर दिया।";
+"Not now" = "अभी नहीं";
+"Play" = "खेलें";
+"%d min left" = "%d मिनट बाकी";
+"Invites" = "न्योते";
+"Invites · %d" = "न्योते · %d";
+"Missed · %@" = "छूट गया · %@";
+"Invite back" = "वापस बुलाएँ";
+"With friends" = "दोस्तों के साथ";
+"Create a room and invite friends" = "रूम बनाएँ और दोस्तों को बुलाएँ";
+"Start right away" = "तुरंत शुरू करें";
+"Bluetooth and Wi-Fi between phones" = "फ़ोनों के बीच Bluetooth और Wi‑Fi";
+"Have a code from a friend?" = "दोस्त से कोड मिला है?";
+"Pick later, in the room" = "बाद में, रूम में चुनें";
+"%@ gets an invite at the top of their screen." = "%@ को स्क्रीन के ऊपर न्योता दिखेगा।";
+"Play with %@" = "%@ के साथ खेलें";
+"%@, host" = "%@, होस्ट";
+"Invited · %@" = "बुलाया · %@";
+"Didn't answer" = "जवाब नहीं दिया";
+"Can't play right now" = "अभी नहीं खेल सकते";
+"Already invited" = "पहले से बुलाया";
+"Waiting…" = "इंतज़ार…";
+"%@ hasn't picked a game yet." = "%@ ने अभी गेम नहीं चुना।";
+"Or send a link" = "या लिंक भेजें";
+"Anyone with the code can join from “Join by code”." = "कोड वाला कोई भी “कोड से जुड़ें” से आ सकता है।";
+"Invite a friend to start." = "शुरू करने के लिए किसी दोस्त को बुलाएँ।";
+"Wait" = "इंतज़ार";
+"Start" = "शुरू करें";
+"Step %d of 3: %@" = "चरण %d/3: %@";

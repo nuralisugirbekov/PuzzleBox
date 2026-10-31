@@ -738,3 +738,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Жолақты ауыстыру үшін солға немесе оңға сырғыт. Алаңның сол немесе оң жағын басуға да болады.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Мүмкіндігінше алысқа шап. Қоршау, тас, орлардан секір, тиын жина, жылдамдау үшін алтын қамшыны ал. Соғылсаң бір өмір кетеді, барлығы үшеу.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Секіру үшін бас. Биіктеу секіру үшін саусағыңды ұстап тұр, қонар алдында басып, бірден қайта секір.";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "Бұл ойыншы ойынға шақыру қабылдамайды.";
+"can't play right now" = "қазір ойнай алмайды";
+"joined the room" = "залға кірді";
+"%@ closed the room." = "%@ залды жапты.";
+"Not now" = "Қазір емес";
+"Play" = "Ойнау";
+"%d min left" = "%d мин қалды";
+"Invites" = "Шақырулар";
+"Invites · %d" = "Шақырулар · %d";
+"Missed · %@" = "Өткізіп алынды · %@";
+"Invite back" = "Жауап ретінде шақыру";
+"With friends" = "Достармен";
+"Create a room and invite friends" = "Зал ашып, достарды шақырыңыз";
+"Start right away" = "Бірден ойынға";
+"Bluetooth and Wi-Fi between phones" = "Телефондар арасында Bluetooth және Wi‑Fi";
+"Have a code from a friend?" = "Досыңыздан код бар ма?";
+"Pick later, in the room" = "Кейін, залда таңдау";
+"%@ gets an invite at the top of their screen." = "%@ шақыруды экранның жоғарғы жағынан көреді.";
+"Play with %@" = "Бірге ойнау: %@";
+"%@, host" = "%@, зал иесі";
+"Invited · %@" = "Шақырылды · %@";
+"Didn't answer" = "Жауап бермеді";
+"Can't play right now" = "Қазір ойнай алмайды";
+"Already invited" = "Шақырылған";
+"Waiting…" = "Күтудеміз…";
+"%@ hasn't picked a game yet." = "%@ әлі ойын таңдаған жоқ.";
+"Or send a link" = "Немесе сілтеме жіберіңіз";
+"Anyone with the code can join from “Join by code”." = "Кодты білетін кез келген адам «Код арқылы кіру» арқылы кіре алады.";
+"Invite a friend to start." = "Бастау үшін досыңызды шақырыңыз.";
+"Wait" = "Күту";
+"Start" = "Бастау";
+"Step %d of 3: %@" = "%d/3-қадам: %@";

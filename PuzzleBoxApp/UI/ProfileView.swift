@@ -65,7 +65,7 @@ struct MyProfileView: View {
                 Button(L10n.text("Edit")) { editing = true }
             }
         }
-        .sheet(isPresented: $editing) { EditProfileView() }
+        .sheet(isPresented: $editing) { EditProfileView().closesWhenRoomOpens() }
         .onAppear { AppAnalytics.screen("profile") }
     }
 }

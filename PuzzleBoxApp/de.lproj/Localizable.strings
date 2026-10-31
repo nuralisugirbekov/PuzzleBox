@@ -734,3 +734,37 @@
 "Swipe left or right to change lanes. You can also tap the left or right side of the field." = "Wische nach links oder rechts, um die Spur zu wechseln. Du kannst auch auf die linke oder rechte Feldseite tippen.";
 "Gallop as far as you can. Jump over fences, rocks and ditches, collect coins and grab the golden whip for a burst of speed. A hit costs a life, and three lives are all you get." = "Galoppiere so weit du kannst. Spring über Zäune, Felsen und Gräben, sammle Münzen und schnapp dir die goldene Peitsche für einen Geschwindigkeitsschub. Ein Treffer kostet ein Leben, und du hast nur drei.";
 "Tap to jump. Hold your finger down for a higher jump, and tap just before landing to jump again at once." = "Tippen zum Springen. Finger gedrückt halten für einen höheren Sprung; kurz vor der Landung tippen, um sofort erneut zu springen.";
+
+/* Friends: invites, rooms and the lobby */
+"This player doesn't accept game invites." = "Diese Person nimmt keine Spieleinladungen an.";
+"can't play right now" = "kann gerade nicht spielen";
+"joined the room" = "ist im Raum";
+"%@ closed the room." = "%@ hat den Raum geschlossen.";
+"Not now" = "Nicht jetzt";
+"Play" = "Spielen";
+"%d min left" = "noch %d Min.";
+"Invites" = "Einladungen";
+"Invites · %d" = "Einladungen · %d";
+"Missed · %@" = "Verpasst · %@";
+"Invite back" = "Zurück einladen";
+"With friends" = "Mit Freunden";
+"Create a room and invite friends" = "Raum erstellen und Freunde einladen";
+"Start right away" = "Sofort loslegen";
+"Bluetooth and Wi-Fi between phones" = "Bluetooth und WLAN zwischen Handys";
+"Have a code from a friend?" = "Code von einem Freund?";
+"Pick later, in the room" = "Später im Raum auswählen";
+"%@ gets an invite at the top of their screen." = "%@ bekommt oben auf dem Bildschirm eine Einladung.";
+"Play with %@" = "Mit %@ spielen";
+"%@, host" = "%@, Gastgeber";
+"Invited · %@" = "Eingeladen · %@";
+"Didn't answer" = "Keine Antwort";
+"Can't play right now" = "Kann gerade nicht";
+"Already invited" = "Schon eingeladen";
+"Waiting…" = "Warten…";
+"%@ hasn't picked a game yet." = "%@ hat noch kein Spiel gewählt.";
+"Or send a link" = "Oder Link senden";
+"Anyone with the code can join from “Join by code”." = "Mit dem Code kann jeder über „Mit Code beitreten“ dazukommen.";
+"Invite a friend to start." = "Lade einen Freund ein, um zu starten.";
+"Wait" = "Warten";
+"Start" = "Starten";
+"Step %d of 3: %@" = "Schritt %d von 3: %@";

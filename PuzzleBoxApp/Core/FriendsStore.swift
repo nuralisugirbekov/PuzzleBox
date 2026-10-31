@@ -129,7 +129,12 @@ struct FriendProfile: Identifiable, Equatable {
 }
 
 struct GameInvite: Identifiable, Equatable {
-    enum Status: String { case pending, accepted, declined, cancelled }
+    enum Status: String { case pending, accepted, declined, cancelled, expired }
+
+    /// How long an invite can be answered.
+    static let lifetime: TimeInterval = 600
+    /// How long an unanswered invite stays on the Friends tab as missed.
+    static let missedWindow: TimeInterval = 24 * 3600
 
     let id: String
     let from: String
@@ -142,8 +147,15 @@ struct GameInvite: Identifiable, Equatable {
     var roomID: String?
     let createdAt: Date
 
+    var expiresAt: Date { createdAt.addingTimeInterval(Self.lifetime) }
+
     /// Invites expire so a stale one doesn't pop up hours later.
-    var isFresh: Bool { Date().timeIntervalSince(createdAt) < 300 }
+    func isFresh(at now: Date = Date()) -> Bool { now < expiresAt }
+
+    /// Expired without an answer, recently enough to still show as missed.
+    func isMissed(at now: Date = Date()) -> Bool {
+        !isFresh(at: now) && now.timeIntervalSince(createdAt) < Self.missedWindow
+    }
 
     init?(id: String, data: [String: Any]) {
         guard let from = data["from"] as? String, let to = data["to"] as? String,
@@ -166,10 +178,20 @@ struct MatchRef: Identifiable, Hashable {
     let opponentName: String
 }
 
-/// A lobby for multiplayer games: the host invites friends or shares the
-/// code, and deals once enough players are in. A game room (`isSession`) is
-/// opened without a game: the host picks one in the lobby, and after each
-/// match everyone comes back to the same room for the next one.
+/// Something that happened in the room, said in a toast.
+struct RoomEvent: Identifiable, Equatable {
+    let id = UUID()
+    let name: String
+    let text: String
+    /// The player it is about, for the avatar.
+    let profile: FriendProfile?
+}
+
+/// A lobby for multiplayer games: players invite friends or share the code,
+/// and the host deals once enough players are in. Rooms are opened as game
+/// rooms (`isSession`), with or without a game picked; after each match
+/// everyone comes back to the same room for the next one. Rooms without
+/// `isSession` are from older versions and close once dealt.
 struct GameRoom: Identifiable, Equatable {
     enum Status: String { case open, started, closed }
 
@@ -223,6 +245,7 @@ enum FriendsError: LocalizedError {
     case notReady, codeNotFound, ownCode, alreadyFriends
     case roomNotFound, roomFull, roomStarted, notEnoughPlayers
     case tooManyPlayers(GameID)
+    case invitesOff
     /// Firestore refused the write: the published rules predate rooms.
     case rulesOutdated
 
@@ -238,6 +261,7 @@ enum FriendsError: LocalizedError {
         case .notEnoughPlayers: L10n.text("Wait for at least one more player.")
         case .tooManyPlayers(let game):
             L10n.format("%@ is for up to %d players.", game.info.title, game.playerRange.upperBound)
+        case .invitesOff: L10n.text("This player doesn't accept game invites.")
         case .rulesOutdated: L10n.text("The friends database isn't set up yet. Create Firestore and publish firestore.rules.")
         }
     }
@@ -258,8 +282,17 @@ final class FriendsStore {
     private(set) var status: Status = .idle
     private(set) var me: FriendProfile?
     private(set) var friends: [FriendProfile] = []
-    /// The newest pending invite addressed to this player.
-    private(set) var incomingInvite: GameInvite?
+    /// Pending invites addressed to this player, newest first: fresh ones to
+    /// answer, older ones shown as missed.
+    private(set) var pendingInvites: [GameInvite] = []
+    /// Invites put off with "Not now": they stay on the Friends tab, without the toast.
+    private(set) var snoozedInvites: Set<String> = []
+    /// Ticks while invites are out, so they expire on screen on time.
+    private(set) var clock = Date()
+    /// Invites this player sent to the room they're in, the latest per friend.
+    private(set) var sentInvites: [String: GameInvite] = [:]
+    /// A short note about the room for a toast: someone joined, or can't play now.
+    private(set) var roomEvent: RoomEvent?
     /// The room this player is in, until its game starts.
     private(set) var room: GameRoom?
     /// A message about the room for the lobby to show, e.g. that it was closed.
@@ -271,10 +304,20 @@ final class FriendsStore {
 
     var uid: String? { Auth.auth().currentUser?.uid }
 
+    /// Invites that can still be answered, newest first; not ones to the room this player is in.
+    var invites: [GameInvite] { pendingInvites.filter { $0.isFresh(at: clock) && $0.roomID != room?.id } }
+    /// Invites that expired unanswered in the last day.
+    var missedInvites: [GameInvite] { pendingInvites.filter { $0.isMissed(at: clock) } }
+    /// The invite the toast shows: the newest fresh one not put off with "Not now".
+    var toastInvite: GameInvite? { invites.first { !snoozedInvites.contains($0.id) } }
+
     @ObservationIgnored private lazy var db = Firestore.firestore()
     @ObservationIgnored private var listeners: [ListenerRegistration] = []
     @ObservationIgnored private var friendListeners: [String: ListenerRegistration] = [:]
     @ObservationIgnored private var roomListener: ListenerRegistration?
+    @ObservationIgnored private var sentInvitesListener: ListenerRegistration?
+    @ObservationIgnored private var clockTask: Task<Void, Never>?
+    @ObservationIgnored private var roomEventTask: Task<Void, Never>?
     /// The game room's latest match this player has seen, so each opens once.
     @ObservationIgnored private var seenRoomMatch: String?
     /// Said once the match on screen is over, not in the middle of it.
@@ -299,6 +342,7 @@ final class FriendsStore {
             listen(uid: user.uid)
             status = .ready
             startHeartbeat()
+            startClock()
         } catch {
             Logger(subsystem: "PuzzleBox", category: "Friends").error("Friends unavailable: \(String(describing: error), privacy: .public)")
             status = .unavailable(Self.describe(error))
@@ -363,6 +407,19 @@ final class FriendsStore {
         }
     }
 
+    /// Every 15 seconds while invites are out, so fresh ones turn into
+    /// missed ones and the host's "waiting" turns into "no answer".
+    private func startClock() {
+        clockTask?.cancel()
+        clockTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard let self else { return }
+                if !self.pendingInvites.isEmpty || !self.sentInvites.isEmpty { self.clock = Date() }
+            }
+        }
+    }
+
     private func ensureProfile(uid: String) async throws {
         let ref = db.collection("users").document(uid)
         let snapshot = try await ref.getDocument()
@@ -420,9 +477,13 @@ final class FriendsStore {
                     guard let self, let snapshot else { return }
                     let invites = snapshot.documents.compactMap { GameInvite(id: $0.documentID, data: $0.data()) }
                     MainActor.assumeIsolated {
-                        self.incomingInvite = invites
-                            .filter { $0.isFresh && !self.dismissedInvites.contains($0.id) }
-                            .max { $0.createdAt < $1.createdAt }
+                        self.clock = Date()
+                        self.pendingInvites = invites
+                            .filter { invite in
+                                !self.dismissedInvites.contains(invite.id)
+                                    && (invite.isFresh(at: self.clock) || invite.isMissed(at: self.clock))
+                            }
+                            .sorted { $0.createdAt > $1.createdAt }
                     }
                 }
         ]
@@ -553,9 +614,9 @@ final class FriendsStore {
         return error
     }
 
-    /// Opens a new room for `game` with this player as host, and enters it.
-    /// Without a game it is a game room: the host picks games in the lobby
-    /// and the room stays open between matches.
+    /// Opens a new game room with this player as host, and enters it. `game`
+    /// is picked up front; without one the host picks it in the lobby. The
+    /// room stays open between matches.
     func createRoom(for game: GameID?) async throws {
         do { try await openRoom(for: game) } catch { throw Self.roomError(error) }
     }
@@ -569,13 +630,15 @@ final class FriendsStore {
             "code": try await uniqueRoomCode(),
             "players": [uid],
             "names": [me.name],
-            "maxPlayers": (game?.playerRange ?? GameID.sessionPlayerRange).upperBound,
+            "maxPlayers": GameID.sessionPlayerRange.upperBound,
             "invited": [String](),
             "options": Self.encode(DurakOptions.saved),
             "status": GameRoom.Status.open.rawValue,
             "createdAt": FieldValue.serverTimestamp()
         ]
-        if let game { data["game"] = game.rawValue } else { data["session"] = true }
+        // Every room is a game room now; a game picked up front can still be changed.
+        data["session"] = true
+        if let game { data["game"] = game.rawValue }
         try await ref.setData(data)
         listenToRoom(ref.documentID)
         AppAnalytics.log("room_created", parameters: ["game_id": game?.rawValue ?? "session"])
@@ -632,6 +695,7 @@ final class FriendsStore {
         guard let room, let uid else { return }
         roomListener?.remove()
         roomListener = nil
+        stopSentInvites()
         self.room = nil
         seenRoomMatch = nil
         let ref = db.collection("rooms").document(room.id)
@@ -670,9 +734,10 @@ final class FriendsStore {
         AppAnalytics.log("room_game_selected", parameters: ["game_id": game.rawValue])
     }
 
-    /// Sends `friend` an invite to the current room (again, if they missed it).
+    /// Sends `friend` an invite to the current room (again, if they missed
+    /// it). Anyone in the room may invite their friends.
     func inviteToRoom(_ friend: FriendProfile) {
-        guard let room, let uid, let me, room.host == uid, friend.privacy.allowInvites else { return }
+        guard let room, let uid, let me, friend.privacy.allowInvites, !room.players.contains(friend.id) else { return }
         var invite: [String: Any] = [
             "from": uid,
             "fromName": me.name,
@@ -681,13 +746,75 @@ final class FriendsStore {
             "status": GameInvite.Status.pending.rawValue,
             "createdAt": Timestamp(date: Date())
         ]
-        // A game room's invite is to the room, whatever it plays next.
-        if !room.isSession, let game = room.game { invite["game"] = game.rawValue }
-        db.collection("invites").document().setData(invite)
+        // The game picked so far, for the invite to show; the room may change it.
+        if let game = room.game { invite["game"] = game.rawValue }
+        let ref = db.collection("invites").document()
+        ref.setData(invite)
+        sentInvites[friend.id] = GameInvite(id: ref.documentID, data: invite)
         if !room.invited.contains(friend.id) {
             db.collection("rooms").document(room.id).updateData(["invited": FieldValue.arrayUnion([friend.id])])
         }
-        AppAnalytics.log("invite_sent", parameters: ["game_id": room.game?.rawValue ?? "session"])
+        AppAnalytics.log("invite_sent", parameters: ["game_id": room.game?.rawValue ?? "session",
+                                                     "from_host": room.host == uid])
+    }
+
+    /// Plays with `friend`: invites them to the room this player is in, or
+    /// opens a new one for `game` first.
+    func play(with friend: FriendProfile, game: GameID?) async throws {
+        guard friend.privacy.allowInvites else { throw FriendsError.invitesOff }
+        if room == nil { try await createRoom(for: game) }
+        inviteToRoom(friend)
+        AppAnalytics.log("friend_play_tapped", parameters: ["game_id": game?.rawValue ?? "session"])
+    }
+
+    /// Follows this player's own invites to the room: who has answered, and how.
+    private func listenToSentInvites(room id: String) {
+        guard let uid else { return }
+        stopSentInvites()
+        sentInvitesListener = db.collection("invites")
+            .whereField("from", isEqualTo: uid)
+            .whereField("roomID", isEqualTo: id)
+            .addSnapshotListener { [weak self] snapshot, _ in
+                guard let self, let snapshot else { return }
+                let invites = snapshot.documents.compactMap { GameInvite(id: $0.documentID, data: $0.data()) }
+                MainActor.assumeIsolated { self.updateSentInvites(invites) }
+            }
+    }
+
+    private func stopSentInvites() {
+        sentInvitesListener?.remove()
+        sentInvitesListener = nil
+        sentInvites = [:]
+    }
+
+    private func updateSentInvites(_ invites: [GameInvite]) {
+        var latest: [String: GameInvite] = [:]
+        for invite in invites where invite.createdAt >= (latest[invite.to]?.createdAt ?? .distantPast) {
+            latest[invite.to] = invite
+        }
+        for (friendID, invite) in latest where invite.status == .declined {
+            if let before = sentInvites[friendID], before.id != invite.id || before.status != .declined {
+                let profile = friends.first { $0.id == friendID }
+                post(RoomEvent(name: profile?.name ?? "", text: L10n.text("can't play right now"), profile: profile))
+            }
+        }
+        // A just-sent invite isn't in the snapshot yet: keep it until it is.
+        for (friendID, invite) in sentInvites where invite.createdAt > latest[friendID]?.createdAt ?? .distantPast {
+            latest[friendID] = invite
+        }
+        sentInvites = latest
+        clock = Date()
+    }
+
+    /// Shows `event` in a toast for a few seconds.
+    private func post(_ event: RoomEvent) {
+        roomEvent = event
+        roomEventTask?.cancel()
+        roomEventTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3.5))
+            guard !Task.isCancelled else { return }
+            self?.roomEvent = nil
+        }
     }
 
     /// Host only: deals the game for everyone in the room, whoever has
@@ -730,6 +857,7 @@ final class FriendsStore {
     }
 
     private func listenToRoom(_ id: String) {
+        listenToSentInvites(room: id)
         roomListener?.remove()
         roomListener = db.collection("rooms").document(id).addSnapshotListener { [weak self] snapshot, _ in
             guard let self, let snapshot, let data = snapshot.data(),
@@ -742,9 +870,10 @@ final class FriendsStore {
         guard let uid else { return }
         switch room.status {
         case .started where room.players.contains(uid):
-            // The host dealt: everyone in the room opens the match.
+            // An older single-game room was dealt: everyone in it opens the match.
             roomListener?.remove()
             roomListener = nil
+            stopSentInvites()
             self.room = nil
             if let matchID = room.matchID, let game = room.game {
                 let others = room.names.enumerated()
@@ -754,7 +883,16 @@ final class FriendsStore {
             }
         case .open where room.players.contains(uid):
             // A game room's earlier match isn't reopened on (re)joining.
-            if self.room?.id != room.id { seenRoomMatch = room.matchID }
+            if self.room?.id != room.id {
+                seenRoomMatch = room.matchID
+            } else if let before = self.room {
+                for (player, name) in zip(room.players, room.names)
+                    where player != uid && !before.players.contains(player) {
+                    post(RoomEvent(name: name, text: L10n.text("joined the room"),
+                                   profile: friends.first { $0.id == player }))
+                    Haptics.success()
+                }
+            }
             self.room = room
             if room.isSession, let matchID = room.matchID, matchID != seenRoomMatch {
                 seenRoomMatch = matchID
@@ -769,8 +907,10 @@ final class FriendsStore {
             // Closed by the host, or started without this player.
             roomListener?.remove()
             roomListener = nil
+            stopSentInvites()
             if self.room != nil {
-                let notice = L10n.text("The room was closed.")
+                let host = room.host != uid ? room.names.first.flatMap { $0.isEmpty ? nil : $0 } : nil
+                let notice = host.map { L10n.format("%@ closed the room.", $0) } ?? L10n.text("The room was closed.")
                 if inRoomMatch { deferredNotice = notice } else { roomNotice = notice }
             }
             self.room = nil
@@ -796,8 +936,7 @@ final class FriendsStore {
 
     /// Accepting an invite takes a seat in the inviter's room.
     func accept(_ invite: GameInvite) async {
-        dismissedInvites.insert(invite.id)
-        incomingInvite = nil
+        forget(invite)
         db.collection("invites").document(invite.id)
             .updateData(["status": GameInvite.Status.accepted.rawValue]) { _ in }
         guard let roomID = invite.roomID else { return }
@@ -811,9 +950,30 @@ final class FriendsStore {
     }
 
     func decline(_ invite: GameInvite) {
-        dismissedInvites.insert(invite.id)
-        incomingInvite = nil
+        forget(invite)
         db.collection("invites").document(invite.id).updateData(["status": GameInvite.Status.declined.rawValue])
         AppAnalytics.log("invite_declined", parameters: ["game_id": invite.game?.rawValue ?? "session"])
+    }
+
+    /// "Not now": hides the toast; the invite stays on the Friends tab.
+    func snooze(_ invite: GameInvite) {
+        snoozedInvites.insert(invite.id)
+        AppAnalytics.log("invite_snoozed")
+    }
+
+    /// Clears a missed invite from the Friends tab.
+    func dismissMissed(_ invite: GameInvite) {
+        forget(invite)
+        db.collection("invites").document(invite.id).updateData(["status": GameInvite.Status.expired.rawValue])
+    }
+
+    /// The friend who sent `invite`, to invite back.
+    func sender(of invite: GameInvite) -> FriendProfile? {
+        friends.first { $0.id == invite.from }
+    }
+
+    private func forget(_ invite: GameInvite) {
+        dismissedInvites.insert(invite.id)
+        pendingInvites.removeAll { $0.id == invite.id }
     }
 }

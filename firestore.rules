@@ -23,14 +23,14 @@ service cloud.firestore {
 
     // Rooms are readable by any player so one can be found by its code. The
     // host may change anything; anyone else may only take or give up a seat
-    // (players and names) while the room is open.
+    // (players and names) and note the friends they invited, while the room is open.
     match /rooms/{roomId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.host == request.auth.uid
         && request.resource.data.players == [request.auth.uid];
       allow update: if signedIn() && (resource.data.host == request.auth.uid
         || (resource.data.status == 'open'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'names'])));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'names', 'invited'])));
     }
 
     match /invites/{inviteId} {

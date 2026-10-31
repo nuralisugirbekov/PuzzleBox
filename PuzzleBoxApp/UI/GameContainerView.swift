@@ -190,7 +190,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             if resumeAfterTutorial && engine.state == .paused { engine.state = .playing }
             resumeAfterTutorial = false
         }) {
-            if let tutorial { GameTutorialView(gameID: gameID, tutorial: tutorial) }
+            if let tutorial { GameTutorialView(gameID: gameID, tutorial: tutorial).closesWhenRoomOpens() }
         }
         .onAppear {
             if tutorial != nil && !offeringResume && !UserDefaults.standard.bool(forKey: tutorialKey) { showTutorial() }
