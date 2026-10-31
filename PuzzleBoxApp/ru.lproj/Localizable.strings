@@ -613,7 +613,7 @@
 "The enemy fleet is sunk." = "Флот противника потоплен.";
 "Your fleet is sunk." = "Ваш флот потоплен.";
 "Set up your fleet" = "Расставьте флот";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "Корабли не касаются даже углами. Перемешивайте, пока расстановка не понравится.";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "Корабли не касаются даже углами. Перетащите корабль, чтобы передвинуть, нажмите — чтобы повернуть, или перемешайте.";
 "Shuffle" = "Перемешать";
 "Ready" = "Готов";
 "%@ is ready." = "%@ готов.";

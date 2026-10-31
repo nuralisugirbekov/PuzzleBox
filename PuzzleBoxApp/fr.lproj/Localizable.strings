@@ -609,7 +609,7 @@
 "The enemy fleet is sunk." = "La flotte adverse est coulée.";
 "Your fleet is sunk." = "Votre flotte est coulée.";
 "Set up your fleet" = "Placez votre flotte";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "Les navires ne se touchent pas, même par les coins. Mélangez jusqu’à ce que le placement vous plaise.";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "Les navires ne se touchent pas, même par les coins. Faites glisser un navire pour le déplacer, touchez-le pour le tourner, ou mélangez.";
 "Shuffle" = "Mélanger";
 "Ready" = "Prêt";
 "%@ is ready." = "%@ est prêt.";

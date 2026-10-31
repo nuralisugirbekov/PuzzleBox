@@ -44,6 +44,33 @@ struct BattleshipRulesTests {
         #expect(!BattleshipState.isValidFleet(Array(Self.fleet.dropLast())))
     }
 
+    @Test func movingAShipByHand() throws {
+        // Into open water.
+        let free = BattleshipShip(origin: GridPos(r: 9, c: 5), length: 1, horizontal: true)
+        let moved = try #require(BattleshipState.fleet(Self.fleet, replacing: 9, with: free))
+        #expect(moved[9] == free)
+        // Next to another ship, off the board, or as a different size.
+        let touching = BattleshipShip(origin: GridPos(r: 1, c: 5), length: 1, horizontal: true)
+        #expect(BattleshipState.fleet(Self.fleet, replacing: 9, with: touching) == nil)
+        let off = BattleshipShip(origin: GridPos(r: 8, c: 8), length: 4, horizontal: false)
+        #expect(BattleshipState.fleet(Self.fleet, replacing: 0, with: off) == nil)
+        #expect(BattleshipState.fleet(Self.fleet, replacing: 9, with: off) == nil)
+    }
+
+    @Test func turningAShipByHand() throws {
+        var fleet = Self.fleet
+        fleet[9] = BattleshipShip(origin: GridPos(r: 9, c: 9), length: 1, horizontal: true)
+        // Turns around its first deck when there's room.
+        let turned = try #require(BattleshipState.fleet(fleet, turning: 5))
+        #expect(turned[5] == BattleshipShip(origin: GridPos(r: 4, c: 8), length: 2, horizontal: false))
+        // Slides back from the bottom edge.
+        fleet[3] = BattleshipShip(origin: GridPos(r: 9, c: 0), length: 2, horizontal: true)
+        let slid = try #require(BattleshipState.fleet(fleet, turning: 3))
+        #expect(slid[3] == BattleshipShip(origin: GridPos(r: 8, c: 0), length: 2, horizontal: false))
+        // Boxed in by its neighbours.
+        #expect(BattleshipState.fleet(Self.fleet, turning: 0) == nil)
+    }
+
     @Test func noFiringUntilBothAreReady() throws {
         var state = BattleshipState(fleets: [Self.fleet, Self.fleet], turn: 0)
         #expect(throws: BattleshipState.RuleError.stillPlacing) {

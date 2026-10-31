@@ -610,7 +610,7 @@
 "The enemy fleet is sunk." = "敌方舰队已全部击沉。";
 "Your fleet is sunk." = "你的舰队已全部被击沉。";
 "Set up your fleet" = "布置你的舰队";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "舰船之间不能相邻，连角也不行。随机排列直到满意。";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "舰船之间不能相邻，连角也不行。拖动舰船来移动，轻点来旋转，或随机排列。";
 "Shuffle" = "随机排列";
 "Ready" = "准备好了";
 "%@ is ready." = "%@ 已准备好。";

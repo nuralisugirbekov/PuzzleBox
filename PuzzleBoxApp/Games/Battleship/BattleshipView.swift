@@ -161,12 +161,13 @@ struct BattleshipTableView: View {
             VStack(spacing: 4) {
                 Text(L10n.text("Set up your fleet"))
                     .font(.title3.weight(.semibold))
-                Text(L10n.text("Ships can't touch, not even at the corners. Shuffle until you like the layout."))
+                Text(L10n.text("Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            BattleshipBoardView(ships: table.fleets[seat], wrecked: [], hits: [], misses: [])
+            BattleshipBoardView(ships: table.fleets[seat], wrecked: [], hits: [], misses: [],
+                                onRearrange: ready ? nil : { onAction(.place($0)) })
                 .frame(maxWidth: 420)
                 .frame(maxHeight: .infinity)
             HStack(spacing: 12) {
@@ -347,6 +348,19 @@ struct BattleshipBoardView: View {
     let misses: Set<GridPos>
     var highlight: GridPos? = nil
     var onTap: ((GridPos) -> Void)? = nil
+    /// When set, the ships can be rearranged: drag one to move it, tap it to
+    /// turn it. Called with the new fleet after each change that keeps it valid.
+    var onRearrange: (([BattleshipShip]) -> Void)? = nil
+
+    /// The ship being dragged: which one, where it would land now, and the
+    /// deck the finger grabbed it by.
+    private struct Lifted {
+        let index: Int
+        let grab: GridPos
+        var ship: BattleshipShip
+    }
+
+    @State private var lifted: Lifted?
 
     private static let columns = Array("ABCDEFGHIJ").map(String.init)
 
@@ -363,8 +377,12 @@ struct BattleshipBoardView: View {
                 RoundedRectangle(cornerRadius: max(4, cell * 0.3), style: .continuous)
                     .fill(Color.blue.opacity(0.12))
                 grid(cell: cell, side: side)
-                ForEach(ships, id: \.self) { ship in
-                    shipShape(ship, cell: cell)
+                ForEach(Array(ships.enumerated()), id: \.element) { index, ship in
+                    if lifted?.index != index { shipShape(ship, cell: cell) }
+                }
+                if let lifted {
+                    let fits = BattleshipState.fleet(ships, replacing: lifted.index, with: lifted.ship) != nil
+                    shipShape(lifted.ship, cell: cell, tint: fits ? GameTheme.accent : .red)
                 }
                 ForEach(Array(misses), id: \.self) { pos in
                     Circle()
@@ -389,16 +407,50 @@ struct BattleshipBoardView: View {
             }
             .frame(width: side, height: side)
             .contentShape(Rectangle())
-            .onTapGesture(coordinateSpace: .local) { location in
-                guard let onTap else { return }
-                let pos = GridPos(r: Int(location.y / cell), c: Int(location.x / cell))
-                if BattleshipState.contains(pos) { onTap(pos) }
-            }
+            .gesture(SpatialTapGesture(coordinateSpace: .local).onEnded { value in
+                let pos = position(at: value.location, cell: cell)
+                if let onTap, BattleshipState.contains(pos) { onTap(pos) }
+            }, including: onTap == nil ? .none : .all)
+            .gesture(rearrangeGesture(cell: cell), including: onRearrange == nil ? .none : .all)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement()
         .accessibilityLabel(L10n.format("Hits: %d, misses: %d", hits.count, misses.count))
+    }
+
+    private func position(at location: CGPoint, cell: CGFloat) -> GridPos {
+        GridPos(r: Int((location.y / cell).rounded(.down)), c: Int((location.x / cell).rounded(.down)))
+    }
+
+    /// Drag a ship to move it; a touch that barely moves turns it instead.
+    private func rearrangeGesture(cell: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { value in
+                if lifted == nil {
+                    let start = position(at: value.startLocation, cell: cell)
+                    guard let index = ships.firstIndex(where: { $0.cells.contains(start) }) else { return }
+                    let ship = ships[index]
+                    lifted = Lifted(index: index, grab: GridPos(r: start.r - ship.origin.r, c: start.c - ship.origin.c),
+                                    ship: ship)
+                }
+                guard var dragged = lifted else { return }
+                let at = position(at: value.location, cell: cell)
+                let origin = GridPos(r: at.r - dragged.grab.r, c: at.c - dragged.grab.c)
+                guard origin != dragged.ship.origin else { return }
+                dragged.ship = BattleshipShip(origin: origin, length: dragged.ship.length, horizontal: dragged.ship.horizontal)
+                lifted = dragged
+                Haptics.tap()
+            }
+            .onEnded { value in
+                guard let dragged = lifted, let onRearrange else { return }
+                lifted = nil
+                let moved = hypot(value.translation.width, value.translation.height) > cell * 0.4
+                if !moved && dragged.ship.length == 1 { return }
+                let next = moved ? BattleshipState.fleet(ships, replacing: dragged.index, with: dragged.ship)
+                                 : BattleshipState.fleet(ships, turning: dragged.index)
+                if let next { onRearrange(next) } else { Haptics.error() }
+            }
     }
 
     private func center(_ pos: GridPos, cell: CGFloat) -> CGPoint {
@@ -418,17 +470,20 @@ struct BattleshipBoardView: View {
         .stroke(Color.blue.opacity(0.25), lineWidth: 0.5)
     }
 
-    private func shipShape(_ ship: BattleshipShip, cell: CGFloat) -> some View {
+    /// A ship; `tint` draws one being dragged, in the accent while it fits and red while it doesn't.
+    private func shipShape(_ ship: BattleshipShip, cell: CGFloat, tint: Color? = nil) -> some View {
         let long = CGFloat(ship.length) * cell - cell * 0.16
         let short = cell * 0.84
         let sunk = wrecked.contains(ship)
         let first = center(ship.origin, cell: cell)
         let offset = CGFloat(ship.length - 1) * cell / 2
+        let fill = tint.map { $0.opacity(0.35) } ?? (sunk ? Color.red.opacity(0.25) : Color.primary.opacity(0.55))
+        let stroke = tint ?? (sunk ? Color.red : Color.primary.opacity(0.7))
         return RoundedRectangle(cornerRadius: cell * 0.3, style: .continuous)
-            .fill(sunk ? Color.red.opacity(0.25) : Color.primary.opacity(0.55))
+            .fill(fill)
             .overlay {
                 RoundedRectangle(cornerRadius: cell * 0.3, style: .continuous)
-                    .strokeBorder(sunk ? Color.red : Color.primary.opacity(0.7), lineWidth: max(1, cell * 0.06))
+                    .strokeBorder(stroke, lineWidth: max(1, cell * 0.06))
             }
             .frame(width: ship.horizontal ? long : short, height: ship.horizontal ? short : long)
             .position(x: first.x + (ship.horizontal ? offset : 0), y: first.y + (ship.horizontal ? 0 : offset))

@@ -613,7 +613,7 @@
 "The enemy fleet is sunk." = "The enemy fleet is sunk.";
 "Your fleet is sunk." = "Your fleet is sunk.";
 "Set up your fleet" = "Set up your fleet";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "Ships can't touch, not even at the corners. Shuffle until you like the layout.";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle.";
 "Shuffle" = "Shuffle";
 "Ready" = "Ready";
 "%@ is ready." = "%@ is ready.";

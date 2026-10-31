@@ -609,7 +609,7 @@
 "The enemy fleet is sunk." = "상대 함대를 모두 침몰시켰습니다.";
 "Your fleet is sunk." = "내 함대가 모두 침몰했습니다.";
 "Set up your fleet" = "함대를 배치하세요";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "배는 모서리로도 닿을 수 없습니다. 마음에 들 때까지 섞으세요.";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "배는 모서리로도 닿을 수 없습니다. 배를 끌어서 옮기고, 탭해서 돌리거나, 섞으세요.";
 "Shuffle" = "섞기";
 "Ready" = "준비";
 "%@ is ready." = "%@ 준비 완료.";

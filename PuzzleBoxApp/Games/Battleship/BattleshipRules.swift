@@ -3,7 +3,7 @@ import Foundation
 // Battleship (sea battle) for two on 10×10 boards, by the classic rules:
 // a four-decker, two three-deckers, three two-deckers and four single
 // boats, which never touch, not even at the corners. First each player sets
-// up their fleet (shuffling until they like it) and says they're ready. Then
+// up their fleet (shuffling it or moving ships by hand) and says they're ready. Then
 // they take turns firing at the other board: a hit goes again, a miss passes
 // the turn. A sunk ship's surroundings are marked as misses, since no other
 // ship can be there. Whoever sinks the whole enemy fleet wins.
@@ -121,6 +121,29 @@ struct BattleshipState: Codable, Equatable {
             taken.formUnion(ship.cells)
         }
         return true
+    }
+
+    /// `ships` with the one at `index` swapped for `ship`, if the fleet stays valid.
+    static func fleet(_ ships: [BattleshipShip], replacing index: Int, with ship: BattleshipShip) -> [BattleshipShip]? {
+        guard ships.indices.contains(index), ship.length == ships[index].length else { return nil }
+        var next = ships
+        next[index] = ship
+        return isValidFleet(next) ? next : nil
+    }
+
+    /// `ships` with the one at `index` turned the other way around its first
+    /// deck, slid back along its new line when an edge or a neighbour is in
+    /// the way. Nil when it can't turn there at all.
+    static func fleet(_ ships: [BattleshipShip], turning index: Int) -> [BattleshipShip]? {
+        guard ships.indices.contains(index) else { return nil }
+        let ship = ships[index]
+        for shift in 0..<ship.length {
+            let origin = ship.horizontal ? GridPos(r: ship.origin.r - shift, c: ship.origin.c)
+                                         : GridPos(r: ship.origin.r, c: ship.origin.c - shift)
+            let turned = BattleshipShip(origin: origin, length: ship.length, horizontal: !ship.horizontal)
+            if let next = fleet(ships, replacing: index, with: turned) { return next }
+        }
+        return nil
     }
 
     static func randomFleet<G: RandomNumberGenerator>(using generator: inout G) -> [BattleshipShip] {

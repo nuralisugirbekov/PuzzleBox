@@ -609,7 +609,7 @@
 "The enemy fleet is sunk." = "दुश्मन का बेड़ा डूब गया।";
 "Your fleet is sunk." = "आपका बेड़ा डूब गया।";
 "Set up your fleet" = "अपना बेड़ा लगाएँ";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "जहाज़ एक-दूसरे को छू नहीं सकते, कोनों से भी नहीं। पसंद आने तक फेंटें।";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "जहाज़ एक-दूसरे को छू नहीं सकते, कोनों से भी नहीं। जहाज़ को खिसकाने के लिए खींचें, घुमाने के लिए टैप करें, या फेंटें।";
 "Shuffle" = "फेंटें";
 "Ready" = "तैयार";
 "%@ is ready." = "%@ तैयार है।";

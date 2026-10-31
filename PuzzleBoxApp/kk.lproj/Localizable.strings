@@ -613,7 +613,7 @@
 "The enemy fleet is sunk." = "Қарсылас флоты суға батты.";
 "Your fleet is sunk." = "Сіздің флотыңыз суға батты.";
 "Set up your fleet" = "Флотты орналастырыңыз";
-"Ships can't touch, not even at the corners. Shuffle until you like the layout." = "Кемелер тіпті бұрышымен де тимейді. Ұнағанша араластырыңыз.";
+"Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle." = "Кемелер тіпті бұрышымен де тимейді. Кемені жылжыту үшін сүйреңіз, бұру үшін басыңыз немесе араластырыңыз.";
 "Shuffle" = "Араластыру";
 "Ready" = "Дайын";
 "%@ is ready." = "%@ дайын.";
