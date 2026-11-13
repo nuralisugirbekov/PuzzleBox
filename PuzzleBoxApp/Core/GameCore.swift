@@ -185,6 +185,8 @@ enum GameID: String, CaseIterable, Identifiable {
         .findPair, .pipeConnect, .basketShot, .endlessClimb, .spaceDodge,
         // Not shown yet.
         .crossword,
+        // Kazakh games, taken out.
+        .asyk, .togyzkumalak, .altybakan, .kokpar, .baige,
     ]
 
     var isHidden: Bool { Self.hidden.contains(self) }

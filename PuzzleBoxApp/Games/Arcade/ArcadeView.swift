@@ -238,33 +238,158 @@ struct ArcadeView: View {
 
     // MARK: Helix Drop
 
-    private func drawHelix(_ context: inout GraphicsContext) {
-        context.fill(Path(roundedRect: CGRect(x: 148, y: -10, width: 24, height: 500), cornerRadius: 8),
-                     with: .linearGradient(Gradient(colors: [Color(white: 0.25), Color(white: 0.5), Color(white: 0.25)]),
-                                           startPoint: CGPoint(x: 148, y: 0), endPoint: CGPoint(x: 172, y: 0)))
-        for body in engine.bodies {
-            let safe = Color(hue: body.hue, saturation: 0.6, brightness: 0.95)
-            let side = Color(hue: body.hue, saturation: 0.7, brightness: 0.55)
-            // Split the solid part (gap excluded) into safe and red ranges in platform space.
-            var cuts: [(Range<CGFloat>, Bool)] = []
-            var cursor = body.rect.width
-            for zone in engine.helixRedZones(body).sorted(by: { $0.lowerBound < $1.lowerBound }) {
-                if zone.lowerBound > cursor { cuts.append((cursor..<zone.lowerBound, false)) }
-                cuts.append((zone, true)); cursor = zone.upperBound
+    /// The tower seen from slightly above: each floor is a flat ring around a central
+    /// column. Platform space (0..<320, wrapping) maps to the angle around the column,
+    /// with x = 160 (where the ball falls) at the front, nearest the viewer.
+    private enum Helix {
+        static let center: CGFloat = 160
+        static let outer: CGFloat = 132
+        static let inner: CGFloat = 27
+        static let column: CGFloat = 26
+        /// Where the ball rests on a floor, measured from the column's axis.
+        static let ballRadius: CGFloat = 78
+        /// Vertical squash of the circles: how far above the tower the camera is.
+        static let tilt: CGFloat = 0.3
+        static let thickness: CGFloat = 16
+        static func angle(_ x: CGFloat) -> CGFloat { (x - center) / 320 * 2 * .pi }
+        /// Screen y of a floor's centre for a platform whose front edge (under the ball) is at `top`.
+        static func ringY(_ top: CGFloat) -> CGFloat { top - ballRadius * tilt }
+        static func point(_ radius: CGFloat, _ angle: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: center + radius * sin(angle), y: y + radius * tilt * cos(angle))
+        }
+        /// Splits an arc into pieces on the viewer's half (cos > 0) and the far half.
+        static func halves(_ a: CGFloat, _ b: CGFloat) -> [(CGFloat, CGFloat, front: Bool)] {
+            var pieces: [(CGFloat, CGFloat, front: Bool)] = []
+            var t = a
+            while t < b - 0.0001 {
+                let k = floor((t + .pi / 2) / .pi)
+                let end = min(b, (k + 1) * .pi - .pi / 2)
+                pieces.append((t, end, Int(k).isMultiple(of: 2)))
+                t = end
             }
-            if cursor < 320 { cuts.append((cursor..<320, false)) }
-            for (range, red) in cuts {
-                var start = (body.rect.minX + range.lowerBound).truncatingRemainder(dividingBy: 320)
-                var length = range.upperBound - range.lowerBound
-                while length > 0 {
-                    let piece = min(length, 320 - start)
-                    let rect = CGRect(x: start, y: body.rect.minY, width: piece, height: 12)
-                    context.fill(Path(CGRect(x: rect.minX, y: rect.minY + 6, width: rect.width, height: 10)), with: .color(red ? Color(red: 0.5, green: 0, blue: 0.05) : side))
-                    context.fill(Path(rect), with: .color(red ? .red : safe))
-                    length -= piece; start = 0
+            return pieces
+        }
+    }
+
+    private func drawHelix(_ context: inout GraphicsContext) {
+        context.fill(Path(CGRect(x: -20, y: -20, width: 360, height: 520)),
+                     with: .linearGradient(Gradient(colors: [Color(red: 0.42, green: 0.56, blue: 0.82), Color(red: 0.2, green: 0.3, blue: 0.56)]),
+                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: 480)))
+        drawHelixColumn(&context, to: 500)
+        let p = engine.player
+        var ballDrawn = false
+        // Lower floors first; higher ones are nearer the camera and overlap them.
+        for body in engine.bodies.reversed() {
+            if !ballDrawn, body.rect.minY < p.y - 4 {
+                drawHelixBall(&context); ballDrawn = true
+            }
+            drawHelixRing(&context, body, front: false)
+            drawHelixColumn(&context, to: Helix.ringY(body.rect.minY))
+            drawHelixRing(&context, body, front: true)
+            if !ballDrawn, let below = shadowFloor, below.id == body.id {
+                // A soft shadow under the ball on the floor it is about to hit.
+                let distance = max(0, body.rect.minY - p.y)
+                let scale = max(0.35, 1 - distance / 180)
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 11 * scale, y: body.rect.minY - 3.5 * scale, width: 22 * scale, height: 7 * scale)),
+                             with: .color(.black.opacity(0.28 * Double(scale))))
+            }
+        }
+        if !ballDrawn { drawHelixBall(&context) }
+    }
+
+    /// The floor straight under the ball, if the ball would land on a solid part of it.
+    private var shadowFloor: ArcadeBody? {
+        let p = engine.player
+        guard let floor = engine.bodies.filter({ $0.rect.minY >= p.y }).min(by: { $0.rect.minY < $1.rect.minY }) else { return nil }
+        let relative = (p.x - floor.rect.minX).truncatingRemainder(dividingBy: 320)
+        return (relative < 0 ? relative + 320 : relative) >= floor.rect.width ? floor : nil
+    }
+
+    private func drawHelixColumn(_ context: inout GraphicsContext, to bottom: CGFloat) {
+        let left = Helix.center - Helix.column, right = Helix.center + Helix.column
+        context.fill(Path(CGRect(x: left, y: -20, width: right - left, height: bottom + 20)),
+                     with: .linearGradient(Gradient(stops: [.init(color: Color(white: 0.72), location: 0),
+                                                            .init(color: Color(white: 0.99), location: 0.38),
+                                                            .init(color: Color(white: 0.9), location: 0.7),
+                                                            .init(color: Color(red: 0.62, green: 0.68, blue: 0.82), location: 1)]),
+                                           startPoint: CGPoint(x: left, y: 0), endPoint: CGPoint(x: right, y: 0)))
+    }
+
+    /// Draws one floor's far half (behind the column) or near half (in front of it).
+    private func drawHelixRing(_ context: inout GraphicsContext, _ body: ArcadeBody, front: Bool) {
+        let y = Helix.ringY(body.rect.minY)
+        let h = Helix.thickness
+        let zones = engine.helixRedZones(body)
+        func isRed(_ u: CGFloat) -> Bool { zones.contains { $0.contains(u) } }
+        // Solid ranges in platform space (the gap is 0..<width), split at the red zones.
+        var cuts: [(Range<CGFloat>, Bool)] = []
+        var cursor = body.rect.width
+        for zone in zones.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            if zone.lowerBound > cursor { cuts.append((cursor..<zone.lowerBound, false)) }
+            cuts.append((zone, true)); cursor = zone.upperBound
+        }
+        if cursor < 320 { cuts.append((cursor..<320, false)) }
+
+        // Soft sage-to-pistachio floors on a calm blue sky.
+        let hue = 0.2 + body.hue * 0.08
+        func topColor(_ red: Bool) -> Color {
+            red ? Color(red: 0.86, green: 0.38, blue: 0.38) : Color(hue: hue, saturation: 0.42, brightness: 0.88)
+        }
+        func sideColor(_ red: Bool, light: CGFloat) -> Color {
+            red ? Color(red: 0.42 + 0.3 * light, green: 0.16 + 0.1 * light, blue: 0.18 + 0.1 * light)
+                : Color(hue: hue + 0.01, saturation: 0.45, brightness: 0.45 + 0.3 * light)
+        }
+        /// Light from the upper left.
+        func light(_ a: CGFloat) -> CGFloat { max(0, min(1, 0.55 - 0.45 * sin(a) + 0.15 * cos(a))) }
+
+        for (range, red) in cuts {
+            let a0 = Helix.angle(body.rect.minX + range.lowerBound)
+            let a1 = Helix.angle(body.rect.minX + range.upperBound)
+            for piece in Helix.halves(a0, a1) where piece.front == front {
+                let steps = max(2, Int(ceil((piece.1 - piece.0) / 0.1)))
+                let angles = (0...steps).map { piece.0 + (piece.1 - piece.0) * CGFloat($0) / CGFloat(steps) }
+                if front {
+                    // Outer wall, shaded strip by strip.
+                    for i in 0..<steps {
+                        var wall = Path()
+                        let t0 = Helix.point(Helix.outer, angles[i], y), t1 = Helix.point(Helix.outer, angles[i + 1], y)
+                        wall.addLines([t0, t1, CGPoint(x: t1.x, y: t1.y + h), CGPoint(x: t0.x, y: t0.y + h)])
+                        wall.closeSubpath()
+                        context.fill(wall, with: .color(sideColor(red, light: light((angles[i] + angles[i + 1]) / 2))))
+                        context.stroke(wall, with: .color(sideColor(red, light: light((angles[i] + angles[i + 1]) / 2))), lineWidth: 0.6)
+                    }
+                }
+                var top = Path()
+                top.addLines(angles.map { Helix.point(Helix.outer, $0, y) } + angles.reversed().map { Helix.point(Helix.inner, $0, y) })
+                top.closeSubpath()
+                context.fill(top, with: .color(topColor(red)))
+                // Hides the anti-aliased seam where the near and far halves meet.
+                context.stroke(top, with: .color(topColor(red)), lineWidth: 0.8)
+                if front {
+                    var rim = Path(); rim.addLines(angles.map { Helix.point(Helix.outer, $0, y) })
+                    context.stroke(rim, with: .color(.white.opacity(0.35)), lineWidth: 1)
                 }
             }
         }
+
+        // The cut faces at the edges of the gap, wherever they face the viewer:
+        // ones on the far half are drawn with it, behind the column.
+        for (u, start) in [(body.rect.width, true), (CGFloat(320), false)] {
+            let a = Helix.angle(body.rect.minX + u)
+            guard (cos(a) >= 0) == front, start ? sin(a) > 0 : sin(a) < 0 else { continue }
+            let red = isRed(start ? u : u - 0.5)
+            let o = Helix.point(Helix.outer, a, y), n = Helix.point(Helix.inner, a, y)
+            var cap = Path()
+            cap.addLines([n, o, CGPoint(x: o.x, y: o.y + h), CGPoint(x: n.x, y: n.y + h)])
+            cap.closeSubpath()
+            context.fill(cap, with: .color(sideColor(red, light: 0.25)))
+            // Redraw the top's edge so the cap sits under it.
+            var edge = Path(); edge.move(to: n); edge.addLine(to: o)
+            context.stroke(edge, with: .color(topColor(red)), lineWidth: 1)
+        }
+    }
+
+    private func drawHelixBall(_ context: inout GraphicsContext) {
         let p = engine.player
         if engine.fireball {
             ball(&context, p, 16, .orange.opacity(0.35))
@@ -273,7 +398,7 @@ struct ArcadeView: View {
         } else {
             ball(&context, CGPoint(x: p.x, y: p.y + 2), 10, .black.opacity(0.3))
             context.fill(Path(ellipseIn: CGRect(x: p.x - 10, y: p.y - 10, width: 20, height: 20)),
-                         with: .radialGradient(Gradient(colors: [.white, GameTheme.accent]), center: CGPoint(x: p.x - 3, y: p.y - 4), startRadius: 1, endRadius: 13))
+                         with: .radialGradient(Gradient(colors: [.white, Color(red: 0.95, green: 0.55, blue: 0.62), Color(red: 0.68, green: 0.3, blue: 0.4)]), center: CGPoint(x: p.x - 3, y: p.y - 4), startRadius: 1, endRadius: 14))
         }
         if engine.combo >= 2 && !engine.fireball {
             context.draw(Text("×\(engine.combo)").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(.yellow),

@@ -218,8 +218,15 @@ struct WaterSortView: View {
     @State private var pour: ActivePour?
     @State private var tubeFrames: [Int: CGRect] = [:]
 
-    private static let palette: [Color] = [.red, .blue, .green, .yellow, .purple, .cyan, .orange, .pink, .mint,
-                                           Color(red: 0.55, green: 0.35, blue: 0.2)]
+    /// Red, blue, green, yellow, purple, cyan, orange, pink, mint and brown,
+    /// spread apart so neighbouring layers never blur together.
+    private static let palette: [Color] = [
+        Color(red: 0.95, green: 0.27, blue: 0.24), Color(red: 0.18, green: 0.49, blue: 0.96),
+        Color(red: 0.20, green: 0.77, blue: 0.42), Color(red: 1.00, green: 0.82, blue: 0.25),
+        Color(red: 0.61, green: 0.36, blue: 0.96), Color(red: 0.13, green: 0.76, blue: 0.90),
+        Color(red: 1.00, green: 0.54, blue: 0.16), Color(red: 1.00, green: 0.37, blue: 0.66),
+        Color(red: 0.37, green: 0.88, blue: 0.72), Color(red: 0.60, green: 0.38, blue: 0.20),
+    ]
 
     var body: some View {
         GameContainerView(gameID: .waterSort, engine: engine,
@@ -360,15 +367,27 @@ struct WaterSortView: View {
             ForEach(Array(layers.enumerated().reversed()), id: \.offset) { i, layer in
                 let color = Self.palette[layer.color]
                 Rectangle()
-                    .fill(LinearGradient(colors: [color.opacity(0.85), color], startPoint: .leading, endPoint: .trailing))
+                    .fill(color)
                     .overlay(alignment: .top) {
-                        // The surface of the top layer catches the light.
-                        if i == layers.count - 1 { Rectangle().fill(.white.opacity(0.35)).frame(height: 2) }
+                        // The top layer's surface: a lighter meniscus.
+                        if i == layers.count - 1 {
+                            Ellipse().fill(color).brightness(0.18)
+                                .frame(height: 6).offset(y: -3)
+                        }
                     }
                     .frame(height: unit * layer.amount)
             }
         }
         .frame(width: width - 8, height: Self.tubeHeight - 4)
+        // Shaded like a cylinder: darker at the walls, a highlight left of centre.
+        .overlay {
+            LinearGradient(stops: [.init(color: .black.opacity(0.22), location: 0),
+                                   .init(color: .white.opacity(0.18), location: 0.3),
+                                   .init(color: .clear, location: 0.55),
+                                   .init(color: .black.opacity(0.25), location: 1)],
+                           startPoint: .leading, endPoint: .trailing)
+                .blendMode(.overlay)
+        }
         .clipShape(Self.glass(width - 8))
     }
 
@@ -378,11 +397,21 @@ struct WaterSortView: View {
             .background(GameTheme.surface.opacity(0.6), in: Self.glass(width))
             .overlay {
                 Self.glass(width)
-                    .strokeBorder(selected ? GameTheme.accent : Color.white.opacity(0.28), lineWidth: selected ? 2 : 1.5)
+                    .strokeBorder(selected ? GameTheme.accent : Color.primary.opacity(0.2), lineWidth: selected ? 2 : 1.5)
+            }
+            .overlay(alignment: .top) {
+                // The lip at the mouth, a little wider than the tube.
+                Capsule()
+                    .fill(GameTheme.background)
+                    .overlay { Capsule().strokeBorder(selected ? GameTheme.accent : Color.primary.opacity(0.2),
+                                                      lineWidth: selected ? 2 : 1.5) }
+                    .frame(width: width + 6, height: 7)
+                    .offset(y: -3)
             }
             .overlay(alignment: .leading) {
                 // A glint down the glass.
-                Capsule().fill(.white.opacity(0.18)).frame(width: 3, height: Self.tubeHeight * 0.6).padding(.leading, 6)
+                Capsule().fill(.white.opacity(0.45)).frame(width: 3, height: Self.tubeHeight * 0.55)
+                    .padding(.leading, 7).offset(y: 6)
             }
     }
 

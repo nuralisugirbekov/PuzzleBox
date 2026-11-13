@@ -375,7 +375,7 @@ struct BattleshipBoardView: View {
             let cell = side / CGFloat(BattleshipState.size)
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: max(4, cell * 0.3), style: .continuous)
-                    .fill(Color.blue.opacity(0.12))
+                    .fill(LinearGradient(colors: [Self.seaTop, Self.seaBottom], startPoint: .top, endPoint: .bottom))
                 grid(cell: cell, side: side)
                 ForEach(Array(ships.enumerated()), id: \.element) { index, ship in
                     if lifted?.index != index { shipShape(ship, cell: cell) }
@@ -385,13 +385,24 @@ struct BattleshipBoardView: View {
                     shipShape(lifted.ship, cell: cell, tint: fits ? GameTheme.accent : .red)
                 }
                 ForEach(Array(misses), id: \.self) { pos in
-                    Circle()
-                        .fill(Color.secondary)
-                        .frame(width: cell * 0.22, height: cell * 0.22)
-                        .position(center(pos, cell: cell))
-                        .transition(.scale)
+                    // A splash: a ripple ring around a drop.
+                    ZStack {
+                        Circle().strokeBorder(Self.splash, lineWidth: max(1, cell * 0.06))
+                            .frame(width: cell * 0.5, height: cell * 0.5)
+                        Circle().fill(Self.splash)
+                            .frame(width: cell * 0.16, height: cell * 0.16)
+                    }
+                    .position(center(pos, cell: cell))
+                    .transition(.scale)
                 }
                 ForEach(Array(hits), id: \.self) { pos in
+                    // A flash under the cross.
+                    Circle()
+                        .fill(RadialGradient(colors: [Color.orange.opacity(0.75), Color.orange.opacity(0)],
+                                             center: .center, startRadius: 0, endRadius: cell * 0.5))
+                        .frame(width: cell, height: cell)
+                        .position(center(pos, cell: cell))
+                        .transition(.opacity)
                     Image(systemName: "xmark")
                         .font(.system(size: cell * 0.55, weight: .black))
                         .foregroundStyle(.red)
@@ -453,6 +464,16 @@ struct BattleshipBoardView: View {
             }
     }
 
+    private static let seaTop = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.09, green: 0.20, blue: 0.36, alpha: 1)
+        : UIColor(red: 0.86, green: 0.93, blue: 1.00, alpha: 1) })
+    private static let seaBottom = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.05, green: 0.12, blue: 0.25, alpha: 1)
+        : UIColor(red: 0.72, green: 0.85, blue: 0.97, alpha: 1) })
+    private static let splash = Color(red: 0.35, green: 0.55, blue: 0.80).opacity(0.8)
+    private static let steel = Color(red: 0.42, green: 0.48, blue: 0.55)
+    private static let steelEdge = Color(red: 0.24, green: 0.28, blue: 0.33)
+
     private func center(_ pos: GridPos, cell: CGFloat) -> CGPoint {
         CGPoint(x: (CGFloat(pos.c) + 0.5) * cell, y: (CGFloat(pos.r) + 0.5) * cell)
     }
@@ -477,15 +498,51 @@ struct BattleshipBoardView: View {
         let sunk = wrecked.contains(ship)
         let first = center(ship.origin, cell: cell)
         let offset = CGFloat(ship.length - 1) * cell / 2
-        let fill = tint.map { $0.opacity(0.35) } ?? (sunk ? Color.red.opacity(0.25) : Color.primary.opacity(0.55))
-        let stroke = tint ?? (sunk ? Color.red : Color.primary.opacity(0.7))
-        return RoundedRectangle(cornerRadius: cell * 0.3, style: .continuous)
+        let fill = tint.map { $0.opacity(0.35) } ?? (sunk ? Color.red.opacity(0.3) : Self.steel)
+        let stroke = tint ?? (sunk ? Color.red : Self.steelEdge)
+        let hull = HullShape(vertical: !ship.horizontal)
+        return hull
             .fill(fill)
             .overlay {
-                RoundedRectangle(cornerRadius: cell * 0.3, style: .continuous)
-                    .strokeBorder(stroke, lineWidth: max(1, cell * 0.06))
+                // One hatch per deck, along the middle of the hull.
+                let hatch = cell * 0.2
+                let layout = ship.horizontal ? AnyLayout(HStackLayout(spacing: cell - hatch))
+                                             : AnyLayout(VStackLayout(spacing: cell - hatch))
+                layout {
+                    ForEach(0..<ship.length, id: \.self) { _ in
+                        Circle().fill(Color.white.opacity(sunk || tint != nil ? 0.25 : 0.55))
+                            .frame(width: hatch, height: hatch)
+                    }
+                }
             }
+            .overlay { hull.stroke(stroke, lineWidth: max(1, cell * 0.05)) }
             .frame(width: ship.horizontal ? long : short, height: ship.horizontal ? short : long)
             .position(x: first.x + (ship.horizontal ? offset : 0), y: first.y + (ship.horizontal ? 0 : offset))
+    }
+}
+
+/// A hull seen from above: a rounded stern and a pointed bow, pointing right
+/// (or down when vertical).
+private struct HullShape: Shape {
+    let vertical: Bool
+
+    func path(in rect: CGRect) -> Path {
+        // Drawn pointing right in a horizontal box, then turned for vertical ships.
+        let w = vertical ? rect.height : rect.width
+        let h = vertical ? rect.width : rect.height
+        let bow = min(w * 0.5, h * 1.1)
+        let stern = h * 0.35
+        var path = Path()
+        path.move(to: CGPoint(x: stern, y: 0))
+        path.addLine(to: CGPoint(x: w - bow, y: 0))
+        path.addQuadCurve(to: CGPoint(x: w, y: h / 2), control: CGPoint(x: w - bow * 0.45, y: 0))
+        path.addQuadCurve(to: CGPoint(x: w - bow, y: h), control: CGPoint(x: w - bow * 0.45, y: h))
+        path.addLine(to: CGPoint(x: stern, y: h))
+        path.addArc(tangent1End: CGPoint(x: 0, y: h), tangent2End: CGPoint(x: 0, y: 0), radius: stern)
+        path.addArc(tangent1End: CGPoint(x: 0, y: 0), tangent2End: CGPoint(x: stern, y: 0), radius: stern)
+        path.closeSubpath()
+        guard vertical else { return path.offsetBy(dx: rect.minX, dy: rect.minY) }
+        // Swap the axes: the bow points down.
+        return path.applying(CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: rect.minX, ty: rect.minY))
     }
 }

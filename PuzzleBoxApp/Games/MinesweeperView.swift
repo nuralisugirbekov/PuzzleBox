@@ -195,8 +195,28 @@ final class MinesweeperEngine: GameEngine {
 struct MinesweeperView: View {
     @State private var engine = MinesweeperEngine()
 
-    private static let numberColors: [Color] =
-        [.clear, .blue, .green, .orange, .red, .purple, .cyan, .yellow, GameTheme.ink]
+    private static func tone(_ light: (Double, Double, Double), _ dark: (Double, Double, Double)) -> Color {
+        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: dark.0, green: dark.1, blue: dark.2, alpha: 1)
+            : UIColor(red: light.0, green: light.1, blue: light.2, alpha: 1) })
+    }
+
+    private static let numberColors: [Color] = [
+        .clear,
+        tone((0.13, 0.38, 0.88), (0.42, 0.64, 1.00)),
+        tone((0.09, 0.54, 0.26), (0.36, 0.80, 0.46)),
+        tone((0.86, 0.18, 0.18), (1.00, 0.42, 0.40)),
+        tone((0.20, 0.18, 0.62), (0.66, 0.58, 1.00)),
+        tone((0.62, 0.16, 0.10), (0.96, 0.58, 0.32)),
+        tone((0.00, 0.50, 0.55), (0.30, 0.82, 0.84)),
+        GameTheme.ink,
+        GameTheme.textSecondary,
+    ]
+    private static let frame = tone((0.78, 0.83, 0.90), (0.10, 0.12, 0.16))
+    private static let tileTop = tone((0.58, 0.71, 0.89), (0.33, 0.42, 0.57))
+    private static let tileBottom = tone((0.43, 0.57, 0.80), (0.23, 0.31, 0.44))
+    private static let ground = tone((0.96, 0.94, 0.89), (0.17, 0.18, 0.20))
+    private static let groundAlt = tone((0.92, 0.89, 0.83), (0.14, 0.15, 0.17))
 
     var body: some View {
         GameContainerView(gameID: .minesweeper, engine: engine,
@@ -253,7 +273,7 @@ struct MinesweeperView: View {
             }
         }
         .padding(8)
-        .gameCard(cornerRadius: 16)
+        .background(Self.frame, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .aspectRatio(1, contentMode: .fit)
         .id(engine.difficulty)
     }
@@ -262,22 +282,45 @@ struct MinesweeperView: View {
     private func cell(_ cell: MinesweeperEngine.Cell, at pos: GridPos) -> some View {
         let lost = engine.state == .gameOver(won: false)
         let fontSize: CGFloat = engine.rows > 10 ? 12 : 16
+        let corner: CGFloat = engine.rows > 10 ? 3 : 5
         ZStack {
-            RoundedRectangle(cornerRadius: engine.rows > 10 ? 3 : 5)
-                .fill(cell.revealed
-                      ? (engine.exploded == pos ? AnyShapeStyle(Color.red) : AnyShapeStyle(GameTheme.background))
-                      : AnyShapeStyle(LinearGradient(colors: [GameTheme.surfaceHigh, GameTheme.surfaceHigh.opacity(0.6)], startPoint: .top, endPoint: .bottom)))
+            if cell.revealed {
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(engine.exploded == pos ? Color.red
+                          : (pos.r + pos.c).isMultiple(of: 2) ? Self.ground : Self.groundAlt)
+            } else {
+                // A raised tile: lit top edge, shaded bottom edge.
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(LinearGradient(colors: [Self.tileTop, Self.tileBottom], startPoint: .top, endPoint: .bottom))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: corner)
+                            .strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .black.opacity(0.22)],
+                                                         startPoint: .top, endPoint: .bottom),
+                                          lineWidth: engine.rows > 10 ? 1 : 1.5)
+                    }
+            }
             if cell.revealed {
                 if cell.isMine {
-                    Text(cell.flagged ? "🚩" : "💣").font(.system(size: fontSize - 1))
+                    if cell.flagged {
+                        flag(size: fontSize)
+                    } else {
+                        MineGlyph(color: engine.exploded == pos ? .white : GameTheme.ink)
+                            .padding(fontSize * 0.28)
+                    }
                 } else if cell.adjacent > 0 {
                     Text("\(cell.adjacent)")
-                        .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                        .font(.system(size: fontSize, weight: .heavy, design: .rounded))
                         .foregroundStyle(Self.numberColors[cell.adjacent])
                 }
             } else if cell.flagged {
                 // After a loss, flags on safe cells are crossed out.
-                Text(lost && !cell.isMine ? "❌" : "🚩").font(.system(size: fontSize - 2))
+                if lost && !cell.isMine {
+                    Image(systemName: "xmark")
+                        .font(.system(size: fontSize - 2, weight: .black))
+                        .foregroundStyle(.white)
+                } else {
+                    flag(size: fontSize)
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit)
@@ -287,6 +330,37 @@ struct MinesweeperView: View {
         .contentShape(Rectangle())
         .onTapGesture { engine.tap(pos) }
         .onLongPressGesture(minimumDuration: 0.3) { engine.toggleFlag(pos) }
+    }
+
+    private func flag(size: CGFloat) -> some View {
+        Image(systemName: "flag.fill")
+            .font(.system(size: size - 3, weight: .bold))
+            .foregroundStyle(Color(red: 0.92, green: 0.20, blue: 0.18))
+            .shadow(color: .black.opacity(0.25), radius: 0, y: 1)
+    }
+}
+
+/// A round mine with four spikes and a glint.
+private struct MineGlyph: View {
+    let color: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let s = min(geo.size.width, geo.size.height)
+            ZStack {
+                ForEach(0..<4) { i in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: s * 0.14, height: s)
+                        .rotationEffect(.degrees(Double(i) * 45))
+                }
+                Circle().fill(color).frame(width: s * 0.7, height: s * 0.7)
+                Circle().fill(.white.opacity(0.7))
+                    .frame(width: s * 0.18, height: s * 0.18)
+                    .offset(x: -s * 0.12, y: -s * 0.12)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
     }
 }
 

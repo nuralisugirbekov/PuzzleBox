@@ -146,7 +146,7 @@ struct HangmanTableView: View {
     var body: some View {
         VStack(spacing: 14) {
             players
-            GallowsView(mistakes: table.mistakes, lost: table.isFinished && !table.isSolved)
+            GallowsView(mistakes: table.mistakes, lost: table.isFinished && !table.isSolved, wooden: true)
                 .frame(maxWidth: 220, maxHeight: 190)
                 .frame(maxHeight: .infinity)
             Text(L10n.format("Mistakes: %d/%d", table.mistakes, HangmanState.maxMistakes))
@@ -216,9 +216,11 @@ struct HangmanTableView: View {
                         .opacity(shown ? 1 : 0)
                         .rotation3DEffect(.degrees(shown ? 0 : 90), axis: (x: 1, y: 0, z: 0))
                         .frame(width: slot, height: slot * 1.2)
-                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        // An opened letter's slot takes the game's teal.
+                        .background(revealed ? Color.teal.opacity(0.16) : Color.primary.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 6))
                         .overlay(alignment: .bottom) {
-                            Rectangle().fill(Color.primary.opacity(0.5)).frame(height: 2)
+                            Rectangle().fill(revealed ? Color.teal : Color.primary.opacity(0.35)).frame(height: 2.5)
                         }
                 }
             }
@@ -308,14 +310,27 @@ struct GallowsView: View {
     let mistakes: Int
     /// The man is complete: drawn in red.
     var lost = false
+    /// Wooden beams and a rope, as on the game table; the catalog artwork keeps plain lines.
+    var wooden = false
 
     var body: some View {
         GeometryReader { geo in
             let size = min(geo.size.width, geo.size.height)
             let unit = size / 100
             ZStack {
-                ForEach(Array(Self.frame.enumerated()), id: \.offset) { _, part in
-                    stroke(part, unit: unit, color: .primary.opacity(0.75), width: 4)
+                if wooden {
+                    // Wooden beams: a darker edge under the wood.
+                    ForEach(Array(Self.frame.enumerated()), id: \.offset) { _, part in
+                        stroke(part, unit: unit, color: Self.woodEdge, width: 8)
+                    }
+                    ForEach(Array(Self.frame.enumerated()), id: \.offset) { _, part in
+                        stroke(part, unit: unit, color: Self.wood, width: 5.5)
+                    }
+                    stroke(Self.rope, unit: unit, color: Self.ropeColor, width: 2.5)
+                } else {
+                    ForEach(Array(Self.plainFrame.enumerated()), id: \.offset) { _, part in
+                        stroke(part, unit: unit, color: .primary.opacity(0.75), width: 4)
+                    }
                 }
                 ForEach(Array(Self.man.enumerated()), id: \.offset) { index, part in
                     stroke(part, unit: unit, color: lost ? .red : .primary, width: 3.5)
@@ -359,10 +374,29 @@ struct GallowsView: View {
     private static let frame: [Part] = [
         .line(CGPoint(x: 10, y: 95), CGPoint(x: 60, y: 95)),
         .line(CGPoint(x: 25, y: 95), CGPoint(x: 25, y: 6)),
+        .line(CGPoint(x: 25, y: 6), CGPoint(x: 72, y: 6)),
+        .line(CGPoint(x: 25, y: 22), CGPoint(x: 41, y: 6)),
+    ]
+
+    /// The original line drawing, kept for the catalog artwork.
+    private static let plainFrame: [Part] = [
+        .line(CGPoint(x: 10, y: 95), CGPoint(x: 60, y: 95)),
+        .line(CGPoint(x: 25, y: 95), CGPoint(x: 25, y: 6)),
         .line(CGPoint(x: 25, y: 6), CGPoint(x: 68, y: 6)),
         .line(CGPoint(x: 25, y: 22), CGPoint(x: 41, y: 6)),
         .line(CGPoint(x: 68, y: 6), CGPoint(x: 68, y: 18)),
     ]
+
+    /// The rope from the beam down to the head.
+    private static let rope: Part = .line(CGPoint(x: 68, y: 8), CGPoint(x: 68, y: 18))
+
+    private static let wood = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.72, green: 0.51, blue: 0.32, alpha: 1)
+        : UIColor(red: 0.62, green: 0.42, blue: 0.24, alpha: 1) })
+    private static let woodEdge = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.42, green: 0.27, blue: 0.15, alpha: 1)
+        : UIColor(red: 0.40, green: 0.25, blue: 0.13, alpha: 1) })
+    private static let ropeColor = Color(red: 0.85, green: 0.71, blue: 0.47)
 
     /// Head, body, arms, legs: one per mistake, in order.
     private static let man: [Part] = [

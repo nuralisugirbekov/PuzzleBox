@@ -1586,37 +1586,96 @@ private struct KnifeSpinArt: View {
 }
 
 private struct HelixDropArt: View {
-    // (y, hue, gap start, gap width, red start, red width) across the 160 canvas.
-    private let floors: [(CGFloat, Double, CGFloat, CGFloat, CGFloat, CGFloat)] = [
-        (34, 0.55, 98, 34, 0, 0), (72, 0.75, 20, 34, 116, 26), (110, 0.95, 116, 34, 30, 22), (148, 0.15, 40, 34, 0, 0),
+    /// Floors seen from slightly above: centre y, then the gap and an optional red zone
+    /// as (start angle, length) in radians, with 0 at the front, nearest the viewer.
+    private static let floors: [(y: CGFloat, gap: (CGFloat, CGFloat), red: (CGFloat, CGFloat)?)] = [
+        (34, (2.2, 1.5), nil), (80, (0.5, 1.5), (3.6, 0.9)), (126, (-2.6, 1.5), nil), (172, (1.4, 1.5), (-1.2, 0.9)),
     ]
+    private static let outer: CGFloat = 68, inner: CGFloat = 14, tilt: CGFloat = 0.3, thickness: CGFloat = 9
 
     var body: some View {
-        ArtCanvas(colors: Arena.colors) {
-            Rectangle().fill(LinearGradient(colors: [Color(white: 0.25), Color(white: 0.5), Color(white: 0.25)], startPoint: .leading, endPoint: .trailing))
-                .frame(width: 14, height: 170).at(80, 80)
-            ForEach(floors.indices, id: \.self) { i in
-                let f = floors[i]
-                floor(y: f.0, hue: f.1, gap: f.2..<(f.2 + f.3), red: f.4..<(f.4 + f.5))
-            }
-            dot(.black.opacity(0.3), 13).at(116, 92)
-            Circle().fill(RadialGradient(colors: [.white, .blue], center: UnitPoint(x: 0.35, y: 0.3), startRadius: 1, endRadius: 9))
-                .frame(width: 13, height: 13).at(116, 90)
+        ArtCanvas(colors: [Color(red: 0.42, green: 0.56, blue: 0.82), Color(red: 0.2, green: 0.3, blue: 0.56)]) {
+            Canvas { context, _ in draw(&context) }.frame(width: 160, height: 160).at(80, 80)
         }
     }
 
-    private func floor(y: CGFloat, hue: Double, gap: Range<CGFloat>, red: Range<CGFloat>) -> some View {
-        ZStack {
-            ForEach(Array(stride(from: CGFloat(0), to: 160, by: 4)), id: \.self) { x in
-                if !gap.contains(x) {
-                    let isRed = red.contains(x)
-                    VStack(spacing: 0) {
-                        Rectangle().fill(isRed ? Color.red : Color(hue: hue, saturation: 0.6, brightness: 0.95)).frame(width: 4.5, height: 7)
-                        Rectangle().fill(isRed ? Color(red: 0.5, green: 0, blue: 0.05) : Color(hue: hue, saturation: 0.7, brightness: 0.55)).frame(width: 4.5, height: 5)
-                    }
-                    .at(x + 2, y)
-                }
+    private func point(_ r: CGFloat, _ a: CGFloat, _ y: CGFloat) -> CGPoint {
+        CGPoint(x: 80 + r * sin(a), y: y + r * Self.tilt * cos(a))
+    }
+
+    private func column(_ context: inout GraphicsContext, to bottom: CGFloat) {
+        context.fill(Path(CGRect(x: 67, y: -10, width: 26, height: bottom + 10)),
+                     with: .linearGradient(Gradient(colors: [Color(white: 0.72), Color(white: 0.99), Color(white: 0.9), Color(red: 0.62, green: 0.68, blue: 0.82)]),
+                                           startPoint: CGPoint(x: 67, y: 0), endPoint: CGPoint(x: 93, y: 0)))
+    }
+
+    private func draw(_ context: inout GraphicsContext) {
+        column(&context, to: 170)
+        for (i, f) in Self.floors.enumerated().reversed() {
+            ring(&context, f, front: false)
+            column(&context, to: f.y)
+            ring(&context, f, front: true)
+            if i == 1 {
+                // The ball resting on the front of the second floor, below the first.
+                let p = point(40, 0, f.y)
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 7, y: p.y - 2, width: 14, height: 4.5)), with: .color(.black.opacity(0.25)))
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 7, y: p.y - 14, width: 14, height: 14)),
+                             with: .radialGradient(Gradient(colors: [.white, Color(red: 0.95, green: 0.55, blue: 0.62), Color(red: 0.68, green: 0.3, blue: 0.4)]),
+                                                   center: CGPoint(x: p.x - 2, y: p.y - 10), startRadius: 1, endRadius: 10))
             }
+        }
+    }
+
+    private func ring(_ context: inout GraphicsContext, _ f: (y: CGFloat, gap: (CGFloat, CGFloat), red: (CGFloat, CGFloat)?), front: Bool) {
+        let safeTop = Color(red: 0.7, green: 0.88, blue: 0.5), redTop = Color(red: 0.86, green: 0.38, blue: 0.38)
+        func side(_ red: Bool, _ light: CGFloat) -> Color {
+            red ? Color(red: 0.42 + 0.3 * light, green: 0.16 + 0.1 * light, blue: 0.18 + 0.1 * light)
+                : Color(red: 0.32 + 0.2 * light, green: 0.45 + 0.25 * light, blue: 0.22 + 0.15 * light)
+        }
+        // The solid arc runs from the end of the gap all the way round to its start.
+        let solidStart = f.gap.0 + f.gap.1, solidEnd = f.gap.0 + 2 * .pi
+        var pieces: [(CGFloat, CGFloat, Bool)] = [(solidStart, solidEnd, false)]
+        if let red = f.red {
+            var r0 = red.0
+            while r0 < solidStart { r0 += 2 * .pi }
+            pieces = [(solidStart, r0, false), (r0, r0 + red.1, true), (r0 + red.1, solidEnd, false)]
+        }
+        for (a0, a1, red) in pieces {
+            // Split the arc into the half facing the viewer and the far half.
+            var t = a0
+            while t < a1 - 0.0001 {
+                let k = floor((t + .pi / 2) / .pi)
+                let end = min(a1, (k + 1) * .pi - .pi / 2)
+                if Int(k).isMultiple(of: 2) == front {
+                    let steps = max(2, Int(ceil((end - t) / 0.12)))
+                    let angles = (0...steps).map { t + (end - t) * CGFloat($0) / CGFloat(steps) }
+                    if front {
+                        for i in 0..<steps {
+                            let p0 = point(Self.outer, angles[i], f.y), p1 = point(Self.outer, angles[i + 1], f.y)
+                            var wall = Path()
+                            wall.addLines([p0, p1, CGPoint(x: p1.x, y: p1.y + Self.thickness), CGPoint(x: p0.x, y: p0.y + Self.thickness)])
+                            wall.closeSubpath()
+                            let light = max(0, min(1, 0.55 - 0.45 * sin(angles[i]) + 0.15 * cos(angles[i])))
+                            context.fill(wall, with: .color(side(red, light)))
+                            context.stroke(wall, with: .color(side(red, light)), lineWidth: 0.5)
+                        }
+                    }
+                    var top = Path()
+                    top.addLines(angles.map { point(Self.outer, $0, f.y) } + angles.reversed().map { point(Self.inner, $0, f.y) })
+                    top.closeSubpath()
+                    context.fill(top, with: .color(red ? redTop : safeTop))
+                    context.stroke(top, with: .color(red ? redTop : safeTop), lineWidth: 0.6)
+                }
+                t = end
+            }
+        }
+        // Cut faces at the gap's edges, wherever they face the viewer.
+        for (a, start) in [(solidStart, true), (solidEnd, false)] where (cos(a) >= 0) == front && (start ? sin(a) > 0 : sin(a) < 0) {
+            let o = point(Self.outer, a, f.y), n = point(Self.inner, a, f.y)
+            var cap = Path()
+            cap.addLines([n, o, CGPoint(x: o.x, y: o.y + Self.thickness), CGPoint(x: n.x, y: n.y + Self.thickness)])
+            cap.closeSubpath()
+            context.fill(cap, with: .color(side(false, 0.25)))
         }
     }
 }

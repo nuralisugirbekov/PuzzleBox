@@ -122,7 +122,8 @@ struct Match3BoardView: View {
                 ForEach(engine.pieces) { piece in
                     Match3GemView(gem: piece.gem, size: cell,
                                   selected: engine.selected == piece.at,
-                                  hinted: engine.hint.contains(piece.at))
+                                  hinted: engine.hint.contains(piece.at),
+                                  faceted: true)
                         .offset(x: CGFloat(piece.at.c) * cell, y: CGFloat(piece.at.r) * cell)
                         .transition(.asymmetric(
                             insertion: reduceMotion ? .opacity : .offset(y: -cell * 2.5).combined(with: .opacity),
@@ -196,6 +197,8 @@ struct Match3GemView: View {
     let size: CGFloat
     var selected = false
     var hinted = false
+    /// Cut gems with facets on the board; the catalog art keeps the plain symbols.
+    var faceted = false
 
     var body: some View {
         ZStack {
@@ -206,6 +209,15 @@ struct Match3GemView: View {
             }
             if gem.power == .lightning {
                 Match3LightningOrb(size: size)
+            } else if let color = gem.color, faceted {
+                Match3CutGem(outline: Match3CutGem.outline(color), rgb: Self.rgb(color),
+                             table: Match3CutGem.tableScale(color), crystal: gem.crystal)
+                    .shadow(color: Self.tint(color).opacity(gem.power == .none ? 0 : 0.9),
+                            radius: gem.power == .none ? 0 : 7)
+                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: size * 0.04)
+                    .padding(size * 0.1)
+                if gem.power == .bomb { bomb }
+                if gem.power == .cross { cross }
             } else if let color = gem.color {
                 Image(systemName: Self.symbol(color))
                     .resizable()
@@ -223,7 +235,8 @@ struct Match3GemView: View {
                 if gem.power == .bomb { bomb }
                 if gem.power == .cross { cross }
             }
-            if gem.crystal {
+            if gem.crystal, !(faceted && gem.color != nil && gem.power != .lightning) {
+                // A cut gem draws its crystal in its own socket.
                 Image(systemName: "diamond.fill")
                     .font(.system(size: size * 0.26, weight: .bold))
                     .foregroundStyle(.cyan)
@@ -276,7 +289,7 @@ struct Match3GemView: View {
         }
     }
 
-    private static func rgb(_ color: GemColor) -> (Double, Double, Double) {
+    fileprivate static func rgb(_ color: GemColor) -> (Double, Double, Double) {
         switch color {
         case .red: (1.0, 0.25, 0.36)
         case .orange: (1.0, 0.56, 0.12)
@@ -296,6 +309,134 @@ struct Match3GemView: View {
     static func light(_ color: GemColor) -> Color {
         let (r, g, b) = rgb(color)
         return Color(red: r + (1 - r) * 0.55, green: g + (1 - g) * 0.55, blue: b + (1 - b) * 0.55)
+    }
+}
+
+/// A cut stone: a ring of facets lit from the top left around a flat table,
+/// and a dark girdle. Each colour has its own cut, so the board still reads
+/// without colour. Every stone has the same diamond-shaped socket in the
+/// middle of its table, which a crystal fills.
+private struct Match3CutGem: View {
+    /// Half the socket's width and height, as a share of the gem.
+    private static let socket = CGSize(width: 0.14, height: 0.19)
+
+    /// How far the table reaches toward the edge. The star and the triangle
+    /// have thin middles, so theirs open wider to hold the socket.
+    static func tableScale(_ color: GemColor) -> CGFloat {
+        switch color {
+        case .yellow: 0.76
+        case .purple: 0.68
+        default: 0.6
+        }
+    }
+
+    /// Corners in a unit square centred on zero.
+    let outline: [CGPoint]
+    let rgb: (Double, Double, Double)
+    let table: CGFloat
+    let crystal: Bool
+
+    static func outline(_ color: GemColor) -> [CGPoint] {
+        switch color {
+        case .red: polygon(8, radius: 0.5, turn: .pi / 8)
+        case .orange: polygon(6, radius: 0.5, turn: 0)
+        case .yellow: (0..<10).map { i in
+            let a = Double(i) / 10 * 2 * .pi - .pi / 2
+            let r = i.isMultiple(of: 2) ? 0.52 : 0.27
+            return CGPoint(x: cos(a) * r, y: sin(a) * r + 0.04)
+        }
+        case .green: [(-0.27, -0.47), (0.27, -0.47), (0.38, -0.36), (0.38, 0.36),
+                      (0.27, 0.47), (-0.27, 0.47), (-0.38, 0.36), (-0.38, -0.36)].map { CGPoint(x: $0.0, y: $0.1) }
+        case .blue: [(-0.28, -0.4), (0.28, -0.4), (0.5, -0.12), (0, 0.5), (-0.5, -0.12)].map { CGPoint(x: $0.0, y: $0.1) }
+        case .purple: [(0, -0.46), (0.52, 0.42), (-0.52, 0.42)].map { CGPoint(x: $0.0, y: $0.1) }
+        }
+    }
+
+    private static func polygon(_ n: Int, radius: Double, turn: Double) -> [CGPoint] {
+        (0..<n).map { i in
+            let a = Double(i) / Double(n) * 2 * .pi + turn
+            return CGPoint(x: cos(a) * radius, y: sin(a) * radius)
+        }
+    }
+
+    /// The base colour, darkened below 1 and lifted toward white above it.
+    private func shade(_ k: Double) -> Color {
+        func f(_ v: Double) -> Double { k <= 1 ? v * k : v + (1 - v) * (k - 1) }
+        return Color(red: f(rgb.0), green: f(rgb.1), blue: f(rgb.2))
+    }
+
+    var body: some View {
+        Canvas { ctx, size in
+            let s = min(size.width, size.height)
+            let mid = CGPoint(x: size.width / 2, y: size.height / 2)
+            let outer = outline.map { CGPoint(x: mid.x + $0.x * s, y: mid.y + $0.y * s) }
+            let centre = CGPoint(x: outer.map(\.x).reduce(0, +) / CGFloat(outer.count),
+                                 y: outer.map(\.y).reduce(0, +) / CGFloat(outer.count))
+            let inner = outer.map { (p: CGPoint) -> CGPoint in
+                let x: CGFloat = centre.x + (p.x - centre.x) * table
+                let y: CGFloat = centre.y + (p.y - centre.y) * table
+                return CGPoint(x: x, y: y)
+            }
+
+            var whole = Path()
+            whole.addLines(outer); whole.closeSubpath()
+            ctx.fill(whole, with: .color(shade(0.6)))
+
+            // Facets facing the light (top left) are brighter.
+            for i in outer.indices {
+                let j = (i + 1) % outer.count
+                var facet = Path()
+                facet.addLines([outer[i], outer[j], inner[j], inner[i]]); facet.closeSubpath()
+                let dx = (outer[i].x + outer[j].x) / 2 - centre.x
+                let dy = (outer[i].y + outer[j].y) / 2 - centre.y
+                let len = max(hypot(dx, dy), 0.001)
+                let light = Double((-dx * 0.6 - dy * 0.8) / len)
+                ctx.fill(facet, with: .color(shade(0.95 + light * 0.35)))
+            }
+
+            var flat = Path()
+            flat.addLines(inner); flat.closeSubpath()
+            let top = inner.map(\.y).min() ?? centre.y, bottom = inner.map(\.y).max() ?? centre.y
+            ctx.fill(flat, with: .linearGradient(Gradient(colors: [shade(1.4), shade(1.0)]),
+                                                 startPoint: CGPoint(x: centre.x, y: top),
+                                                 endPoint: CGPoint(x: centre.x, y: bottom)))
+
+            // The socket: top, right, bottom, left corners.
+            let w = s * Self.socket.width, h = s * Self.socket.height
+            let corners = [CGPoint(x: centre.x, y: centre.y - h), CGPoint(x: centre.x + w, y: centre.y),
+                           CGPoint(x: centre.x, y: centre.y + h), CGPoint(x: centre.x - w, y: centre.y)]
+            var socket = Path()
+            socket.addLines(corners); socket.closeSubpath()
+            if crystal {
+                // The crystal fills the socket: four facets around a point.
+                let ice: [Color] = [Color(red: 0.75, green: 0.97, blue: 1), Color(red: 0.2, green: 0.8, blue: 0.95),
+                                    Color(red: 0.05, green: 0.55, blue: 0.8), Color(red: 0.45, green: 0.9, blue: 1)]
+                ctx.drawLayer { layer in
+                    layer.addFilter(.shadow(color: .cyan, radius: s * 0.08))
+                    layer.fill(socket, with: .color(.cyan))
+                }
+                for i in corners.indices {
+                    var facet = Path()
+                    facet.addLines([corners[i], corners[(i + 1) % 4], centre]); facet.closeSubpath()
+                    ctx.fill(facet, with: .color(ice[i]))
+                }
+                ctx.stroke(socket, with: .color(.white), lineWidth: max(1, s * 0.03))
+            } else {
+                // An empty socket is hollow: dark under its top edge, lit along the bottom.
+                ctx.fill(socket, with: .linearGradient(Gradient(colors: [shade(0.3), shade(0.5), shade(1.1)]),
+                                                       startPoint: corners[0], endPoint: corners[2]))
+                ctx.stroke(socket, with: .color(shade(0.35)), lineWidth: max(1, s * 0.025))
+            }
+
+            ctx.stroke(whole, with: .color(shade(0.45)), lineWidth: max(1, s * 0.035))
+
+            // A glint on the facet nearest the light.
+            let lit = outer.min { $0.x + $0.y < $1.x + $1.y } ?? centre
+            let glintAt = CGPoint(x: lit.x + (centre.x - lit.x) * 0.32, y: lit.y + (centre.y - lit.y) * 0.32)
+            ctx.fill(Path(ellipseIn: CGRect(x: glintAt.x - s * 0.045, y: glintAt.y - s * 0.045,
+                                            width: s * 0.09, height: s * 0.09)),
+                     with: .color(.white.opacity(0.85)))
+        }
     }
 }
 

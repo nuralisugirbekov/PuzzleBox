@@ -648,12 +648,40 @@ struct CheckmateView: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(GameTheme.stroke, lineWidth: 1)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .padding(7)
+        .background {
+            // A walnut frame around the squares.
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LinearGradient(colors: [Self.frameTop, Self.frameBottom], startPoint: .top, endPoint: .bottom))
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    private static let lightSquare = Color(red: 0.94, green: 0.86, blue: 0.71)
+    private static let darkSquare = Color(red: 0.71, green: 0.53, blue: 0.38)
+    private static let frameTop = Color(red: 0.42, green: 0.27, blue: 0.17)
+    private static let frameBottom = Color(red: 0.30, green: 0.18, blue: 0.11)
+    private static let lastMoveTint = Color(red: 0.80, green: 0.82, blue: 0.28)
+    private static let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
+    private static let ebony = Color(red: 0.13, green: 0.11, blue: 0.10)
+
+    /// A solid piece: the filled glyph in the piece's colour, the outlined
+    /// glyph on top to draw its edges.
+    private func pieceView(_ piece: ChessPiece) -> some View {
+        ZStack {
+            Text(verbatim: piece.type.glyph(isWhite: false))
+                .foregroundStyle(piece.isWhite ? Self.ivory : Self.ebony)
+            if piece.isWhite {
+                Text(verbatim: piece.type.glyph(isWhite: true))
+                    .foregroundStyle(Self.ebony)
+            }
+        }
+        .font(.system(size: 40))
+        .minimumScaleFactor(0.5)
+        .lineLimit(1)
+        .shadow(color: .black.opacity(0.3), radius: 1, y: 1.5)
     }
 
     @ViewBuilder
@@ -664,10 +692,9 @@ struct CheckmateView: View {
 
         ZStack {
             Rectangle()
-                .fill(isLight ? Color(red: 0.65, green: 0.69, blue: 0.61)
-                              : Color(red: 0.32, green: 0.39, blue: 0.29))
+                .fill(isLight ? Self.lightSquare : Self.darkSquare)
             if let last = engine.lastMove, last.from == index || last.to == index {
-                Rectangle().fill(Color.yellow.opacity(0.35))
+                Rectangle().fill(Self.lastMoveTint.opacity(0.55))
             }
             if engine.selected == index {
                 Rectangle().fill(GameTheme.accent.opacity(0.35))
@@ -676,21 +703,19 @@ struct CheckmateView: View {
                 Rectangle().strokeBorder(Color.yellow, lineWidth: 3)
             }
             if let piece {
-                Text(verbatim: piece.type.glyph(isWhite: piece.isWhite))
-                    .font(.system(size: 30))
-                    .foregroundStyle(piece.isWhite ? Color.white : Color.black)
-                    .shadow(color: piece.isWhite ? .black.opacity(0.9) : .white.opacity(0.45), radius: 1)
+                pieceView(piece)
                     .allowsHitTesting(false)
             }
             if engine.targets.contains(index) {
                 if piece != nil {
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(GameTheme.accent, lineWidth: 2.5)
-                        .padding(2)
+                    // A capture: a ring around the piece.
+                    Circle()
+                        .strokeBorder(Color.black.opacity(0.28), lineWidth: 4)
+                        .padding(1)
                 } else {
                     Circle()
-                        .fill(GameTheme.accent.opacity(0.6))
-                        .frame(width: 10, height: 10)
+                        .fill(Color.black.opacity(0.22))
+                        .frame(width: 12, height: 12)
                 }
             }
         }
@@ -698,7 +723,7 @@ struct CheckmateView: View {
             if col == 0 {
                 Text(verbatim: String(8 - row))
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Color.black.opacity(0.7))
+                    .foregroundStyle(isLight ? Self.darkSquare : Self.lightSquare)
                     .padding(2)
                     .allowsHitTesting(false)
             }
@@ -707,7 +732,7 @@ struct CheckmateView: View {
             if row == 7 {
                 Text(verbatim: String(Array("abcdefgh")[col]))
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Color.black.opacity(0.7))
+                    .foregroundStyle(isLight ? Self.darkSquare : Self.lightSquare)
                     .padding(2)
                     .allowsHitTesting(false)
             }
