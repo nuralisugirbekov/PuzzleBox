@@ -194,6 +194,9 @@ final class MinesweeperEngine: GameEngine {
 
 struct MinesweeperView: View {
     @State private var engine = MinesweeperEngine()
+    /// Bumped on a loss to give the board a short shake.
+    @State private var shake = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static func tone(_ light: (Double, Double, Double), _ dark: (Double, Double, Double)) -> Color {
         Color(uiColor: UIColor { $0.userInterfaceStyle == .dark
@@ -212,7 +215,6 @@ struct MinesweeperView: View {
         GameTheme.ink,
         GameTheme.textSecondary,
     ]
-    private static let frame = tone((0.78, 0.83, 0.90), (0.10, 0.12, 0.16))
     private static let tileTop = tone((0.58, 0.71, 0.89), (0.33, 0.42, 0.57))
     private static let tileBottom = tone((0.43, 0.57, 0.80), (0.23, 0.31, 0.44))
     private static let ground = tone((0.96, 0.94, 0.89), (0.17, 0.18, 0.20))
@@ -220,42 +222,60 @@ struct MinesweeperView: View {
 
     var body: some View {
         GameContainerView(gameID: .minesweeper, engine: engine,
-                          resultSummary: engine.finishSeconds.map { L10n.format("Time: %@", Self.clock($0)) } ?? L10n.text(engine.difficulty.title)) {
-            VStack(spacing: 14) {
-                statusBar
-                board
-                Text(L10n.text("Long-press to flag. Tap a number with all its flags placed to open the cells around it."))
-                    .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
+                          resultSummary: engine.finishSeconds.map { L10n.format("Time: %@", Self.clock($0)) } ?? L10n.text(engine.difficulty.title),
+                          chrome: .inGame,
+                          backdrop: AnyView(ToyMinesweeper.palette.backdrop),
+                          toyStyle: ToyMinesweeper.palette.style) {
+            ToyGameStage(palette: ToyMinesweeper.palette,
+                         headline: .clock(caption: L10n.text(engine.difficulty.title), time: { mineClock })) {
+                VStack(spacing: 0) {
+                    statusBar
+                        .padding(.top, 14)
+                    Spacer(minLength: 12)
+                    board
+                    Spacer(minLength: 12)
+                    // Only until the first cell is opened.
+                    Text(L10n.text("Long-press to flag. Tap a number with all its flags placed to open the cells around it."))
+                        .font(.system(.footnote, design: .rounded))
+                        .opacity(engine.revealedCount == 0 ? 0.6 : 0)
+                        .multilineTextAlignment(.center)
+                        .accessibilityHidden(!(engine.revealedCount == 0))
+                    Spacer(minLength: 4).frame(maxHeight: 16)
+                }
+                .animation(.easeOut(duration: 0.3), value: engine.revealedCount == 0)
             }
         }
     }
 
     static func clock(_ seconds: Int) -> String { String(format: "%d:%02d", seconds / 60, seconds % 60) }
 
+    /// Runs from the first opened cell and stops on the result.
+    private var mineClock: String {
+        let seconds = engine.finishSeconds ?? engine.startDate.map { Int(Date().timeIntervalSince($0)) } ?? 0
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    /// Flags left and the dig/flag switch.
     private var statusBar: some View {
-        HStack(spacing: 14) {
-            Text(L10n.text(engine.difficulty.title))
-                .font(.subheadline.weight(.semibold))
-            Label("\(engine.mineCount - engine.flagsUsed)", systemImage: "flag.fill")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.red)
-            Spacer()
-            Button {
+        let palette = ToyMinesweeper.palette
+        return HStack(spacing: 10) {
+            ToyChip(color: palette.card) {
+                Label {
+                    Text(verbatim: "\(engine.mineCount - engine.flagsUsed)").monospacedDigit()
+                } icon: {
+                    Image(systemName: "flag.fill").foregroundStyle(ToyMinesweeper.flag)
+                }
+            }
+            Spacer(minLength: 0)
+            ToyCapsuleButton(title: engine.flagMode ? L10n.text("Flag Mode") : L10n.text("Dig Mode"),
+                             symbol: engine.flagMode ? "flag.fill" : "hammer.fill",
+                             color: engine.flagMode ? palette.accent : palette.card,
+                             ink: engine.flagMode ? .white : palette.ink) {
                 engine.flagMode.toggle()
                 Haptics.tap(); SoundFX.play(.tap)
-            } label: {
-                Label(engine.flagMode ? L10n.text("Flag Mode") : L10n.text("Dig Mode"),
-                      systemImage: engine.flagMode ? "flag.fill" : "hammer.fill")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(engine.flagMode ? .white : GameTheme.accent)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(engine.flagMode ? AnyShapeStyle(GameTheme.accent) : AnyShapeStyle(GameTheme.surface),
-                                in: Capsule())
-                    .overlay { Capsule().strokeBorder(GameTheme.stroke, lineWidth: 1) }
             }
+            .fixedSize()
         }
-        .padding(.horizontal, 4)
     }
 
     private var board: some View {
@@ -272,10 +292,24 @@ struct MinesweeperView: View {
                 }
             }
         }
-        .padding(8)
-        .background(Self.frame, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .aspectRatio(1, contentMode: .fit)
+        .toyTray(ToyMinesweeper.palette.tray, cornerRadius: 20, padding: 8)
         .id(engine.difficulty)
+        // A short, soft shake when a mine goes off.
+        .keyframeAnimator(initialValue: CGFloat(0), trigger: shake) { content, x in
+            content.offset(x: x)
+        } keyframes: { _ in
+            KeyframeTrack {
+                CubicKeyframe(reduceMotion ? 0 : -9, duration: 0.05)
+                CubicKeyframe(reduceMotion ? 0 : 8, duration: 0.07)
+                CubicKeyframe(reduceMotion ? 0 : -5, duration: 0.07)
+                CubicKeyframe(reduceMotion ? 0 : 3, duration: 0.07)
+                SpringKeyframe(0, duration: 0.2)
+            }
+        }
+        .onChange(of: engine.exploded) { _, spot in
+            if spot != nil { shake += 1 }
+        }
     }
 
     @ViewBuilder
@@ -286,8 +320,14 @@ struct MinesweeperView: View {
         ZStack {
             if cell.revealed {
                 RoundedRectangle(cornerRadius: corner)
-                    .fill(engine.exploded == pos ? Color.red
+                    .fill(engine.exploded == pos ? ToyMinesweeper.boom
                           : (pos.r + pos.c).isMultiple(of: 2) ? Self.ground : Self.groundAlt)
+                if engine.exploded == pos {
+                    // A soft "pow" behind the mine that went off.
+                    BurstShape(points: 10)
+                        .fill(ToyMinesweeper.boomGlow)
+                        .padding(fontSize * 0.08)
+                }
             } else {
                 // A raised tile: lit top edge, shaded bottom edge.
                 RoundedRectangle(cornerRadius: corner)
@@ -304,8 +344,8 @@ struct MinesweeperView: View {
                     if cell.flagged {
                         flag(size: fontSize)
                     } else {
-                        MineGlyph(color: engine.exploded == pos ? .white : GameTheme.ink)
-                            .padding(fontSize * 0.28)
+                        MineGlyph(color: ToyMinesweeper.mine)
+                            .padding(fontSize * 0.24)
                     }
                 } else if cell.adjacent > 0 {
                     Text("\(cell.adjacent)")
@@ -340,7 +380,8 @@ struct MinesweeperView: View {
     }
 }
 
-/// A round mine with four spikes and a glint.
+/// A soft clay mine: a round body on its darker lip, stubby rounded
+/// spikes all around and a glint, lit from the top like the other toys.
 private struct MineGlyph: View {
     let color: Color
 
@@ -348,19 +389,46 @@ private struct MineGlyph: View {
         GeometryReader { geo in
             let s = min(geo.size.width, geo.size.height)
             ZStack {
-                ForEach(0..<4) { i in
-                    Capsule()
-                        .fill(color)
-                        .frame(width: s * 0.14, height: s)
-                        .rotationEffect(.degrees(Double(i) * 45))
+                ForEach(0..<8) { i in
+                    let a = Double(i) * .pi / 4
+                    Circle()
+                        .fill(color.toyShade(-0.12))
+                        .frame(width: s * 0.22, height: s * 0.22)
+                        .offset(x: cos(a) * s * 0.38, y: sin(a) * s * 0.38)
                 }
-                Circle().fill(color).frame(width: s * 0.7, height: s * 0.7)
-                Circle().fill(.white.opacity(0.7))
-                    .frame(width: s * 0.18, height: s * 0.18)
-                    .offset(x: -s * 0.12, y: -s * 0.12)
+                Circle().fill(color.toyShade(-0.22))
+                    .frame(width: s * 0.68, height: s * 0.68)
+                    .offset(y: s * 0.05)
+                Circle()
+                    .fill(LinearGradient(colors: [color.toyShade(0.12), color, color.toyShade(-0.06)],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: s * 0.68, height: s * 0.68)
+                Ellipse().fill(.white.opacity(0.6))
+                    .frame(width: s * 0.2, height: s * 0.13)
+                    .rotationEffect(.degrees(-30))
+                    .offset(x: -s * 0.13, y: -s * 0.15)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
+    }
+}
+
+/// A rounded star: the "pow" behind the mine that went off.
+private struct BurstShape: Shape {
+    var points: Int
+
+    func path(in rect: CGRect) -> Path {
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let outer = min(rect.width, rect.height) / 2, inner = outer * 0.68
+        var path = Path()
+        for i in 0..<(points * 2) {
+            let a = Double(i) * .pi / Double(points) - .pi / 2
+            let r = i.isMultiple(of: 2) ? outer : inner
+            let p = CGPoint(x: c.x + cos(a) * r, y: c.y + sin(a) * r)
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -394,4 +462,25 @@ extension MinesweeperEngine: ResumableGame {
         state = .playing
         return true
     }
+}
+
+
+/// The sage meadow toy world of Minesweeper; the blue tiles stay as they are.
+enum ToyMinesweeper {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.95, 0.97, 0.91), dark: (0.12, 0.15, 0.11)),
+        backdropBottom: .dynamic(light: (0.85, 0.90, 0.80), dark: (0.07, 0.09, 0.06)),
+        tray: .dynamic(light: (0.69, 0.77, 0.60), dark: (0.28, 0.34, 0.24)),
+        socket: .dynamic(light: (0.60, 0.69, 0.52), dark: (0.21, 0.26, 0.18)),
+        ink: .dynamic(light: (0.24, 0.32, 0.20), dark: (0.92, 0.96, 0.88)),
+        deboss: .dynamic(light: (0.84, 0.89, 0.78), dark: (0.37, 0.45, 0.32)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.04, 0.05, 0.03)),
+        card: .dynamic(light: (0.99, 1.0, 0.97), dark: (0.20, 0.24, 0.18)),
+        accent: .dynamic(light: (0.42, 0.58, 0.86), dark: (0.52, 0.66, 0.94)))
+    static let flag = Color.dynamic(light: (0.88, 0.36, 0.33), dark: (0.98, 0.50, 0.46))
+    /// Mines: soft slate-plum clay instead of black.
+    static let mine = Color.dynamic(light: (0.42, 0.40, 0.54), dark: (0.66, 0.63, 0.80))
+    /// The cell of the mine that went off, and the burst behind it.
+    static let boom = Color.dynamic(light: (0.97, 0.62, 0.55), dark: (0.78, 0.38, 0.36))
+    static let boomGlow = Color.dynamic(light: (1.0, 0.86, 0.62), dark: (0.98, 0.70, 0.45))
 }

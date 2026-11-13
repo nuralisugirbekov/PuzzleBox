@@ -22,9 +22,7 @@ struct MotionView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .overlay {
                         if !engine.started {
-                            Text(L10n.text("Tap to start")).font(.title2.bold()).foregroundStyle(GameTheme.accent)
-                                .padding(24).background(GameTheme.background.opacity(0.92), in: RoundedRectangle(cornerRadius: 18))
-                                .allowsHitTesting(false)
+                            TapToStartCard()
                         }
                     }
                     .contentShape(Rectangle())

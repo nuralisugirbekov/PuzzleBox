@@ -19,8 +19,7 @@ struct ToyView: View {
                     .environment(\.colorScheme, .dark).clipShape(RoundedRectangle(cornerRadius:24))
                         .overlay {
                             if !engine.started {
-                                Text(L10n.text("Tap to start")).font(.title2.bold()).padding(24)
-                                    .background(GameTheme.background.opacity(0.9),in:RoundedRectangle(cornerRadius:16)).foregroundStyle(GameTheme.accent).allowsHitTesting(false)
+                            TapToStartCard()
                             }
                         }
                         .contentShape(Rectangle())

@@ -10,8 +10,11 @@ enum SoundFX {
         case tap, jump, point, coin, bounce, whoosh, pop, hit, lose, win
         case place, card, wrong, merge, clear, pour, tick, bell, gallop
         case simon0, simon1, simon2, simon3
+        /// Liquid landing in a tube, higher as it fills.
+        case bubble0, bubble1, bubble2, bubble3
 
         static func simon(_ index: Int) -> Self { [.simon0, .simon1, .simon2, .simon3][index % 4] }
+        static func bubble(_ level: Int) -> Self { [.bubble0, .bubble1, .bubble2, .bubble3][max(0, min(3, level))] }
     }
 
     static let enabledKey = "soundEnabled"
@@ -180,6 +183,13 @@ private enum Synth {
             let notes: [SoundFX.Sound: Double] = [.simon0: 329.63, .simon1: 440, .simon2: 554.37, .simon3: 659.25]
             let note = notes[sound] ?? 440
             return tone(note, note, duration: 0.3, wave: .triangle, volume: 0.45, decay: 2)
+        case .bubble0, .bubble1, .bubble2, .bubble3:
+            // A soft "bloop": a sine that slides up fast, with a quieter
+            // overtone, like an air pocket rising through the liquid.
+            let base: [SoundFX.Sound: Double] = [.bubble0: 240, .bubble1: 300, .bubble2: 370, .bubble3: 450]
+            let f = base[sound] ?? 300
+            return mix(tone(f, f * 2.4, duration: 0.07, wave: .sine, volume: 0.32, decay: 3),
+                       tone(f * 2, f * 4, duration: 0.05, wave: .sine, volume: 0.08, decay: 5))
         case .win:
             return sequence([523.25, 659.25, 783.99].map { tone($0, $0, duration: 0.08, wave: .triangle, volume: 0.4, decay: 1) }
                             + [tone(1_046.5, 1_046.5, duration: 0.35, wave: .triangle, volume: 0.45, decay: 3)])

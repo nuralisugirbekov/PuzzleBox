@@ -284,46 +284,58 @@ struct SudokuView: View {
 
     var body: some View {
         GameContainerView(gameID: .sudoku, engine: engine,
-                          resultSummary: L10n.text(engine.difficulty.title)) {
-            VStack(spacing: 16) {
-                board
-                    .overlay(alignment: .bottom) {
-                        if engine.isFullButWrong {
-                            Text(L10n.text("Some digits are wrong"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(.red.opacity(0.85), in: Capsule())
-                                .offset(y: 20)
-                                .transition(.opacity)
+                          resultSummary: L10n.text(engine.difficulty.title),
+                          chrome: .inGame,
+                          backdrop: AnyView(ToySudoku.palette.backdrop),
+                          toyStyle: ToySudoku.palette.style) {
+            ToyGameStage(palette: ToySudoku.palette,
+                         headline: .clock(caption: L10n.text(engine.difficulty.title))) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 12)
+                    board
+                        .overlay(alignment: .bottom) {
+                            if engine.isFullButWrong {
+                                Text(L10n.text("Some digits are wrong"))
+                                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(ToySudoku.wrong, in: Capsule())
+                                    .offset(y: 16)
+                                    .transition(.opacity)
+                            }
                         }
-                    }
-                    .animation(.easeOut(duration: 0.2), value: engine.isFullButWrong)
-                numberPad
+                        .animation(.easeOut(duration: 0.2), value: engine.isFullButWrong)
+                    Spacer(minLength: 16).frame(maxHeight: 28)
+                    numberPad
+                    Spacer(minLength: 4)
+                }
             }
         }
     }
 
+    // MARK: Board
+
+    /// Cells sit in sockets pressed into a lavender tray; wider gaps mark the blocks.
     private var board: some View {
         let conflicts = engine.conflicts
         let n = engine.size
-        return VStack(spacing: 1) {
-            ForEach(0..<n, id: \.self) { r in
-                HStack(spacing: 1) {
-                    ForEach(0..<n, id: \.self) { c in
-                        cell(r: r, c: c, conflicts: conflicts)
-                    }
-                }
+        return GeometryReader { geo in
+            // Equal cells: 2pt between cells, 6pt between blocks.
+            let gap: CGFloat = 2, blockGap: CGFloat = 6
+            let colBreaks = CGFloat(n / engine.blockCols - 1), rowBreaks = CGFloat(n / engine.blockRows - 1)
+            let cw = (geo.size.width - gap * CGFloat(n - 1) - (blockGap - gap) * colBreaks) / CGFloat(n)
+            let ch = (geo.size.height - gap * CGFloat(n - 1) - (blockGap - gap) * rowBreaks) / CGFloat(n)
+            ForEach(0..<(n * n), id: \.self) { index in
+                let r = index / n, c = index % n
+                let x = CGFloat(c) * (cw + gap) + CGFloat(c / engine.blockCols) * (blockGap - gap)
+                let y = CGFloat(r) * (ch + gap) + CGFloat(r / engine.blockRows) * (blockGap - gap)
+                cell(r: r, c: c, conflicts: conflicts)
+                    .frame(width: cw, height: ch)
+                    .position(x: x + cw / 2, y: y + ch / 2)
             }
         }
-        .background(Color(UIColor.separator))
-        .overlay(blockLines)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.6), lineWidth: 2)
-        }
         .aspectRatio(1, contentMode: .fit)
+        .toyTray(ToySudoku.palette.tray, cornerRadius: 20, padding: 8)
         .id(n)
     }
 
@@ -339,14 +351,20 @@ struct SudokuView: View {
         let selectedValue = engine.selected.flatMap { engine.board[$0.r][$0.c] }
         let sameValue = value != nil && value == selectedValue && !isSelected
         let n = engine.size
+        let shape = RoundedRectangle(cornerRadius: n == 9 ? 5 : 8, style: .continuous)
 
         ZStack {
-            Rectangle()
-                .fill(cellBackground(isSelected: isSelected, isWrong: isWrong, sameUnit: sameUnit, sameValue: sameValue))
+            if isSelected {
+                // The chosen cell pops up out of its socket.
+                ToyBlock(color: ToySudoku.selected, shape: shape, lip: 2, castsShadow: false)
+            } else {
+                ToySocket(color: cellColor(isWrong: isWrong, sameUnit: sameUnit, sameValue: sameValue), shape: shape)
+            }
             if let value {
                 Text("\(value)")
-                    .font(.system(n == 9 ? .title3 : .title2, design: .rounded).weight(isGiven ? .bold : .medium))
-                    .foregroundStyle(isWrong ? .red : (isGiven ? GameTheme.ink : GameTheme.accent))
+                    .font(.system(n == 9 ? .title3 : .title2, design: .rounded).weight(isGiven ? .heavy : .semibold))
+                    .foregroundStyle(isWrong ? ToySudoku.wrong : (isGiven ? ToySudoku.palette.ink : ToySudoku.palette.accent))
+                    .offset(y: isSelected ? -1 : 0)
                     .transition(.scale.combined(with: .opacity))
             } else if !engine.notes[r][c].isEmpty {
                 // Pencil marks laid out in a small grid matching the digit pad.
@@ -357,8 +375,8 @@ struct SudokuView: View {
                             ForEach(1...columns, id: \.self) { col in
                                 let digit = row * columns + col
                                 Text(engine.notes[r][c].contains(digit) ? "\(digit)" : " ")
-                                    .font(.system(size: n == 9 ? 8 : 10, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(GameTheme.textSecondary)
+                                    .font(.system(size: n == 9 ? 8 : 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(ToySudoku.palette.ink.opacity(0.55))
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                         }
@@ -367,11 +385,10 @@ struct SudokuView: View {
                 .padding(1)
             }
         }
-        .aspectRatio(1, contentMode: .fit)
-        .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { engine.select(pos) }
         .animation(.snappy(duration: 0.15), value: value)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
     }
 
     private func isInSelectedUnit(_ pos: GridPos) -> Bool {
@@ -380,36 +397,17 @@ struct SudokuView: View {
         return sel.r == pos.r || sel.c == pos.c || sameBox
     }
 
-    private func cellBackground(isSelected: Bool, isWrong: Bool, sameUnit: Bool, sameValue: Bool) -> Color {
-        if isSelected { return GameTheme.accent.opacity(0.30) }
-        if isWrong { return .red.opacity(0.18) }
-        if sameValue { return GameTheme.accent.opacity(0.2) }
-        if sameUnit { return GameTheme.accent.opacity(0.07) }
-        return GameTheme.surface
+    private func cellColor(isWrong: Bool, sameUnit: Bool, sameValue: Bool) -> Color {
+        if isWrong { return ToySudoku.wrongCell }
+        if sameValue { return ToySudoku.sameValue }
+        if sameUnit { return ToySudoku.sameUnit }
+        return ToySudoku.palette.socket
     }
 
-    /// Thick separators outlining the blocks (2×3 on 6×6, 3×3 on 9×9).
-    private var blockLines: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            let n = CGFloat(engine.size)
-            let rowsPerBlock = CGFloat(engine.blockRows), colsPerBlock = CGFloat(engine.blockCols)
-            Path { p in
-                for k in stride(from: colsPerBlock, to: n, by: colsPerBlock) {
-                    p.move(to: CGPoint(x: w * k / n, y: 0)); p.addLine(to: CGPoint(x: w * k / n, y: h))
-                }
-                for k in stride(from: rowsPerBlock, to: n, by: rowsPerBlock) {
-                    p.move(to: CGPoint(x: 0, y: h * k / n)); p.addLine(to: CGPoint(x: w, y: h * k / n))
-                }
-            }
-            .stroke(Color.primary.opacity(0.6), lineWidth: 2)
-        }
-        .allowsHitTesting(false)
-    }
+    // MARK: Pad
 
     private var numberPad: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             HStack(spacing: engine.size == 9 ? 5 : 10) {
                 ForEach(1...engine.size, id: \.self) { n in
                     let left = engine.remaining(n)
@@ -417,45 +415,56 @@ struct SudokuView: View {
                         engine.enter(n)
                     } label: {
                         VStack(spacing: 0) {
-                            Text("\(n)").font(.title2.bold())
-                            Text("\(max(0, left))").font(.caption2.monospacedDigit()).opacity(0.6)
+                            Text("\(n)").font(.system(.title2, design: .rounded).weight(.heavy))
+                            Text("\(max(0, left))").font(.system(.caption2, design: .rounded).monospacedDigit()).opacity(0.6)
                         }
+                        .foregroundStyle(engine.notesMode ? ToySudoku.palette.ink.opacity(0.7) : ToySudoku.palette.accent)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(GameTheme.accent.opacity(engine.notesMode ? 0.05 : 0.12),
-                                    in: RoundedRectangle(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(GameTheme.accent.opacity(engine.notesMode ? 0.6 : 0.3), lineWidth: 1)
-                        }
-                        .foregroundStyle(GameTheme.accent)
+                        .frame(height: 52)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(ToyPressStyle(color: engine.notesMode ? ToySudoku.notesKey : ToySudoku.palette.card,
+                                               lip: 4, cornerRadius: 12))
                     .disabled(left <= 0)
-                    .opacity(left <= 0 ? 0.3 : 1)
+                    .opacity(left <= 0 ? 0.35 : 1)
                 }
             }
             HStack(spacing: 10) {
-                toolButton(L10n.text("Erase"), symbol: "eraser.fill", active: false) { engine.enter(nil) }
-                toolButton(L10n.text("Notes"), symbol: engine.notesMode ? "pencil.circle.fill" : "pencil.circle", active: engine.notesMode) {
+                ToyCapsuleButton(title: L10n.text("Erase"), symbol: "eraser.fill",
+                                 color: ToySudoku.palette.card, ink: ToySudoku.palette.ink) { engine.enter(nil) }
+                ToyCapsuleButton(title: L10n.text("Notes"), symbol: engine.notesMode ? "pencil.circle.fill" : "pencil.circle",
+                                 color: engine.notesMode ? ToySudoku.palette.accent : ToySudoku.palette.card,
+                                 ink: engine.notesMode ? .white : ToySudoku.palette.ink) {
                     engine.notesMode.toggle(); Haptics.tap()
                 }
-                toolButton(L10n.format("Hint (%d)", engine.hintsLeft), symbol: "lightbulb.fill", active: false) { engine.hint() }
+                ToyCapsuleButton(title: L10n.text("Hint"), symbol: "lightbulb.fill",
+                                 color: ToySudoku.palette.card, ink: ToySudoku.palette.ink,
+                                 badge: engine.hintsLeft, badgeColor: ToySudoku.palette.accent) { engine.hint() }
                     .disabled(engine.hintsLeft == 0)
+                    .opacity(engine.hintsLeft == 0 ? 0.5 : 1)
             }
         }
     }
+}
 
-    private func toolButton(_ title: String, symbol: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.subheadline.bold())
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(active ? GameTheme.accent : GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 12))
-                .foregroundStyle(active ? Color.white : GameTheme.ink)
-        }
-    }
+/// The lavender toy world of Sudoku.
+enum ToySudoku {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.96, 0.95, 1.0), dark: (0.13, 0.12, 0.19)),
+        backdropBottom: .dynamic(light: (0.89, 0.87, 0.97), dark: (0.08, 0.07, 0.12)),
+        tray: .dynamic(light: (0.74, 0.70, 0.89), dark: (0.31, 0.28, 0.44)),
+        socket: .dynamic(light: (0.99, 0.98, 1.0), dark: (0.19, 0.18, 0.27)),
+        ink: .dynamic(light: (0.25, 0.22, 0.42), dark: (0.92, 0.90, 0.99)),
+        deboss: .dynamic(light: (0.84, 0.81, 0.95), dark: (0.29, 0.27, 0.41)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.06, 0.05, 0.09)),
+        card: .dynamic(light: (0.99, 0.98, 1.0), dark: (0.21, 0.20, 0.29)),
+        accent: .dynamic(light: (0.47, 0.38, 0.85), dark: (0.66, 0.58, 0.98)))
+    static let selected = Color.dynamic(light: (0.84, 0.79, 1.0), dark: (0.38, 0.33, 0.58))
+    static let sameValue = Color.dynamic(light: (0.88, 0.85, 0.99), dark: (0.30, 0.27, 0.45))
+    static let sameUnit = Color.dynamic(light: (0.94, 0.92, 1.0), dark: (0.23, 0.22, 0.33))
+    static let wrongCell = Color.dynamic(light: (1.0, 0.88, 0.88), dark: (0.40, 0.20, 0.22))
+    static let wrong = Color.dynamic(light: (0.86, 0.33, 0.36), dark: (0.98, 0.52, 0.54))
+    static let notesKey = Color.dynamic(light: (0.93, 0.91, 0.99), dark: (0.26, 0.24, 0.36))
 }
 
 // MARK: - Saved round

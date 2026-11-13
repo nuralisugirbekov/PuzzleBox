@@ -10,28 +10,51 @@ struct Match3View: View {
     }
 
     var body: some View {
+        let palette = ToyGems.palette
         GameContainerView(gameID: engine.mode.gameID, engine: engine,
                           resultSummary: engine.mode == .casual ? nil : L10n.format("Level %d", engine.levelNumber),
-                          nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil) {
-            VStack(spacing: 14) {
-                if engine.mode == .casual {
-                    HStack {
-                        Label(L10n.format("Combo ×%d", max(engine.bestCascade, 1)), systemImage: "flame.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .contentTransition(.numericText())
-                            .animation(.snappy, value: engine.bestCascade)
-                        Spacer()
-                        ClassicTableButton(title: L10n.text("Hint"), symbol: "lightbulb",
-                                           isEnabled: !engine.isBusy && !engine.isEnding) { engine.showHint() }
+                          nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+            ToyGameStage(palette: palette) {
+                VStack(spacing: 0) {
+                    Group {
+                        if engine.mode == .casual {
+                            HStack(spacing: 10) {
+                                ToyChip(color: palette.card) {
+                                    Label {
+                                        Text(L10n.format("Combo ×%d", max(engine.bestCascade, 1)))
+                                            .contentTransition(.numericText())
+                                    } icon: {
+                                        Image(systemName: "flame.fill").foregroundStyle(ToyGems.flame)
+                                    }
+                                }
+                                .animation(.snappy, value: engine.bestCascade)
+                                Spacer(minLength: 0)
+                                ToyCapsuleButton(title: L10n.text("Hint"), symbol: "lightbulb.fill",
+                                                 color: palette.card, ink: palette.ink) { engine.showHint() }
+                                    .fixedSize()
+                                    .disabled(engine.isBusy || engine.isEnding)
+                            }
+                        } else {
+                            Match3GoalBar(engine: engine, toy: true)
+                        }
                     }
-                } else {
-                    Match3GoalBar(engine: engine)
+                    .padding(.top, 14)
+                    Spacer(minLength: 12)
+                    Match3BoardView(engine: engine)
+                        .toyTray(palette.tray, cornerRadius: 22, padding: 8)
+                    Spacer(minLength: 12)
+                    // Only until the first match.
+                    Text(L10n.text("Swipe a gem to swap it with a neighbour."))
+                        .font(.system(.footnote, design: .rounded))
+                        .opacity(engine.score == 0 ? 0.6 : 0)
+                        .multilineTextAlignment(.center)
+                        .accessibilityHidden(!(engine.score == 0))
+                    Spacer(minLength: 4).frame(maxHeight: 16)
                 }
-                Match3BoardView(engine: engine)
-                Text(L10n.text("Swipe a gem to swap it with a neighbour."))
-                    .font(.footnote).foregroundStyle(GameTheme.textSecondary)
-                    .multilineTextAlignment(.center)
+                .animation(.easeOut(duration: 0.3), value: engine.score == 0)
             }
         }
         .task { await engine.runClock() }
@@ -41,10 +64,78 @@ struct Match3View: View {
 /// Level, crystals collected, and the clock (Blitz) or the moves left (Arcade).
 struct Match3GoalBar: View {
     let engine: Match3Engine
+    /// Toy chips and a clay time bar, for the toy-styled Gems screen.
+    var toy = false
 
     private var fraction: Double { engine.timeLeft / Match3Level.time }
 
     var body: some View {
+        if toy { toyBody } else { plainBody }
+    }
+
+    private var toyBody: some View {
+        let palette = ToyGems.palette
+        return VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                ToyChip(color: palette.card) {
+                    Text(L10n.format("Level %d", engine.levelNumber))
+                        .contentTransition(.numericText())
+                }
+                Spacer(minLength: 0)
+                if engine.mode == .arcade {
+                    ToyChip(color: engine.movesLeft <= 3 ? ToyGems.warning : palette.card) {
+                        Label {
+                            Text(verbatim: "\(engine.movesLeft)").monospacedDigit()
+                                .contentTransition(.numericText())
+                        } icon: {
+                            Image(systemName: "hand.draw.fill").foregroundStyle(engine.movesLeft <= 3 ? palette.ink : ToyGems.flame)
+                        }
+                    }
+                    .animation(.snappy, value: engine.movesLeft)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(L10n.format("Moves left: %d", engine.movesLeft))
+                }
+                ToyChip(color: palette.card) {
+                    Label {
+                        Text(verbatim: "\(min(engine.crystals, engine.crystalsNeeded)) / \(engine.crystalsNeeded)")
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    } icon: {
+                        Image(systemName: "diamond.fill").foregroundStyle(ToyGems.crystal)
+                    }
+                }
+                .animation(.snappy, value: engine.crystals)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L10n.format("Crystals: %d of %d", engine.crystals, engine.crystalsNeeded))
+            }
+            if engine.mode == .blitz {
+                HStack(spacing: 10) {
+                    // Time left as clay filling a groove.
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            ToySocket(color: palette.socket, shape: Capsule())
+                            Capsule()
+                                .fill(fraction > 0.25 ? ToyGems.timeOK : ToyGems.warning)
+                                .overlay(alignment: .top) {
+                                    Capsule().fill(.white.opacity(0.35)).frame(height: 3).padding(.horizontal, 4).padding(.top, 2)
+                                }
+                                .frame(width: max(12, geo.size.width * fraction))
+                                .padding(2)
+                                .animation(.linear(duration: 0.1), value: engine.timeLeft)
+                        }
+                    }
+                    .frame(height: 16)
+                    Text(verbatim: "\(Int(engine.timeLeft.rounded(.up)))")
+                        .font(.system(.headline, design: .rounded).monospacedDigit().weight(.heavy))
+                        .foregroundStyle(fraction > 0.25 ? palette.ink : ToyGems.warning)
+                        .frame(minWidth: 28, alignment: .trailing)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private var plainBody: some View {
         VStack(spacing: 10) {
             HStack(spacing: 16) {
                 Text(L10n.format("Level %d", engine.levelNumber))
@@ -563,4 +654,23 @@ private struct Match3EffectView: View {
             .opacity(Double(1 - t))
         }
     }
+}
+
+
+/// The dusty plum toy world of Gems, a jewellery box for the faceted stones.
+enum ToyGems {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.96, 0.93, 0.97), dark: (0.15, 0.11, 0.17)),
+        backdropBottom: .dynamic(light: (0.88, 0.82, 0.91), dark: (0.08, 0.06, 0.10)),
+        tray: .dynamic(light: (0.58, 0.46, 0.64), dark: (0.32, 0.24, 0.37)),
+        socket: .dynamic(light: (0.50, 0.38, 0.56), dark: (0.24, 0.18, 0.28)),
+        ink: .dynamic(light: (0.33, 0.21, 0.39), dark: (0.96, 0.91, 0.98)),
+        deboss: .dynamic(light: (0.86, 0.79, 0.89), dark: (0.40, 0.31, 0.45)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.05, 0.03, 0.06)),
+        card: .dynamic(light: (0.99, 0.97, 1.0), dark: (0.23, 0.18, 0.26)),
+        accent: .dynamic(light: (0.78, 0.42, 0.70), dark: (0.90, 0.56, 0.82)))
+    static let flame = Color.dynamic(light: (0.95, 0.55, 0.30), dark: (1.0, 0.66, 0.40))
+    static let crystal = Color.dynamic(light: (0.30, 0.70, 0.88), dark: (0.48, 0.82, 0.96))
+    static let timeOK = Color.dynamic(light: (0.47, 0.76, 0.56), dark: (0.42, 0.70, 0.50))
+    static let warning = Color.dynamic(light: (0.95, 0.52, 0.50), dark: (0.88, 0.42, 0.42))
 }

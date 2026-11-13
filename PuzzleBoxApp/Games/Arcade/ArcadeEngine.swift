@@ -168,7 +168,8 @@ final class ArcadeEngine: GameEngine {
             for i in 0..<7 { addHelixPlatform(y: 220 + CGFloat(i) * 85) }
         case .roadHop:
             player = CGPoint(x: 160, y: 430)
-            for lane in 1...7 { addLane(row: lane) }
+            // Lanes reach past the top of a full-screen view.
+            for lane in 1...11 { addLane(row: lane) }
         case .knifeSpin:
             setupKnifeLevel()
         }
@@ -575,9 +576,9 @@ final class ArcadeEngine: GameEngine {
                 player.y += 50
                 for i in bodies.indices { bodies[i].rect.origin.y += 50 }
                 for i in coins.indices { coins[i].y += 50 }
-                bodies.removeAll { $0.rect.minY > 500 }
-                coins.removeAll { $0.y > 500 }
-                addLane(row: roadRow + 4)
+                bodies.removeAll { $0.rect.minY > 700 }
+                coins.removeAll { $0.y > 700 }
+                addLane(row: roadRow + 8)
             }
         }
         roadCollision()
@@ -586,7 +587,7 @@ final class ArcadeEngine: GameEngine {
     func isGrassRow(_ row: Int) -> Bool { row <= 0 || row % 4 == 0 }
     /// Visible rows, bottom to top, with their centre y.
     var visibleRoadRows: [(row: Int, y: CGFloat)] {
-        (roadRow - 4...roadRow + 9).map { ($0, player.y - CGFloat($0 - roadRow) * 50) }
+        (roadRow - 7...roadRow + 13).map { ($0, player.y - CGFloat($0 - roadRow) * 50) }
     }
 
     private func updateRoad(_ dt: CGFloat) {

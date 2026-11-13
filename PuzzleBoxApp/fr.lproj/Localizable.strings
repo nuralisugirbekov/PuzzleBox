@@ -768,3 +768,5 @@
 "Wait" = "Attendre";
 "Start" = "Commencer";
 "Step %d of 3: %@" = "Étape %d sur 3 : %@";
+"Time" = "Temps";
+"Mistakes: %d/%d" = "Erreurs : %d/%d";

@@ -246,16 +246,31 @@ struct SnakeView: View {
     @State private var engine = SnakeEngine()
 
     var body: some View {
-        GameContainerView(gameID: .snake, engine: engine) {
-            VStack(spacing: 16) {
-                hud
-                board
-                Text(L10n.text("Swipe on the board to steer the snake. Eat apples quickly for a combo and grab golden apples before they vanish."))
-                    .font(.footnote)
-                    .foregroundStyle(GameTheme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                controls
+        let palette = ToySnake.palette
+        GameContainerView(gameID: .snake, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+            ToyGameStage(palette: palette) {
+                comboChip
+            } content: {
+                VStack(spacing: 12) {
+                    hud
+                        .padding(.top, 14)
+                    Spacer(minLength: 8)
+                    board
+                    // Only until the first apple; it keeps its place so the board never jumps.
+                    Text(L10n.text("Swipe on the board to steer the snake. Eat apples quickly for a combo and grab golden apples before they vanish."))
+                        .font(.system(.footnote, design: .rounded))
+                        .opacity(engine.score == 0 ? 0.6 : 0)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(engine.score != 0)
+                        .animation(.easeOut(duration: 0.3), value: engine.score == 0)
+                    Spacer(minLength: 8)
+                    controls
+                    Spacer(minLength: 4).frame(maxHeight: 12)
+                }
             }
         }
         .onAppear { engine.start() }
@@ -280,7 +295,7 @@ struct SnakeView: View {
                 for c in 0..<SnakeEngine.cols {
                     let light = (r + c).isMultiple(of: 2)
                     context.fill(Path(rect(GridPos(r: r, c: c), inset: 0)),
-                                 with: .color(light ? Color(red: 0.55, green: 0.8, blue: 0.35) : Color(red: 0.5, green: 0.74, blue: 0.31)))
+                                 with: .color(light ? ToySnake.grass : ToySnake.grassAlt))
                 }
             }
 
@@ -312,18 +327,26 @@ struct SnakeView: View {
                 apple(golden, top: Color(red: 1, green: 0.95, blue: 0.55), bottom: Color(red: 0.95, green: 0.65, blue: 0.05), scale: 1.05)
             }
 
-            // Snake: one rounded stroke through the segment centres, fading toward the tail.
+            // Snake: soft clay, one rounded stroke through the segment centres,
+            // laid over a darker underside and topped with a sheen.
             let count = snake.count
-            for (i, segment) in snake.enumerated().reversed() {
-                let t = Double(i) / Double(max(1, count - 1))
-                let color = Color(hue: 0.58 - t * 0.08, saturation: 0.75, brightness: 0.95 - t * 0.3)
-                let width = cell * (0.86 - CGFloat(t) * 0.22)
-                if i + 1 < count {
-                    var link = Path(); link.move(to: center(segment)); link.addLine(to: center(snake[i + 1]))
-                    context.stroke(link, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+            let lip = cell * 0.1
+            for pass in 0..<3 {
+                for (i, segment) in snake.enumerated().reversed() {
+                    let t = Double(i) / Double(max(1, count - 1))
+                    let base = Color(hue: 0.40 - t * 0.05, saturation: 0.50, brightness: 0.86 - t * 0.12)
+                    let width = cell * (0.86 - CGFloat(t) * 0.2) * (pass == 2 ? 0.34 : 1)
+                    let color: Color = pass == 0 ? base.toyShade(-0.2) : pass == 1 ? base : .white.opacity(0.35)
+                    let dy: CGFloat = pass == 0 ? lip : pass == 2 ? -cell * 0.14 : 0
+                    let dx: CGFloat = pass == 2 ? -cell * 0.08 : 0
+                    let a = CGPoint(x: center(segment).x + dx, y: center(segment).y + dy)
+                    if i + 1 < count {
+                        let b = CGPoint(x: center(snake[i + 1]).x + dx, y: center(snake[i + 1]).y + dy)
+                        var link = Path(); link.move(to: a); link.addLine(to: b)
+                        context.stroke(link, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                    }
+                    context.fill(Path(ellipseIn: CGRect(x: a.x - width / 2, y: a.y - width / 2, width: width, height: width)), with: .color(color))
                 }
-                let c = center(segment)
-                context.fill(Path(ellipseIn: CGRect(x: c.x - width / 2, y: c.y - width / 2, width: width, height: width)), with: .color(color))
             }
             if let head = snake.first {
                 let c = center(head)
@@ -338,28 +361,34 @@ struct SnakeView: View {
             }
         }
         .aspectRatio(CGFloat(SnakeEngine.cols) / CGFloat(SnakeEngine.rows), contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color(red: 0.3, green: 0.5, blue: 0.2), lineWidth: 3)
-        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay { ClassicFXPopupLayer(feed: engine.popups) }
+        // A wooden garden bed around the lawn.
+        .toyTray(ToySnake.palette.tray, cornerRadius: 22, padding: 8)
+        .contentShape(Rectangle())
         .gesture(swipe)
     }
 
     private var hud: some View {
         HStack {
-            Label(L10n.format("Level %d", engine.level), systemImage: "flag.fill")
-            Spacer()
-            if engine.combo > 1 {
-                Label { Text(verbatim: "×\(min(engine.combo, 4))") } icon: { Image(systemName: "flame.fill") }
-                    .foregroundStyle(.orange)
-                    .transition(.scale.combined(with: .opacity))
+            ToyChip(color: ToySnake.palette.card) {
+                Label(L10n.format("Level %d", engine.level), systemImage: "flag.fill")
             }
+            Spacer()
         }
-        .font(.subheadline.weight(.semibold).monospacedDigit())
-        .foregroundStyle(GameTheme.accent)
-        .animation(.snappy, value: engine.combo)
+        .foregroundStyle(ToySnake.palette.ink)
+    }
+
+    /// The apple combo, beside the pause button's opposite corner.
+    @ViewBuilder
+    private var comboChip: some View {
+        ToyChip(color: ToySnake.palette.card) {
+            Label { Text(verbatim: "×\(min(engine.combo, 4))") } icon: { Image(systemName: "flame.fill") }
+                .foregroundStyle(ToySnake.palette.accent)
+        }
+        .opacity(engine.combo > 1 ? 1 : 0)
+        .scaleEffect(engine.combo > 1 ? 1 : 0.6)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: engine.combo > 1)
     }
 
     private var swipe: some Gesture {
@@ -376,7 +405,7 @@ struct SnakeView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             directionButton(.up, symbol: "arrowtriangle.up.fill")
             HStack(spacing: 36) {
                 directionButton(.left, symbol: "arrowtriangle.left.fill")
@@ -393,13 +422,26 @@ struct SnakeView: View {
         } label: {
             Image(systemName: symbol)
                 .font(.title2)
-                .frame(width: 56, height: 48)
-                .background(GameTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(GameTheme.stroke, lineWidth: 1)
-                }
-                .foregroundStyle(GameTheme.accent)
+                .foregroundStyle(ToySnake.palette.ink)
+                .frame(width: 60, height: 46)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(ToyPressStyle(color: ToySnake.palette.card, lip: 4, cornerRadius: 14))
     }
+}
+
+/// The sunny garden toy world of Snake.
+enum ToySnake {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (1.0, 0.97, 0.86), dark: (0.17, 0.15, 0.09)),
+        backdropBottom: .dynamic(light: (0.98, 0.89, 0.68), dark: (0.10, 0.08, 0.05)),
+        tray: .dynamic(light: (0.84, 0.66, 0.46), dark: (0.38, 0.28, 0.18)),
+        socket: .dynamic(light: (0.78, 0.60, 0.40), dark: (0.29, 0.21, 0.13)),
+        ink: .dynamic(light: (0.40, 0.31, 0.14), dark: (0.99, 0.95, 0.85)),
+        deboss: .dynamic(light: (0.96, 0.86, 0.62), dark: (0.44, 0.36, 0.22)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.05, 0.04, 0.02)),
+        card: .dynamic(light: (1.0, 0.99, 0.95), dark: (0.25, 0.22, 0.15)),
+        accent: .dynamic(light: (0.94, 0.52, 0.30), dark: (1.0, 0.64, 0.40)))
+    static let grass = Color.dynamic(light: (0.70, 0.87, 0.52), dark: (0.27, 0.40, 0.22))
+    static let grassAlt = Color.dynamic(light: (0.65, 0.83, 0.48), dark: (0.24, 0.36, 0.20))
 }

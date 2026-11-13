@@ -594,6 +594,10 @@ enum Haptics {
     static func tap() { impact(.light) }
     static func move() { impact(.medium) }
     static func heavy() { impact(.heavy) }
+    /// Soft or flexible toy pieces settling, buttons sinking.
+    static func soft() { impact(.soft) }
+    /// Hard pieces knocking together.
+    static func rigid() { impact(.rigid) }
     static func success() { notify(.success) }
     static func error() { notify(.error) }
 

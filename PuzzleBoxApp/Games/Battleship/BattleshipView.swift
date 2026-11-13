@@ -523,7 +523,7 @@ struct BattleshipBoardView: View {
 
 /// A hull seen from above: a rounded stern and a pointed bow, pointing right
 /// (or down when vertical).
-private struct HullShape: Shape {
+struct HullShape: Shape {
     let vertical: Bool
 
     func path(in rect: CGRect) -> Path {

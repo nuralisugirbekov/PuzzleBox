@@ -173,3 +173,55 @@ extension View {
         }
     }
 }
+
+/// The card over a dark arena before the first tap: a hand glyph, "Tap to
+/// start" and, optionally, the rules. Shared so every arcade game greets the
+/// player the same way.
+struct TapToStartCard: View {
+    var hint: String? = nil
+    /// Set inside games drawn in the toy material: the card becomes a toy card.
+    @Environment(\.toyStyle) private var toy
+
+    var body: some View {
+        if let toy {
+            content(accent: toy.accent, title: toy.ink, body: toy.ink.opacity(0.7))
+                .font(.system(.body, design: .rounded))
+                .padding(.bottom, 8)
+                .background {
+                    ToyBlock(color: toy.card, shape: RoundedRectangle(cornerRadius: 26, style: .continuous), lip: 8)
+                }
+                .allowsHitTesting(false)
+        } else {
+            content(accent: GameTheme.accent, title: .white, body: .white.opacity(0.7))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                }
+                .environment(\.colorScheme, .dark)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func content(accent: Color, title: Color, body: Color) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "hand.tap.fill")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(accent)
+                .symbolEffect(.pulse, options: .repeating)
+            Text(L10n.text("Tap to start"))
+                .font(toy == nil ? .headline : .system(.headline, design: .rounded))
+                .foregroundStyle(title)
+            if let hint {
+                Text(hint)
+                    .font(toy == nil ? .footnote : .system(.footnote, design: .rounded))
+                    .foregroundStyle(body)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .frame(maxWidth: 280)
+    }
+}

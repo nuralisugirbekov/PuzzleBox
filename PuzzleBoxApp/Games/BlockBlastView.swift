@@ -24,9 +24,15 @@ enum BlockBlastDifficulty: Int, CaseIterable, Codable {
 final class BlockBlastEngine: GameEngine {
     static let size = 8
     private static let difficultyKey = "blockBlastDifficulty"
-    /// Figma accents; the system colours adapt to light and dark mode.
-    static let colors: [Color] = [Color(.systemIndigo), Color(.systemGreen), Color(.systemPurple),
-                                  Color(.systemPink), Color(.systemYellow)]
+    /// Candy toy colours that stand out on the mint tray: coral, sunflower,
+    /// sky, lilac and bubblegum.
+    static let colors: [Color] = [
+        .dynamic(light: (0.97, 0.53, 0.47), dark: (0.90, 0.46, 0.41)),
+        .dynamic(light: (0.99, 0.78, 0.34), dark: (0.93, 0.70, 0.28)),
+        .dynamic(light: (0.42, 0.68, 0.96), dark: (0.36, 0.60, 0.90)),
+        .dynamic(light: (0.68, 0.56, 0.93), dark: (0.60, 0.49, 0.87)),
+        .dynamic(light: (0.96, 0.54, 0.74), dark: (0.89, 0.47, 0.67)),
+    ]
 
     /// The Figma piece sheet: squares, I4, and every rotation of T, L, J,
     /// the five-cell corner, S and Z. Rows are drawn top to bottom, `#` = block.
@@ -263,23 +269,24 @@ struct BlockBlastView: View {
 
     var body: some View {
         GameContainerView(gameID: .blockBlast, engine: engine,
-                          resultSummary: L10n.text(engine.difficulty.title)) {
-            // Figma: a full-width 370pt board, 118pt tray slots and 32pt gaps.
+                          resultSummary: L10n.text(engine.difficulty.title),
+                          chrome: .inGame,
+                          backdrop: AnyView(ToyBlocks.palette.backdrop),
+                          toyStyle: ToyBlocks.palette.style) {
             // The board claims its square first, then the tray; the gaps
-            // shrink towards 8pt to make room below the score row.
+            // shrink to make room on short screens.
             VStack(spacing: 0) {
+                BlocksTopBar(engine: engine)
+                Spacer(minLength: 12)
                 boardView
                     .layoutPriority(2)
-                Spacer(minLength: 8).frame(maxHeight: 32)
+                Spacer(minLength: 12).frame(maxHeight: 28)
                 trayView
                     .layoutPriority(1)
-                Spacer(minLength: 8).frame(maxHeight: 32)
-                revertButton
+                Spacer(minLength: 8)
             }
             .frame(maxHeight: .infinity)
-            // The Revert label may sit down to the home indicator; the
-            // container's bottom padding would otherwise squeeze the tray.
-            .padding(.bottom, -16)
+            .foregroundStyle(ToyBlocks.palette.ink)
             .coordinateSpace(name: Self.space)
             // Overlay so the dragged piece never affects layout — the board
             // must not move while a drag is in progress.
@@ -343,9 +350,14 @@ struct BlockBlastView: View {
         }
         .onPreferenceChange(GridFrameKey.self) { gridFrame = $0 }
         .overlay { ClassicFXPopupLayer(feed: engine.popups) }
-        .padding(Self.gap)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 8))
         .aspectRatio(1, contentMode: .fit)
+        // The clay tray the sockets are pressed into.
+        .padding(10)
+        .padding(.bottom, 8)
+        .background {
+            ToyBlock(color: ToyBlocks.palette.tray,
+                     shape: RoundedRectangle(cornerRadius: 24, style: .continuous), lip: 8)
+        }
     }
 
     @ViewBuilder
@@ -362,15 +374,18 @@ struct BlockBlastView: View {
             } else if isPreview, let previewColor, target?.valid == true {
                 BlockBlastCell(color: BlockBlastEngine.colors[previewColor]).opacity(0.5)
             } else {
-                BlockBlastCell(color: isPreview ? Color.red.opacity(0.35) : Color(.tertiarySystemBackground))
+                ToySocket(color: isPreview ? ToyBlocks.blocked : ToyBlocks.palette.socket,
+                          shape: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             if willClear {
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(Color.primary, lineWidth: 2)
+                // The lines this drop would clear light up.
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.95), lineWidth: 2.5)
+                    .shadow(color: .white.opacity(0.8), radius: 4)
             }
             if let flash = engine.flashCells[pos] {
                 BlockBlastCell(color: BlockBlastEngine.colors[flash])
-                    .overlay { RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.55)) }
+                    .overlay { RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.white.opacity(0.55)) }
                     .transition(.asymmetric(insertion: .identity,
                                             removal: reduceMotion ? .opacity : .scale(scale: 0.05).combined(with: .opacity)))
             }
@@ -394,8 +409,9 @@ struct BlockBlastView: View {
     @ViewBuilder
     private func traySlot(_ index: Int) -> some View {
         let piece = engine.tray.indices.contains(index) ? engine.tray[index] : nil
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color(.secondarySystemBackground))
+        // A shallow well pressed into the backdrop.
+        ToySocket(color: ToyBlocks.palette.deboss,
+                  shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 if let piece, dragIndex != index {
@@ -431,28 +447,6 @@ struct BlockBlastView: View {
             }
     }
 
-    // MARK: Revert
-
-    /// Figma "Revert": a 50pt glass undo button over a Title 1 label.
-    private var revertButton: some View {
-        Button {
-            withAnimation(.snappy(duration: 0.25)) { engine.undo() }
-        } label: {
-            VStack(spacing: 0) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.title3)
-                    .frame(width: 50, height: 50)
-                    .glassCircle()
-                Text(L10n.text("Revert"))
-                    .font(.title)
-            }
-            .foregroundStyle(.primary)
-        }
-        .buttonStyle(.plain)
-        .disabled(!engine.canUndo)
-        .opacity(engine.canUndo ? 1 : 0.4)
-    }
-
     @ViewBuilder
     private var floatingPiece: some View {
         if let index = dragIndex,
@@ -462,7 +456,7 @@ struct BlockBlastView: View {
             PieceView(piece: piece, cellSize: cellPitch - Self.gap, spacing: Self.gap)
                 .position(pieceCenter(for: piece))
                 .allowsHitTesting(false)
-                .shadow(radius: 8, y: 4)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 8)
         }
     }
 }
@@ -489,13 +483,60 @@ struct PieceView: View {
     }
 }
 
-/// A flat block with a 4pt corner, as in the Figma board.
+/// A raised toy block, as in the rest of the toy games.
 struct BlockBlastCell: View {
     let color: Color
-    var cornerRadius: CGFloat = 4
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius).fill(color)
+        GeometryReader { geo in
+            ToyBlock(color: color, shape: RoundedRectangle(cornerRadius: min(7, geo.size.width * 0.2), style: .continuous),
+                     lip: max(2, geo.size.width * 0.08), castsShadow: false)
+        }
+    }
+}
+
+/// The mint toy world of Blocks.
+enum ToyBlocks {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.89, 0.97, 0.93), dark: (0.10, 0.17, 0.15)),
+        backdropBottom: .dynamic(light: (0.78, 0.92, 0.86), dark: (0.06, 0.11, 0.10)),
+        tray: .dynamic(light: (0.55, 0.80, 0.71), dark: (0.21, 0.37, 0.33)),
+        socket: .dynamic(light: (0.47, 0.71, 0.63), dark: (0.14, 0.27, 0.24)),
+        ink: .dynamic(light: (0.15, 0.36, 0.31), dark: (0.87, 0.96, 0.92)),
+        deboss: .dynamic(light: (0.71, 0.87, 0.80), dark: (0.25, 0.40, 0.36)),
+        debossRim: .dynamic(light: (0.97, 1.0, 0.99), dark: (0.07, 0.13, 0.11)),
+        card: .dynamic(light: (0.97, 1.0, 0.98), dark: (0.15, 0.23, 0.21)),
+        accent: .dynamic(light: (0.97, 0.53, 0.47), dark: (0.90, 0.46, 0.41)))
+    /// A socket where the dragged piece doesn't fit.
+    static let blocked = Color.dynamic(light: (0.90, 0.55, 0.50), dark: (0.50, 0.25, 0.23))
+}
+
+/// Pause, the score pressed into the mint and the undo button.
+private struct BlocksTopBar: View {
+    let engine: BlockBlastEngine
+    @Environment(\.gameHUD) private var hud
+    @State private var bump = 0
+
+    var body: some View {
+        let palette = ToyBlocks.palette
+        ZStack(alignment: .top) {
+            HStack(alignment: .top) {
+                ToyIconButton(symbol: "pause.fill", label: L10n.text("Paused"), ink: palette.ink) { hud.pause() }
+                Spacer()
+                ToyIconButton(symbol: "arrow.uturn.backward", label: L10n.text("Revert"), ink: palette.ink) {
+                    withAnimation(.snappy(duration: 0.25)) { engine.undo() }
+                }
+                .disabled(!engine.canUndo)
+                .opacity(engine.canUndo ? 1 : 0.55)
+            }
+            ToyPressedScore(score: hud.score, best: hud.best, deboss: palette.deboss,
+                            rim: palette.debossRim, ink: palette.ink, bump: bump)
+                .padding(.horizontal, 56)
+        }
+        // Line clears make the score jump.
+        .onChange(of: hud.score) { old, new in
+            if new - old >= 10 { bump += 1 }
+        }
     }
 }
 

@@ -301,7 +301,9 @@ struct BrainArcadeView: View {
     private var simon: some View {
         VStack(spacing: 18) {
             HStack {
-                Text(L10n.text(engine.feedback.isEmpty ? engine.message : engine.feedback))
+                // Before the first round the button below says "Tap to start".
+                Text(L10n.text(!engine.started ? "Watch, remember, repeat"
+                               : engine.feedback.isEmpty ? engine.message : engine.feedback))
                     .font(.title3.bold())
                     .foregroundStyle(engine.feedback.isEmpty ? GameTheme.ink : Color.orange)
                 Spacer()
@@ -347,8 +349,9 @@ struct BrainArcadeView: View {
 
     private var startButton: some View {
         Button { engine.start() } label: {
-            Text(L10n.text("Tap to start")).font(.headline).frame(maxWidth: .infinity).padding(18)
-                .foregroundStyle(.white).background(GameTheme.accent, in: RoundedRectangle(cornerRadius: 14))
+            Label(L10n.text("Start"), systemImage: "play.fill").font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .foregroundStyle(.white).background(GameTheme.accent, in: Capsule())
         }
     }
 }

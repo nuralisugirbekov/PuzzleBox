@@ -60,7 +60,7 @@ final class MergeFruitNode: SKShapeNode {
     static var maxStage: Int { radii.count - 1 }
 
     static func color(_ stage: Int) -> UIColor {
-        UIColor(hue: CGFloat(stage) / 12, saturation: 0.55, brightness: 0.9, alpha: 1)
+        UIColor(hue: CGFloat(stage) / 12, saturation: 0.42, brightness: 0.97, alpha: 1)
     }
 
     init(stage: Int, birth: Double, physics: Bool = true) {
@@ -69,7 +69,16 @@ final class MergeFruitNode: SKShapeNode {
         let r = Self.radii[stage]
         path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2), transform: nil)
         fillColor = Self.color(stage)
-        strokeColor = .white.withAlphaComponent(0.35); lineWidth = 1.5
+        strokeColor = .white.withAlphaComponent(0.5); lineWidth = 1.5
+        // A darker lip under the ball, like the other toy pieces.
+        let lip = SKShapeNode(circleOfRadius: r)
+        lip.position = CGPoint(x: 0, y: -r * 0.1)
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        Self.color(stage).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        lip.fillColor = UIColor(hue: h, saturation: min(1, sat + 0.12), brightness: b * 0.76, alpha: 1)
+        lip.strokeColor = .clear
+        lip.zPosition = -0.5
+        addChild(lip)
         let shine = SKShapeNode(ellipseOf: CGSize(width: r * 0.7, height: r * 0.45))
         shine.position = CGPoint(x: -r * 0.3, y: r * 0.45)
         shine.fillColor = .white.withAlphaComponent(0.3); shine.strokeColor = .clear
@@ -104,6 +113,25 @@ final class MergeFruitScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
     private var held: MergeFruitNode?
     private let guide = SKShapeNode()
     private let limit = SKShapeNode(rect: CGRect(x: 6, y: 389, width: 308, height: 3))
+    /// Set by the view; the crate's colours follow light and dark appearance.
+    var dark = false { didSet { if dark != oldValue { applyTheme() } } }
+    private var crate: SKShapeNode?
+    private var planks: [SKShapeNode] = []
+    private var walls: SKShapeNode?
+
+    private func applyTheme() {
+        backgroundColor = dark ? UIColor(red: 0.27, green: 0.22, blue: 0.18, alpha: 1)
+                               : UIColor(red: 0.99, green: 0.94, blue: 0.86, alpha: 1)
+        crate?.fillColor = dark ? UIColor(red: 0.33, green: 0.27, blue: 0.21, alpha: 1)
+                                : UIColor(red: 0.98, green: 0.90, blue: 0.76, alpha: 1)
+        for plank in planks {
+            plank.fillColor = dark ? UIColor(red: 0.22, green: 0.17, blue: 0.13, alpha: 0.8)
+                                   : UIColor(red: 0.86, green: 0.72, blue: 0.54, alpha: 0.6)
+        }
+        walls?.strokeColor = dark ? UIColor(red: 0.48, green: 0.36, blue: 0.25, alpha: 1)
+                                  : UIColor(red: 0.80, green: 0.62, blue: 0.44, alpha: 1)
+        guide.strokeColor = (dark ? UIColor.white : UIColor.black).withAlphaComponent(0.18)
+    }
     static let heldY: CGFloat = 445
     var canDrop: Bool { clock >= nextDrop }
 
@@ -111,18 +139,20 @@ final class MergeFruitScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
         removeAllChildren(); contacts = []; clock = 0; lastUpdate = nil; nextDrop = 0; overflowTime = 0
         lastMerge = -10; chain = 0; aimX = 160; held = nil
         scaleMode = .aspectFit
-        backgroundColor = UIColor(red: 0.98, green: 0.93, blue: 0.84, alpha: 1)
+        planks = []
         physicsWorld.gravity = CGVector(dx: 0, dy: -6)
         physicsWorld.contactDelegate = self
         // A soft wooden crate behind the fruit.
         let crate = SKShapeNode(rect: CGRect(x: 5, y: 8, width: 310, height: 384), cornerRadius: 6)
-        crate.fillColor = UIColor(red: 0.95, green: 0.84, blue: 0.66, alpha: 1); crate.strokeColor = .clear
+        crate.strokeColor = .clear
         crate.zPosition = -3
         addChild(crate)
+        self.crate = crate
         for y in stride(from: CGFloat(60), to: 390, by: 64) {
             let plank = SKShapeNode(rect: CGRect(x: 5, y: y, width: 310, height: 1.5))
-            plank.fillColor = UIColor(red: 0.8, green: 0.64, blue: 0.45, alpha: 0.6); plank.strokeColor = .clear; plank.zPosition = -2
+            plank.strokeColor = .clear; plank.zPosition = -2
             addChild(plank)
+            planks.append(plank)
         }
         let wallPath = CGMutablePath()
         wallPath.move(to: CGPoint(x: 5, y: 600))
@@ -132,13 +162,15 @@ final class MergeFruitScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
         physicsBody = SKPhysicsBody(edgeChainFrom: wallPath)
         physicsBody?.categoryBitMask = 2
         let walls = SKShapeNode(path: wallPath)
-        walls.strokeColor = UIColor(red: 0.6, green: 0.42, blue: 0.25, alpha: 1); walls.lineWidth = 6; walls.zPosition = 2
+        walls.lineWidth = 6; walls.zPosition = 2
         addChild(walls)
+        self.walls = walls
         limit.removeAllActions(); limit.alpha = 0.5
-        limit.fillColor = .systemRed; limit.strokeColor = .clear
+        limit.fillColor = UIColor(red: 0.95, green: 0.45, blue: 0.42, alpha: 1); limit.strokeColor = .clear
         addChild(limit)
-        guide.strokeColor = UIColor.black.withAlphaComponent(0.18); guide.lineWidth = 2
+        guide.lineWidth = 2
         addChild(guide)
+        applyTheme()
         if let stage = owner?.currentFruit { showHeld(stage: stage) }
     }
 
@@ -245,40 +277,113 @@ final class MergeFruitScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
 struct MergeFruitView: View {
     @State private var engine = MergeFruitEngine()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GameContainerView(gameID: .mergeFruit, engine: engine) {
-            VStack(spacing: 12) {
-                HStack {
-                    Text(L10n.text("Next fruit"))
-                    Text(verbatim: MergeFruitNode.symbols[engine.nextFruit]).font(.title)
-                    Spacer()
-                    if engine.chain > 1 {
-                        Label { Text(verbatim: "×\(min(engine.chain, 5))") } icon: { Image(systemName: "flame.fill") }
-                            .foregroundStyle(.orange)
-                    }
-                    Text(verbatim: MergeFruitNode.symbols[engine.biggest]).font(.title2)
-                        .accessibilityLabel(L10n.text("Biggest fruit"))
-                }
-                .font(.headline)
-                .foregroundStyle(GameTheme.accent)
-                GeometryReader { geometry in
-                    SpriteView(scene: engine.scene, isPaused: engine.state != .playing || scenePhase != .active)
-                        .clipShape(RoundedRectangle(cornerRadius: 24))
-                        .overlay {
-                            Color.clear.contentShape(Rectangle())
-                                .gesture(DragGesture(minimumDistance: 0)
-                                    .onChanged { value in engine.aim(x: value.location.x / geometry.size.width * 320) }
-                                    .onEnded { value in engine.drop(x: value.location.x / geometry.size.width * 320) })
+        let palette = ToyFruit.palette
+        GameContainerView(gameID: .mergeFruit, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+            ToyGameStage(palette: palette) {
+                comboChip
+            } content: {
+                VStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        ToyChip(color: palette.card) {
+                            HStack(spacing: 6) {
+                                Text(L10n.text("Next fruit"))
+                                Text(verbatim: MergeFruitNode.symbols[engine.nextFruit]).font(.title3)
+                            }
                         }
+                        Spacer()
+                        ToyChip(color: palette.card) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "crown.fill").foregroundStyle(palette.accent)
+                                Text(verbatim: MergeFruitNode.symbols[engine.biggest]).font(.title3)
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(L10n.text("Biggest fruit"))
+                    }
+                    .padding(.top, 14)
+                    GeometryReader { geometry in
+                        MergeFruitSurface(scene: engine.scene,
+                                          paused: engine.state != .playing || scenePhase != .active)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                Color.clear.contentShape(Rectangle())
+                                    .gesture(DragGesture(minimumDistance: 0)
+                                        .onChanged { value in engine.aim(x: value.location.x / geometry.size.width * 320) }
+                                        .onEnded { value in engine.drop(x: value.location.x / geometry.size.width * 320) })
+                            }
+                    }
+                    .aspectRatio(2.0 / 3, contentMode: .fit)
+                    // A wooden crate in the game's own clay.
+                    .toyTray(palette.tray, cornerRadius: 24, padding: 8)
+                    Text(L10n.text("Drag to aim and release to drop. Quick merges build a combo, and two watermelons make a melon party!"))
+                        .font(.system(.footnote, design: .rounded))
+                        .opacity(engine.score == 0 ? 0.6 : 0)
+                        .multilineTextAlignment(.center)
+                        .accessibilityHidden(engine.score != 0)
+                        .animation(.easeOut(duration: 0.3), value: engine.score == 0)
+                    Spacer(minLength: 0)
                 }
-                .aspectRatio(2.0 / 3, contentMode: .fit)
-                Text(L10n.text("Drag to aim and release to drop. Quick merges build a combo, and two watermelons make a melon party!"))
-                    .font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
             }
         }
-        .onAppear { engine.active = scenePhase == .active }
+        .onAppear {
+            engine.active = scenePhase == .active
+            engine.scene.dark = colorScheme == .dark
+        }
         .onDisappear { engine.active = false; engine.scene.isPaused = true }
         .onChange(of: scenePhase) { _, phase in engine.active = phase == .active }
+        .onChange(of: colorScheme) { _, scheme in engine.scene.dark = scheme == .dark }
     }
+
+    private var comboChip: some View {
+        ToyChip(color: ToyFruit.palette.card) {
+            Label { Text(verbatim: "×\(min(engine.chain, 5))") } icon: { Image(systemName: "flame.fill") }
+                .foregroundStyle(ToyFruit.palette.accent)
+        }
+        .opacity(engine.chain > 1 ? 1 : 0)
+        .scaleEffect(engine.chain > 1 ? 1 : 0.6)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: engine.chain > 1)
+    }
+}
+
+/// Hosts the scene in its own SKView: SwiftUI's SpriteView never presented it here.
+private struct MergeFruitSurface: UIViewRepresentable {
+    let scene: MergeFruitScene
+    let paused: Bool
+
+    func makeUIView(context: Context) -> SKView {
+        let view = SKView(frame: .zero)
+        view.ignoresSiblingOrder = false
+        view.presentScene(scene)
+        view.isPaused = paused
+        return view
+    }
+    func updateUIView(_ view: SKView, context: Context) {
+        if view.scene !== scene { view.presentScene(scene) }
+        view.isPaused = paused
+        scene.isPaused = paused
+    }
+    static func dismantleUIView(_ view: SKView, coordinator: ()) {
+        view.isPaused = true
+        view.presentScene(nil)
+    }
+}
+
+/// The aqua orchard toy world of Merge Fruit: a wooden crate on a cool table.
+enum ToyFruit {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.89, 0.97, 0.96), dark: (0.09, 0.17, 0.18)),
+        backdropBottom: .dynamic(light: (0.74, 0.91, 0.89), dark: (0.05, 0.10, 0.11)),
+        tray: .dynamic(light: (0.86, 0.69, 0.50), dark: (0.42, 0.32, 0.22)),
+        socket: .dynamic(light: (0.80, 0.62, 0.44), dark: (0.32, 0.24, 0.16)),
+        ink: .dynamic(light: (0.15, 0.37, 0.39), dark: (0.88, 0.98, 0.97)),
+        deboss: .dynamic(light: (0.74, 0.90, 0.88), dark: (0.24, 0.40, 0.41)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.06, 0.06)),
+        card: .dynamic(light: (0.99, 1.0, 1.0), dark: (0.15, 0.25, 0.26)),
+        accent: .dynamic(light: (0.95, 0.52, 0.45), dark: (1.0, 0.62, 0.55)))
 }

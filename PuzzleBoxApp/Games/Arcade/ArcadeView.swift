@@ -4,72 +4,13 @@ struct ArcadeView: View {
     @State private var engine: ArcadeEngine
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let carColors: [Color] = [.cyan, .pink, .yellow, .purple, .orange, .mint]
+    @Environment(\.colorScheme) private var colorScheme
 
     init(mode: ArcadeMode) { _engine = State(initialValue: ArcadeEngine(mode: mode)) }
 
     var body: some View {
-        GameContainerView(gameID: engine.mode.gameID, engine: engine) {
-            VStack(spacing: 12) {
-                if engine.mode == .knifeSpin {
-                    HStack(spacing: 8) {
-                        Text(L10n.format("Level %d · Remaining: %d", engine.level, engine.remainingPins))
-                        if engine.isBossLevel {
-                            Text(L10n.text("Boss!"))
-                                .font(.caption.bold()).foregroundStyle(.white)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(.red, in: Capsule())
-                        }
-                    }
-                    .foregroundStyle(GameTheme.accent)
-                }
-                GeometryReader { geometry in
-                    Canvas { context, size in
-                        context.scaleBy(x: size.width / 320, y: size.height / 480)
-                        let shake = engine.fx.shakeOffset(reduceMotion: reduceMotion)
-                        context.translateBy(x: shake.width, y: shake.height)
-                        draw(in: &context)
-                        engine.fx.draw(in: &context)
-                        engine.fx.drawFlash(in: &context, bounds: CGRect(x: -20, y: -20, width: 360, height: 520), reduceMotion: reduceMotion)
-                    }
-                    .arenaBackground()
-                    .environment(\.colorScheme, .dark)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-                    .overlay {
-                        if !engine.started {
-                            // The rules sit on the start card rather than under the
-                            // board, so the board can take the whole width.
-                            VStack(spacing: 12) {
-                                Image(systemName: "hand.tap.fill").font(.largeTitle)
-                                Text(L10n.text("Tap to start")).font(.headline)
-                                Text(L10n.text(engine.mode.hint))
-                                    .font(.footnote).foregroundStyle(GameTheme.textSecondary)
-                                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(24).frame(maxWidth: 280)
-                            .background(GameTheme.background.opacity(0.88), in: RoundedRectangle(cornerRadius: 18))
-                            .foregroundStyle(GameTheme.accent).allowsHitTesting(false)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .gesture(DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            engine.drag(x: value.location.x / geometry.size.width * 320)
-                        }
-                        .onEnded { value in
-                            engine.endDrag()
-                            let delta = value.translation
-                            if engine.mode == .roadHop, engine.started, max(abs(delta.width), abs(delta.height)) > 15 {
-                                if abs(delta.width) > abs(delta.height) {
-                                    engine.hop(dx: delta.width > 0 ? 1 : -1, dy: 0)
-                                } else { engine.hop(dx: 0, dy: delta.height > 0 ? 1 : -1) }
-                            } else if !engine.started || max(abs(delta.width), abs(delta.height)) < 15 {
-                                engine.tap()
-                            }
-                        })
-                }
-                .arenaFit(2.0 / 3)
-            }
+        Group {
+            fullScreen
         }
         .onAppear { engine.active = scenePhase == .active }
         .onDisappear { engine.active = false }
@@ -85,18 +26,111 @@ struct ArcadeView: View {
         }
     }
 
-    private func draw(in context: inout GraphicsContext) {
-        switch engine.mode {
-        case .stack: drawStack(&context)
-        case .knifeSpin: drawKnife(&context)
-        case .helixDrop: drawHelix(&context)
-        case .flappyFlight: drawFlappy(&context)
-        case .roadHop: drawRoad(&context)
+    // MARK: Full screen
+
+    /// Every arcade game fills the screen: each
+    /// has its own soft sky as the backdrop with the score pressed into it,
+    /// and the scene is drawn at the screen's width, centred in its height.
+    private var fullScreen: some View {
+        let skin = ArcadeSkin(mode: engine.mode)
+        return GameContainerView(gameID: engine.mode.gameID, engine: engine,
+                                 fullBleed: true,
+                                 chrome: .inGame,
+                                 backdrop: engine.mode == .stack ? AnyView(TowerSky(hue: engine.stackHue))
+                                                                 : AnyView(skin.palette.backdrop),
+                                 toyStyle: engine.mode == .stack ? TowerSky.style : skin.palette.style) {
+            ZStack(alignment: .top) {
+                GeometryReader { geometry in
+                    let scale = geometry.size.width / 320
+                    let top = (geometry.size.height - 480 * scale) / 2
+                    Canvas { context, size in
+                        context.translateBy(x: 0, y: top)
+                        context.scaleBy(x: scale, y: scale)
+                        let shake = engine.fx.shakeOffset(reduceMotion: reduceMotion)
+                        context.translateBy(x: shake.width, y: shake.height)
+                        switch engine.mode {
+                        case .stack: drawStack(&context)
+                        case .knifeSpin: drawKnife(&context)
+                        case .helixDrop: drawHelix(&context)
+                        case .flappyFlight: drawFlappy(&context)
+                        case .roadHop: drawRoad(&context)
+                        }
+                        engine.fx.draw(in: &context)
+                        // The loss flash stops fading once the round is over;
+                        // full screen it would tint the whole sky, so drop it then.
+                        if engine.state == .playing {
+                            engine.fx.drawFlash(in: &context, bounds: CGRect(x: -20, y: -400, width: 360, height: 1280),
+                                                reduceMotion: reduceMotion)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if engine.mode == .helixDrop { engine.drag(x: value.location.x / scale) }
+                        }
+                        .onEnded { value in
+                            if engine.mode == .helixDrop { engine.endDrag() }
+                            let delta = value.translation
+                            if engine.mode == .roadHop, engine.started, max(abs(delta.width), abs(delta.height)) > 15 {
+                                if abs(delta.width) > abs(delta.height) {
+                                    engine.hop(dx: delta.width > 0 ? 1 : -1, dy: 0)
+                                } else { engine.hop(dx: 0, dy: delta.height > 0 ? 1 : -1) }
+                            } else if !engine.started || max(abs(delta.width), abs(delta.height)) < 15 {
+                                engine.tap()
+                            }
+                        })
+                }
+                // Edge to edge, so flashes and falling pieces reach the screen edges.
+                .padding(.top, -16)
+                .ignoresSafeArea()
+                .overlay {
+                    if !engine.started {
+                        TapToStartCard(hint: L10n.text(engine.mode.hint))
+                            .padding(.horizontal, 24)
+                    }
+                }
+                if engine.mode == .roadHop {
+                    // The road runs under the whole screen; a soft fade of the
+                    // town's green keeps the score readable above the traffic.
+                    LinearGradient(stops: [.init(color: skin.palette.backdropTop, location: 0),
+                                           .init(color: skin.palette.backdropTop.opacity(0.92), location: 0.6),
+                                           .init(color: skin.palette.backdropTop.opacity(0), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: 190)
+                        .padding(.top, -70)
+                        .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
+                }
+                Group {
+                    if engine.mode == .stack {
+                        ArcadeTopBar(ink: TowerSky.ink(engine.stackHue, dark: colorScheme == .dark),
+                                     deboss: TowerSky.deboss(engine.stackHue, dark: colorScheme == .dark),
+                                     rim: colorScheme == .dark ? .black.opacity(0.35) : .white) { EmptyView() }
+                    } else {
+                        ArcadeTopBar(ink: skin.palette.ink, deboss: skin.palette.deboss, rim: skin.palette.debossRim) {
+                            if engine.mode == .knifeSpin { knifeChips(skin) }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
         }
-        if engine.flash > 0 {
-            context.stroke(Path(roundedRect: CGRect(x: 2, y: 2, width: 316, height: 476), cornerRadius: 16),
-                           with: .color(GameTheme.accent.opacity(engine.flash * 3)), lineWidth: 3)
+    }
+
+    /// The level, and a boss badge, beside the score in Knife Spin.
+    private func knifeChips(_ skin: ArcadeSkin) -> some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            ToyChip(color: skin.palette.card) {
+                Text(L10n.format("Level %d", engine.level)).foregroundStyle(skin.palette.ink)
+            }
+            if engine.isBossLevel {
+                ToyChip(color: Color(red: 0.90, green: 0.42, blue: 0.40)) {
+                    Text(L10n.text("Boss!")).foregroundStyle(.white)
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: engine.isBossLevel)
     }
 
     private func ball(_ context: inout GraphicsContext, _ p: CGPoint, _ r: CGFloat, _ color: Color) {
@@ -116,25 +150,20 @@ struct ArcadeView: View {
             context.fill(path, with: .color(color.opacity(alpha)))
         }
         let x0 = slab.x, x1 = slab.x + slab.w, z0 = slab.z, z1 = slab.z + slab.d
+        // Soft clay: a bright top, a mid front, a deeper side.
         face([p(x0, top, z1), p(x1, top, z1), p(x1, bottom, z1), p(x0, bottom, z1)],
-             Color(hue: slab.hue, saturation: 0.62, brightness: 0.78))
+             Color(hue: slab.hue, saturation: 0.5, brightness: 0.88))
         face([p(x1, top, z0), p(x1, top, z1), p(x1, bottom, z1), p(x1, bottom, z0)],
-             Color(hue: slab.hue, saturation: 0.7, brightness: 0.58))
+             Color(hue: slab.hue, saturation: 0.56, brightness: 0.72))
         face([p(x0, top, z0), p(x1, top, z0), p(x1, top, z1), p(x0, top, z1)],
-             Color(hue: slab.hue, saturation: 0.5, brightness: 0.97))
+             Color(hue: slab.hue, saturation: 0.38, brightness: 0.99))
         // A light rim along the front edges of the top.
         var rim = Path(); rim.addLines([p(x0, top, z1), p(x1, top, z1), p(x1, top, z0)])
         context.stroke(rim, with: .color(.white.opacity(0.35 * alpha)), lineWidth: 1)
     }
 
     private func drawStack(_ context: inout GraphicsContext) {
-        let hue = engine.stackHue
-        context.fill(Path(CGRect(x: 0, y: 0, width: 320, height: 480)),
-                     with: .linearGradient(Gradient(colors: [Color(hue: hue, saturation: 0.45, brightness: 0.32), Color(hue: (hue + 0.08).truncatingRemainder(dividingBy: 1), saturation: 0.5, brightness: 0.12)]),
-                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: 480)))
-        // Faint height marker in the background.
-        context.draw(Text("\(engine.placed)").font(.system(size: 120, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.07)),
-                     at: CGPoint(x: 160, y: 90))
+        // The sky and the score live outside the canvas (`TowerSky`, `ArcadeTopBar`).
         // Pieces falling off the far sides go behind the tower, the rest in front.
         let behind = engine.stackDebris.filter { $0.drift.dx < 0 || $0.drift.dy < 0 }
         let front = engine.stackDebris.filter { !($0.drift.dx < 0 || $0.drift.dy < 0) }
@@ -191,7 +220,7 @@ struct ArcadeView: View {
             k.translateBy(x: center.x, y: center.y)
             k.rotate(by: .radians(Double(pin + engine.angle - .pi / 2)))
             k.translateBy(x: 0, y: radius - 10)
-            knifeShape(&k, length: 48, handle: GameTheme.accent)
+            knifeShape(&k, length: 48, handle: ArcadeSkin.knifeHandle)
         }
         // Target: wood rings or a steel boss shield.
         let rings: [Color] = boss
@@ -222,7 +251,7 @@ struct ArcadeView: View {
         if engine.state == .playing || engine.projectile != nil {
             var k = context
             k.translateBy(x: 160, y: engine.projectile ?? 425)
-            knifeShape(&k, length: 54, handle: .white.opacity(0.9))
+            knifeShape(&k, length: 54, handle: ArcadeSkin.knifeHandle.toyShade(0.12))
         }
         // Remaining knives indicator.
         for i in 0..<engine.totalPins {
@@ -232,7 +261,7 @@ struct ArcadeView: View {
             k.rotate(by: .radians(-.pi / 2))
             k.opacity = used ? 0.2 : 0.9
             k.scaleBy(x: 0.3, y: 0.3)
-            knifeShape(&k, length: 54, handle: GameTheme.accent)
+            knifeShape(&k, length: 54, handle: ArcadeSkin.knifeHandle)
         }
     }
 
@@ -272,10 +301,8 @@ struct ArcadeView: View {
     }
 
     private func drawHelix(_ context: inout GraphicsContext) {
-        context.fill(Path(CGRect(x: -20, y: -20, width: 360, height: 520)),
-                     with: .linearGradient(Gradient(colors: [Color(red: 0.42, green: 0.56, blue: 0.82), Color(red: 0.2, green: 0.3, blue: 0.56)]),
-                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: 480)))
-        drawHelixColumn(&context, to: 500)
+        // The sky is the screen's backdrop (`ArcadeSkin`).
+        drawHelixColumn(&context, to: 900)
         let p = engine.player
         var ballDrawn = false
         // Lower floors first; higher ones are nearer the camera and overlap them.
@@ -307,11 +334,24 @@ struct ArcadeView: View {
 
     private func drawHelixColumn(_ context: inout GraphicsContext, to bottom: CGFloat) {
         let left = Helix.center - Helix.column, right = Helix.center + Helix.column
-        context.fill(Path(CGRect(x: left, y: -20, width: right - left, height: bottom + 20)),
-                     with: .linearGradient(Gradient(stops: [.init(color: Color(white: 0.72), location: 0),
-                                                            .init(color: Color(white: 0.99), location: 0.38),
-                                                            .init(color: Color(white: 0.9), location: 0.7),
-                                                            .init(color: Color(red: 0.62, green: 0.68, blue: 0.82), location: 1)]),
+        // The column fades into the sky toward the top, clear of the score.
+        context.drawLayer { context in
+            drawHelixColumnBody(&context, left: left, right: right, bottom: bottom)
+            context.blendMode = .destinationOut
+            context.fill(Path(CGRect(x: left - 2, y: -400, width: right - left + 4, height: 530)),
+                         with: .linearGradient(Gradient(stops: [.init(color: .black, location: 0),
+                                                                .init(color: .black, location: 0.72),
+                                                                .init(color: .clear, location: 1)]),
+                                               startPoint: CGPoint(x: 0, y: -400), endPoint: CGPoint(x: 0, y: 130)))
+        }
+    }
+
+    private func drawHelixColumnBody(_ context: inout GraphicsContext, left: CGFloat, right: CGFloat, bottom: CGFloat) {
+        context.fill(Path(CGRect(x: left, y: -400, width: right - left, height: bottom + 400)),
+                     with: .linearGradient(Gradient(stops: [.init(color: Color(white: 0.72 * (colorScheme == .dark ? 0.62 : 1)), location: 0),
+                                                            .init(color: Color(white: 0.99 * (colorScheme == .dark ? 0.62 : 1)), location: 0.38),
+                                                            .init(color: Color(white: 0.9 * (colorScheme == .dark ? 0.62 : 1)), location: 0.7),
+                                                            .init(color: Color(red: 0.62, green: 0.68, blue: 0.82).opacity(colorScheme == .dark ? 0.45 : 1), location: 1)]),
                                            startPoint: CGPoint(x: left, y: 0), endPoint: CGPoint(x: right, y: 0)))
     }
 
@@ -333,11 +373,11 @@ struct ArcadeView: View {
         // Soft sage-to-pistachio floors on a calm blue sky.
         let hue = 0.2 + body.hue * 0.08
         func topColor(_ red: Bool) -> Color {
-            red ? Color(red: 0.86, green: 0.38, blue: 0.38) : Color(hue: hue, saturation: 0.42, brightness: 0.88)
+            red ? Color(red: 0.86, green: 0.38, blue: 0.38) : Color(hue: hue, saturation: 0.42, brightness: colorScheme == .dark ? 0.66 : 0.88)
         }
         func sideColor(_ red: Bool, light: CGFloat) -> Color {
             red ? Color(red: 0.42 + 0.3 * light, green: 0.16 + 0.1 * light, blue: 0.18 + 0.1 * light)
-                : Color(hue: hue + 0.01, saturation: 0.45, brightness: 0.45 + 0.3 * light)
+                : Color(hue: hue + 0.01, saturation: 0.45, brightness: (0.45 + 0.3 * light) * (colorScheme == .dark ? 0.75 : 1))
         }
         /// Light from the upper left.
         func light(_ a: CGFloat) -> CGFloat { max(0, min(1, 0.55 - 0.45 * sin(a) + 0.15 * cos(a))) }
@@ -409,114 +449,290 @@ struct ArcadeView: View {
     // MARK: Flappy Flight
 
     private func drawFlappy(_ context: inout GraphicsContext) {
-        context.fill(Path(CGRect(x: 0, y: 0, width: 320, height: 480)),
-                     with: .linearGradient(Gradient(colors: [Color(red: 0.16, green: 0.25, blue: 0.5), Color(red: 0.35, green: 0.55, blue: 0.75)]),
-                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: 480)))
-        // Parallax clouds and hills.
+        // The sky is the screen's backdrop (`ArcadeSkin`); clouds and hills drift past.
+        let dark = colorScheme == .dark
+        let cloud = Color.white.opacity(dark ? 0.12 : 0.8)
         for i in 0..<5 {
             let x = (CGFloat(i) * 90 - engine.scroll * 0.15).truncatingRemainder(dividingBy: 450)
             let cx = x < -60 ? x + 450 : x
             let y = 60 + CGFloat((i * 53) % 120)
-            context.fill(Path(roundedRect: CGRect(x: cx, y: y, width: 58, height: 18), cornerRadius: 9), with: .color(.white.opacity(0.18)))
-            context.fill(Path(ellipseIn: CGRect(x: cx + 12, y: y - 10, width: 28, height: 24)), with: .color(.white.opacity(0.18)))
+            context.fill(Path(roundedRect: CGRect(x: cx, y: y, width: 58, height: 18), cornerRadius: 9), with: .color(cloud))
+            context.fill(Path(ellipseIn: CGRect(x: cx + 12, y: y - 10, width: 28, height: 24)), with: .color(cloud))
         }
+        let hill = Color.dynamic(light: (0.66, 0.84, 0.66), dark: (0.17, 0.30, 0.24))
         for i in 0..<6 {
             let x = (CGFloat(i) * 80 - engine.scroll * 0.4).truncatingRemainder(dividingBy: 480)
             let hx = x < -80 ? x + 480 : x
-            context.fill(Path(ellipseIn: CGRect(x: hx - 20, y: 400, width: 140, height: 120)), with: .color(Color(red: 0.2, green: 0.45, blue: 0.35).opacity(0.7)))
+            context.fill(Path(ellipseIn: CGRect(x: hx - 20, y: 400, width: 140, height: 120)), with: .color(hill))
         }
+        // Soft clay pipes: lit down the left, a darker lip under each cap.
+        let pipe = Color.dynamic(light: (0.47, 0.80, 0.60), dark: (0.30, 0.62, 0.45))
         for body in engine.bodies {
             let r = body.rect
-            let gradient = GraphicsContext.Shading.linearGradient(Gradient(colors: [Color(red: 0.2, green: 0.7, blue: 0.35), Color(red: 0.55, green: 0.95, blue: 0.55), Color(red: 0.15, green: 0.55, blue: 0.3)]),
-                                                                  startPoint: CGPoint(x: r.minX, y: 0), endPoint: CGPoint(x: r.maxX, y: 0))
-            context.fill(Path(CGRect(x: r.minX + 3, y: -10, width: r.width - 6, height: max(0, r.minY + 10))), with: gradient)
-            context.fill(Path(CGRect(x: r.minX + 3, y: r.maxY, width: r.width - 6, height: max(0, 480 - r.maxY))), with: gradient)
-            context.fill(Path(roundedRect: CGRect(x: r.minX - 2, y: r.minY - 16, width: r.width + 4, height: 16), cornerRadius: 3), with: gradient)
-            context.fill(Path(roundedRect: CGRect(x: r.minX - 2, y: r.maxY, width: r.width + 4, height: 16), cornerRadius: 3), with: gradient)
-            if body.speed > 0 {
-                context.stroke(Path(roundedRect: CGRect(x: r.minX - 2, y: r.minY - 16, width: r.width + 4, height: 16), cornerRadius: 3), with: .color(.yellow.opacity(0.7)), lineWidth: 1.5)
-                context.stroke(Path(roundedRect: CGRect(x: r.minX - 2, y: r.maxY, width: r.width + 4, height: 16), cornerRadius: 3), with: .color(.yellow.opacity(0.7)), lineWidth: 1.5)
+            let shading = GraphicsContext.Shading.linearGradient(
+                Gradient(colors: [pipe.toyShade(0.06), pipe.toyShade(0.14), pipe, pipe.toyShade(-0.12)]),
+                startPoint: CGPoint(x: r.minX, y: 0), endPoint: CGPoint(x: r.maxX, y: 0))
+            context.fill(Path(CGRect(x: r.minX + 3, y: -400, width: r.width - 6, height: max(0, r.minY + 400))), with: shading)
+            context.fill(Path(CGRect(x: r.minX + 3, y: r.maxY, width: r.width - 6, height: max(0, 900 - r.maxY))), with: shading)
+            for cap in [CGRect(x: r.minX - 3, y: r.minY - 18, width: r.width + 6, height: 18),
+                        CGRect(x: r.minX - 3, y: r.maxY, width: r.width + 6, height: 18)] {
+                context.fill(Path(roundedRect: cap.offsetBy(dx: 0, dy: 3), cornerRadius: 7), with: .color(pipe.toyShade(-0.22)))
+                context.fill(Path(roundedRect: cap, cornerRadius: 7), with: shading)
+                context.stroke(Path(roundedRect: cap.insetBy(dx: 1, dy: 1), cornerRadius: 6),
+                               with: .color(.white.opacity(0.35)), lineWidth: 1)
+                if body.speed > 0 {
+                    context.stroke(Path(roundedRect: cap, cornerRadius: 7), with: .color(.yellow.opacity(0.8)), lineWidth: 1.5)
+                }
             }
         }
         for coin in engine.coins {
             let squash = abs(cos(engine.time * 4 + coin.y))
-            context.fill(Path(ellipseIn: CGRect(x: coin.x - 9 * squash, y: coin.y - 9, width: 18 * squash, height: 18)), with: .color(.yellow))
-            context.stroke(Path(ellipseIn: CGRect(x: coin.x - 6 * squash, y: coin.y - 6, width: 12 * squash, height: 12)), with: .color(.orange), lineWidth: 1.5)
+            context.fill(Path(ellipseIn: CGRect(x: coin.x - 9 * squash, y: coin.y - 7, width: 18 * squash, height: 18)), with: .color(Color(red: 0.86, green: 0.62, blue: 0.16)))
+            context.fill(Path(ellipseIn: CGRect(x: coin.x - 9 * squash, y: coin.y - 9, width: 18 * squash, height: 18)), with: .color(Color(red: 1.0, green: 0.82, blue: 0.30)))
+            context.stroke(Path(ellipseIn: CGRect(x: coin.x - 5.5 * squash, y: coin.y - 5.5, width: 11 * squash, height: 11)), with: .color(Color(red: 0.95, green: 0.66, blue: 0.18)), lineWidth: 1.5)
         }
-        // Ground strip.
-        context.fill(Path(CGRect(x: 0, y: 462, width: 320, height: 18)), with: .color(Color(red: 0.55, green: 0.4, blue: 0.25)))
+        // The ceiling: a bank of cloud the bird can't fly into.
+        let bank = Color.dynamic(light: (1, 1, 1), dark: (0.20, 0.25, 0.40))
+        context.fill(Path(CGRect(x: -20, y: -14, width: 360, height: 18)), with: .color(bank.opacity(dark ? 1 : 0.9)))
+        for i in 0..<9 {
+            let x = (CGFloat(i) * 44 - engine.scroll * 0.6).truncatingRemainder(dividingBy: 396)
+            let cx = x < -40 ? x + 396 : x
+            let rise = CGFloat((i * 7) % 3) * 4
+            context.fill(Path(ellipseIn: CGRect(x: cx - 30, y: -26 - rise, width: 60, height: 40 + rise)),
+                         with: .color(bank.opacity(dark ? 1 : 0.9)))
+        }
+        // The ground: grass on a sandy bank down to the bottom of the screen.
+        let sand = Color.dynamic(light: (0.93, 0.80, 0.60), dark: (0.36, 0.28, 0.20))
+        let grass = Color.dynamic(light: (0.52, 0.78, 0.45), dark: (0.24, 0.45, 0.26))
+        context.fill(Path(CGRect(x: -20, y: 462, width: 360, height: 500)), with: .color(sand))
+        context.fill(Path(roundedRect: CGRect(x: -20, y: 458, width: 360, height: 10), cornerRadius: 5), with: .color(grass))
         for i in 0..<12 {
             let x = (CGFloat(i) * 30 - engine.scroll).truncatingRemainder(dividingBy: 360)
-            context.fill(Path(CGRect(x: x < -30 ? x + 360 : x, y: 462, width: 14, height: 4)), with: .color(.green.opacity(0.8)))
+            context.fill(Path(roundedRect: CGRect(x: x < -30 ? x + 360 : x, y: 466, width: 14, height: 4), cornerRadius: 2),
+                         with: .color(sand.toyShade(-0.08)))
         }
         // Bird tilts with its velocity and flaps its wing.
         var bird = context
         bird.translateBy(x: engine.player.x, y: engine.player.y)
         bird.rotate(by: .radians(Double(min(1.1, max(-0.5, engine.velocity.dy / 420)))))
+        bird.fill(Path(ellipseIn: CGRect(x: -13, y: -8, width: 26, height: 20)), with: .color(Color(red: 0.90, green: 0.55, blue: 0.20)))
         bird.fill(Path(ellipseIn: CGRect(x: -13, y: -10, width: 26, height: 20)),
-                  with: .radialGradient(Gradient(colors: [.yellow, .orange]), center: CGPoint(x: -3, y: -4), startRadius: 1, endRadius: 16))
+                  with: .radialGradient(Gradient(colors: [Color(red: 1.0, green: 0.90, blue: 0.45), Color(red: 1.0, green: 0.70, blue: 0.28)]),
+                                        center: CGPoint(x: -3, y: -5), startRadius: 1, endRadius: 16))
         let wing = engine.flap > 0 ? -6 * engine.flap : 2 * CGFloat(sin(Double(engine.time) * 12))
-        bird.fill(Path(ellipseIn: CGRect(x: -11, y: -2 + wing, width: 13, height: 8)), with: .color(.white.opacity(0.9)))
+        bird.fill(Path(ellipseIn: CGRect(x: -11, y: -2 + wing, width: 13, height: 8)), with: .color(.white.opacity(0.95)))
         bird.fill(Path(ellipseIn: CGRect(x: 2, y: -8, width: 8, height: 8)), with: .color(.white))
-        bird.fill(Path(ellipseIn: CGRect(x: 5.5, y: -6, width: 3.5, height: 4)), with: .color(.black))
+        bird.fill(Path(ellipseIn: CGRect(x: 5.5, y: -6, width: 3.5, height: 4)), with: .color(Color(red: 0.2, green: 0.18, blue: 0.25)))
+        bird.fill(Path(ellipseIn: CGRect(x: -2, y: 1, width: 6, height: 4)), with: .color(Color(red: 1.0, green: 0.55, blue: 0.55).opacity(0.6)))
         var beak = Path(); beak.move(to: CGPoint(x: 10, y: -1)); beak.addLine(to: CGPoint(x: 18, y: 2)); beak.addLine(to: CGPoint(x: 10, y: 5)); beak.closeSubpath()
-        bird.fill(beak, with: .color(.orange))
+        bird.fill(beak, with: .color(Color(red: 0.98, green: 0.52, blue: 0.30)))
     }
 
     // MARK: Road Hop
 
     private func drawRoad(_ context: inout GraphicsContext) {
-        for lane in engine.visibleRoadRows where lane.y > -30 && lane.y < 510 {
-            let rect = CGRect(x: 0, y: lane.y - 25, width: 320, height: 50)
+        // A toy town: soft grass verges, slate-lilac roads, clay cars.
+        let grassA = Color.dynamic(light: (0.70, 0.87, 0.62), dark: (0.20, 0.34, 0.22))
+        let grassB = Color.dynamic(light: (0.64, 0.83, 0.57), dark: (0.18, 0.31, 0.20))
+        let road = Color.dynamic(light: (0.60, 0.61, 0.72), dark: (0.21, 0.22, 0.29))
+        for lane in engine.visibleRoadRows where lane.y > -220 && lane.y < 720 {
+            let rect = CGRect(x: -20, y: lane.y - 25, width: 360, height: 50)
             if engine.isGrassRow(lane.row) {
-                context.fill(Path(rect), with: .color(Color(red: 0.2, green: lane.row.isMultiple(of: 2) ? 0.5 : 0.46, blue: 0.28)))
+                context.fill(Path(rect), with: .color(lane.row.isMultiple(of: 2) ? grassA : grassB))
                 for i in 0..<5 {
                     let x = CGFloat((lane.row * 37 + i * 71) % 300) + 10
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: lane.y - 6 + CGFloat(i % 3) * 6, width: 6, height: 4)), with: .color(.green.opacity(0.6)))
+                    let tuft = CGRect(x: x, y: lane.y - 6 + CGFloat(i % 3) * 6, width: 8, height: 5)
+                    context.fill(Path(ellipseIn: tuft), with: .color(grassA.toyShade(-0.12)))
                 }
             } else {
-                context.fill(Path(rect), with: .color(Color(white: 0.2)))
+                context.fill(Path(rect), with: .color(road))
                 if !engine.isGrassRow(lane.row + 1) {
                     for x in stride(from: 6, to: 320, by: 40) {
-                        context.fill(Path(CGRect(x: CGFloat(x), y: lane.y - 26, width: 20, height: 2)), with: .color(.white.opacity(0.45)))
+                        context.fill(Path(roundedRect: CGRect(x: CGFloat(x), y: lane.y - 26.5, width: 20, height: 3), cornerRadius: 1.5),
+                                     with: .color(.white.opacity(0.6)))
                     }
+                }
+                // A kerb where the road meets the grass.
+                if engine.isGrassRow(lane.row - 1) {
+                    context.fill(Path(CGRect(x: -20, y: lane.y + 22, width: 360, height: 3)), with: .color(.white.opacity(0.35)))
                 }
             }
         }
         for coin in engine.coins {
             let bob = CGFloat(sin(Double(engine.time) * 4 + Double(coin.x))) * 2
-            ball(&context, CGPoint(x: coin.x, y: coin.y + bob), 8, .yellow)
-            ball(&context, CGPoint(x: coin.x, y: coin.y + bob), 4.5, .orange)
+            let c = CGPoint(x: coin.x, y: coin.y + bob)
+            ball(&context, CGPoint(x: c.x, y: c.y + 2), 8, Color(red: 0.86, green: 0.62, blue: 0.16))
+            ball(&context, c, 8, Color(red: 1.0, green: 0.82, blue: 0.30))
+            context.stroke(Path(ellipseIn: CGRect(x: c.x - 4.5, y: c.y - 4.5, width: 9, height: 9)),
+                           with: .color(Color(red: 0.95, green: 0.66, blue: 0.18)), lineWidth: 1.5)
         }
         for car in engine.bodies {
             let r = car.rect
-            let color = car.value < 0 ? Color(red: 0.85, green: 0.45, blue: 0.2) : carColors[abs(car.value) % carColors.count]
+            let color = car.value < 0 ? Color(red: 0.95, green: 0.66, blue: 0.40) : ArcadeSkin.carColors[abs(car.value) % ArcadeSkin.carColors.count]
+            // Wheels peek out under the body.
             for wx in [r.minX + 10, r.maxX - 20] {
-                context.fill(Path(roundedRect: CGRect(x: wx, y: r.minY - 3, width: 10, height: 5), cornerRadius: 2), with: .color(.black))
-                context.fill(Path(roundedRect: CGRect(x: wx, y: r.maxY - 2, width: 10, height: 5), cornerRadius: 2), with: .color(.black))
+                for wy in [r.minY - 3, r.maxY - 2] {
+                    context.fill(Path(roundedRect: CGRect(x: wx, y: wy, width: 10, height: 5), cornerRadius: 2.5),
+                                 with: .color(Color(red: 0.25, green: 0.24, blue: 0.30)))
+                }
             }
-            context.fill(Path(roundedRect: r, cornerRadius: 7), with: .color(color))
+            // Clay body: a darker lip under a lit face.
+            context.fill(Path(roundedRect: r.offsetBy(dx: 0, dy: 3), cornerRadius: 9), with: .color(color.toyShade(-0.2)))
+            context.fill(Path(roundedRect: r, cornerRadius: 9),
+                         with: .linearGradient(Gradient(colors: [color.toyShade(0.08), color]),
+                                               startPoint: CGPoint(x: 0, y: r.minY), endPoint: CGPoint(x: 0, y: r.maxY)))
+            context.stroke(Path(roundedRect: r.insetBy(dx: 1, dy: 1), cornerRadius: 8), with: .color(.white.opacity(0.35)), lineWidth: 1)
             if car.value < 0 {
-                let cab = car.speed > 0 ? CGRect(x: r.maxX - 24, y: r.minY + 3, width: 20, height: r.height - 6) : CGRect(x: r.minX + 4, y: r.minY + 3, width: 20, height: r.height - 6)
-                context.fill(Path(roundedRect: cab, cornerRadius: 4), with: .color(.white.opacity(0.35)))
+                let cab = car.speed > 0 ? CGRect(x: r.maxX - 26, y: r.minY + 4, width: 21, height: r.height - 8) : CGRect(x: r.minX + 5, y: r.minY + 4, width: 21, height: r.height - 8)
+                context.fill(Path(roundedRect: cab, cornerRadius: 5), with: .color(.white.opacity(0.55)))
             } else {
-                context.fill(Path(roundedRect: CGRect(x: r.midX - 13, y: r.minY + 5, width: 26, height: r.height - 10), cornerRadius: 5), with: .color(.black.opacity(0.35)))
+                context.fill(Path(roundedRect: CGRect(x: r.midX - 13, y: r.minY + 6, width: 26, height: r.height - 12), cornerRadius: 6),
+                             with: .color(Color(red: 0.80, green: 0.90, blue: 1.0).opacity(0.85)))
             }
-            let front = car.speed > 0 ? r.maxX - 3 : r.minX + 1
-            context.fill(Path(ellipseIn: CGRect(x: front, y: r.minY + 4, width: 3, height: 5)), with: .color(.yellow))
-            context.fill(Path(ellipseIn: CGRect(x: front, y: r.maxY - 9, width: 3, height: 5)), with: .color(.yellow))
+            let front = car.speed > 0 ? r.maxX - 4 : r.minX + 1
+            context.fill(Path(ellipseIn: CGRect(x: front, y: r.minY + 5, width: 3, height: 5)), with: .color(Color(red: 1, green: 0.95, blue: 0.6)))
+            context.fill(Path(ellipseIn: CGRect(x: front, y: r.maxY - 10, width: 3, height: 5)), with: .color(Color(red: 1, green: 0.95, blue: 0.6)))
         }
         // Hopper with a small arc and squash while jumping.
         let progress = engine.hopTimer / 0.14
         let lift = sin(progress * .pi) * 8
         let p = CGPoint(x: engine.player.x, y: engine.player.y - lift)
-        ball(&context, CGPoint(x: engine.player.x, y: engine.player.y + 9), 9 - lift * 0.4, .black.opacity(0.3))
+        context.fill(Path(ellipseIn: CGRect(x: engine.player.x - 10 + lift * 0.3, y: engine.player.y + 6, width: 20 - lift * 0.6, height: 7)),
+                     with: .color(.black.opacity(0.2)))
         let w: CGFloat = 22 - lift * 0.4, h: CGFloat = 22 + lift * 0.5
-        context.fill(Path(roundedRect: CGRect(x: p.x - w / 2, y: p.y - h / 2, width: w, height: h), cornerRadius: 7), with: .color(.white))
-        context.fill(Path(roundedRect: CGRect(x: p.x - 4, y: p.y - h / 2 - 4, width: 8, height: 6), cornerRadius: 2), with: .color(.red))
+        let bodyRect = CGRect(x: p.x - w / 2, y: p.y - h / 2, width: w, height: h)
+        context.fill(Path(roundedRect: bodyRect.offsetBy(dx: 0, dy: 2.5), cornerRadius: 8), with: .color(Color(white: 0.78)))
+        context.fill(Path(roundedRect: bodyRect, cornerRadius: 8), with: .color(.white))
+        context.fill(Path(roundedRect: CGRect(x: p.x - 4, y: p.y - h / 2 - 4, width: 8, height: 6), cornerRadius: 3), with: .color(Color(red: 0.95, green: 0.42, blue: 0.40)))
         let eyeX = p.x + engine.facing * 3
-        ball(&context, CGPoint(x: eyeX - 4, y: p.y - 3), 2, .black)
-        ball(&context, CGPoint(x: eyeX + 4, y: p.y - 3), 2, .black)
-        context.fill(Path(CGRect(x: p.x - 3, y: p.y + 1, width: 6, height: 4)), with: .color(.orange))
+        ball(&context, CGPoint(x: eyeX - 4, y: p.y - 3), 2, Color(red: 0.2, green: 0.18, blue: 0.25))
+        ball(&context, CGPoint(x: eyeX + 4, y: p.y - 3), 2, Color(red: 0.2, green: 0.18, blue: 0.25))
+        context.fill(Path(roundedRect: CGRect(x: p.x - 3, y: p.y + 1, width: 6, height: 4), cornerRadius: 1.5), with: .color(Color(red: 0.98, green: 0.62, blue: 0.28)))
     }
+}
+
+
+// MARK: - Tower sky
+
+/// The sky behind the tower; its hue follows the tower's colour as it grows.
+struct TowerSky: View {
+    let hue: Double
+    @Environment(\.colorScheme) private var scheme
+
+    static let style = ToyStyle(card: .dynamic(light: (0.99, 0.99, 1.0), dark: (0.18, 0.20, 0.26)),
+                                accent: Color(red: 0.40, green: 0.62, blue: 0.96),
+                                ink: .dynamic(light: (0.20, 0.27, 0.40), dark: (0.92, 0.94, 0.98)),
+                                tray: .dynamic(light: (0.80, 0.86, 0.96), dark: (0.26, 0.30, 0.40)),
+                                haze: .dynamic(light: (0.70, 0.80, 0.95), dark: (0.08, 0.10, 0.18)))
+
+    /// Text and the pressed-in score, tinted with the tower.
+    static func ink(_ hue: Double, dark: Bool) -> Color {
+        Color(hue: hue, saturation: dark ? 0.15 : 0.55, brightness: dark ? 0.95 : 0.35)
+    }
+    static func deboss(_ hue: Double, dark: Bool) -> Color {
+        Color(hue: hue, saturation: dark ? 0.35 : 0.30, brightness: dark ? 0.50 : 0.84)
+    }
+
+    var body: some View {
+        let dark = scheme == .dark
+        LinearGradient(colors: [Color(hue: hue, saturation: dark ? 0.45 : 0.20, brightness: dark ? 0.30 : 0.99),
+                                Color(hue: (hue + 0.08).truncatingRemainder(dividingBy: 1),
+                                      saturation: dark ? 0.50 : 0.34, brightness: dark ? 0.13 : 0.92)],
+                       startPoint: .top, endPoint: .bottom)
+            .animation(.easeInOut(duration: 0.8), value: hue)
+    }
+}
+
+/// Pause, the score pressed into the sky, and the game's own chips on the right.
+private struct ArcadeTopBar<Trailing: View>: View {
+    let ink: Color
+    let deboss: Color
+    let rim: Color
+    @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.gameHUD) private var hud
+    @State private var bump = 0
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            HStack(alignment: .top) {
+                ToyIconButton(symbol: "pause.fill", label: L10n.text("Paused"), ink: ink) { hud.pause() }
+                Spacer()
+                trailing()
+            }
+            ToyPressedScore(score: hud.score, best: hud.best, deboss: deboss, rim: rim, ink: ink, bump: bump)
+                .padding(.horizontal, 56)
+                .allowsHitTesting(false)
+        }
+        .onChange(of: hud.score) { old, new in
+            if new > old { bump += 1 }
+        }
+    }
+}
+
+/// The soft toy world of each full-screen arcade game.
+struct ArcadeSkin {
+    let palette: ToyPalette
+
+    init(mode: ArcadeMode) {
+        switch mode {
+        case .knifeSpin:
+            // Warm apricot: a wooden target on a sunny wall.
+            palette = ToyPalette(
+                backdropTop: .dynamic(light: (1.0, 0.95, 0.89), dark: (0.21, 0.15, 0.12)),
+                backdropBottom: .dynamic(light: (0.98, 0.83, 0.72), dark: (0.11, 0.07, 0.06)),
+                tray: .dynamic(light: (0.93, 0.74, 0.60), dark: (0.40, 0.28, 0.22)),
+                socket: .dynamic(light: (0.88, 0.67, 0.53), dark: (0.30, 0.21, 0.17)),
+                ink: .dynamic(light: (0.47, 0.27, 0.18), dark: (1.0, 0.92, 0.86)),
+                deboss: .dynamic(light: (0.97, 0.83, 0.72), dark: (0.46, 0.33, 0.27)),
+                debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.06, 0.04, 0.03)),
+                card: .dynamic(light: (1.0, 0.98, 0.96), dark: (0.27, 0.20, 0.17)),
+                accent: .dynamic(light: (0.93, 0.47, 0.40), dark: (0.98, 0.58, 0.50)))
+        case .flappyFlight:
+            // A clear day sky over green hills.
+            palette = ToyPalette(
+                backdropTop: .dynamic(light: (0.74, 0.88, 0.99), dark: (0.10, 0.14, 0.27)),
+                backdropBottom: .dynamic(light: (0.93, 0.97, 0.99), dark: (0.17, 0.22, 0.34)),
+                tray: .dynamic(light: (0.76, 0.86, 0.96), dark: (0.24, 0.30, 0.42)),
+                socket: .dynamic(light: (0.68, 0.79, 0.91), dark: (0.18, 0.23, 0.33)),
+                ink: .dynamic(light: (0.18, 0.31, 0.46), dark: (0.92, 0.95, 1.0)),
+                deboss: .dynamic(light: (0.66, 0.81, 0.95), dark: (0.30, 0.38, 0.55)),
+                debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.04, 0.05, 0.10)),
+                card: .dynamic(light: (0.99, 1.0, 1.0), dark: (0.18, 0.22, 0.32)),
+                accent: .dynamic(light: (0.98, 0.62, 0.26), dark: (1.0, 0.70, 0.36)))
+        case .roadHop:
+            // A toy town in spring greens.
+            palette = ToyPalette(
+                backdropTop: .dynamic(light: (0.84, 0.93, 0.80), dark: (0.12, 0.18, 0.13)),
+                backdropBottom: .dynamic(light: (0.70, 0.86, 0.64), dark: (0.08, 0.12, 0.09)),
+                tray: .dynamic(light: (0.72, 0.85, 0.66), dark: (0.24, 0.33, 0.25)),
+                socket: .dynamic(light: (0.64, 0.79, 0.58), dark: (0.18, 0.26, 0.19)),
+                ink: .dynamic(light: (0.20, 0.36, 0.22), dark: (0.92, 0.97, 0.90)),
+                deboss: .dynamic(light: (0.56, 0.74, 0.52), dark: (0.30, 0.42, 0.32)),
+                debossRim: .dynamic(light: (0.86, 0.95, 0.82), dark: (0.04, 0.06, 0.04)),
+                card: .dynamic(light: (0.99, 1.0, 0.98), dark: (0.19, 0.25, 0.20)),
+                accent: .dynamic(light: (0.95, 0.55, 0.42), dark: (0.98, 0.64, 0.52)))
+        default:
+            // Helix Drop: a soft periwinkle sky.
+            palette = ToyPalette(
+                backdropTop: .dynamic(light: (0.86, 0.88, 0.99), dark: (0.15, 0.16, 0.30)),
+                backdropBottom: .dynamic(light: (0.70, 0.75, 0.95), dark: (0.07, 0.08, 0.16)),
+                tray: .dynamic(light: (0.76, 0.79, 0.95), dark: (0.26, 0.28, 0.44)),
+                socket: .dynamic(light: (0.68, 0.71, 0.90), dark: (0.19, 0.21, 0.34)),
+                ink: .dynamic(light: (0.26, 0.28, 0.52), dark: (0.93, 0.93, 1.0)),
+                deboss: .dynamic(light: (0.78, 0.81, 0.97), dark: (0.32, 0.34, 0.55)),
+                debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.04, 0.04, 0.09)),
+                card: .dynamic(light: (0.99, 0.99, 1.0), dark: (0.20, 0.21, 0.33)),
+                accent: .dynamic(light: (0.93, 0.50, 0.62), dark: (0.98, 0.62, 0.72)))
+        }
+    }
+
+    /// Road Hop cars: candy clay.
+    static let carColors: [Color] = [
+        Color(red: 0.96, green: 0.55, blue: 0.52), Color(red: 0.50, green: 0.70, blue: 0.96),
+        Color(red: 1.00, green: 0.80, blue: 0.36), Color(red: 0.70, green: 0.58, blue: 0.94),
+        Color(red: 0.46, green: 0.82, blue: 0.70), Color(red: 0.98, green: 0.62, blue: 0.80),
+    ]
+
+    /// Knife handles: a soft coral.
+    static let knifeHandle = Color(red: 0.92, green: 0.48, blue: 0.42)
 }

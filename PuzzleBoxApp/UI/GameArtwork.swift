@@ -915,14 +915,13 @@ private struct MatchstickArt: View {
 
     var body: some View {
         ArtCanvas(colors: Arena.colors) {
-            label("Move 1", 13, .orange).at(80, 30)
-            digit("6").at(24, 86)
-            match(horizontal: true, length: 16).at(54, 86)
-            match(horizontal: false, length: 16).at(54, 86)
-            digit("4").at(84, 86)
-            box(.white, 14, 3, 1.5).at(112, 81)
-            box(.white, 14, 3, 1.5).at(112, 91)
-            digit("4").at(140, 86)
+            digit("6").at(26, 80)
+            match(horizontal: true, length: 16).at(54, 80)
+            match(horizontal: false, length: 16).at(54, 80)
+            digit("4").at(82, 80)
+            box(.white, 14, 3, 1.5).at(110, 75)
+            box(.white, 14, 3, 1.5).at(110, 85)
+            digit("4").at(136, 80)
         }
     }
 
@@ -1004,19 +1003,33 @@ private struct MinesweeperArt: View {
     private let open: Set<Int> = [8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30, 31, 32, 37, 38, 39]
     private let numbers: [Int: Int] = [8: 1, 9: 1, 10: 2, 11: 1, 15: 1, 19: 2, 22: 2, 26: 1, 29: 1, 32: 3, 37: 1, 39: 1]
     private let flags: Set<Int> = [3, 33]
-    private static let ink: [Color] = [.clear, .blue, .green, .orange, .red]
+    // `MinesweeperView` colours in its dark appearance.
+    private static let ink: [Color] = [.clear, Color(red: 0.42, green: 0.64, blue: 1.0),
+                                       Color(red: 0.36, green: 0.80, blue: 0.46), Color(red: 1.0, green: 0.42, blue: 0.40)]
+    private static let frame = Color(red: 0.10, green: 0.12, blue: 0.16)
+    private static let tileTop = Color(red: 0.33, green: 0.42, blue: 0.57)
+    private static let tileBottom = Color(red: 0.23, green: 0.31, blue: 0.44)
+    private static let ground = Color(red: 0.17, green: 0.18, blue: 0.20)
+    private static let groundAlt = Color(red: 0.14, green: 0.15, blue: 0.17)
 
     var body: some View {
         ArtCanvas(colors: Arena.colors) {
-            box(Arena.panel, 152, 152, 12).at(80, 80)
+            box(Self.frame, 152, 152, 12).at(80, 80)
             Cells(rows: 7, columns: 7, size: 19, gap: 2, origin: .init(x: 9.5, y: 9.5)) { r, c in
                 let i = r * 7 + c
                 if open.contains(i) {
-                    box(.black, 19, 19, 4)
+                    box((r + c).isMultiple(of: 2) ? Self.ground : Self.groundAlt, 19, 19, 3)
                         .overlay { if let n = numbers[i] { label("\(n)", 12, Self.ink[n], weight: .bold) } }
                 } else {
-                    gradientTile(Color(white: 0.3), Color(white: 0.22), 19, 19, 4)
-                        .overlay { if flags.contains(i) { Text("🚩").font(.system(size: 10)) } }
+                    gradientTile(Self.tileTop, Self.tileBottom, 19, 19, 4)
+                        .overlay(alignment: .top) {
+                            RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.18)).frame(height: 2).padding(.horizontal, 3)
+                        }
+                        .overlay {
+                            if flags.contains(i) {
+                                Image(systemName: "flag.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(.red)
+                            }
+                        }
                 }
             }
         }
@@ -1024,31 +1037,42 @@ private struct MinesweeperArt: View {
 }
 
 private struct CheckmateArt: View {
-    private static let light = Color(red: 0.65, green: 0.69, blue: 0.61)
-    private static let dark = Color(red: 0.32, green: 0.39, blue: 0.29)
+    // `CheckmateView`'s maple and walnut board.
+    private static let light = Color(red: 0.94, green: 0.86, blue: 0.71)
+    private static let dark = Color(red: 0.71, green: 0.53, blue: 0.38)
+    private static let frameTop = Color(red: 0.42, green: 0.27, blue: 0.17)
+    private static let frameBottom = Color(red: 0.30, green: 0.18, blue: 0.11)
+    private static let lastMove = Color(red: 0.80, green: 0.82, blue: 0.28)
+    private static let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
+    private static let ebony = Color(red: 0.13, green: 0.11, blue: 0.10)
 
     var body: some View {
         ArtCanvas(colors: Arena.colors) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LinearGradient(colors: [Self.frameTop, Self.frameBottom], startPoint: .top, endPoint: .bottom))
+                .frame(width: 152, height: 152).at(80, 80)
             Cells(rows: 5, columns: 5, size: 28, gap: 0, origin: .init(x: 10, y: 10)) { r, c in
                 Rectangle().fill((r + c).isMultiple(of: 2) ? Self.light : Self.dark).frame(width: 28.5, height: 28.5)
-                    .overlay { if r == 3 && c == 1 { Rectangle().fill(Color.blue.opacity(0.35)) } }
-                    .overlay { if (r == 4 && c == 1) || (r == 3 && c == 1) { Rectangle().strokeBorder(Color.yellow.opacity(0.7), lineWidth: 2) } }
+                    .overlay { if (r == 4 && c == 1) || (r == 3 && c == 1) { Rectangle().fill(Self.lastMove.opacity(0.45)) } }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
             piece("♚", white: false).at(122, 38)
             piece("♟", white: false).at(94, 38)
-            piece("♕", white: true).at(38, 108)
-            piece("♖", white: true).at(150 - 28, 136)
+            piece("♛", white: true).at(38, 108)
+            piece("♜", white: true).at(122, 136)
+            // Grey move dots, as on the board.
             ForEach([(66.0, 80.0), (94.0, 52.0)], id: \.0) { p in
-                dot(Color.blue.opacity(0.6), 9).at(p.0, p.1)
+                dot(Color.black.opacity(0.25), 9).at(p.0, p.1)
             }
         }
     }
 
+    /// A solid piece with a dark outline, like the board's filled glyphs.
     private func piece(_ glyph: String, white: Bool) -> some View {
-        Text(verbatim: glyph + "\u{FE0E}").font(.system(size: 32))
-            .foregroundStyle(white ? Color.white : Color.black)
-            .shadow(color: white ? .black.opacity(0.9) : .white.opacity(0.45), radius: 1)
+        Text(verbatim: glyph + "\u{FE0E}").font(.system(size: 30))
+            .foregroundStyle(white ? Self.ivory : Self.ebony)
+            .shadow(color: .black.opacity(white ? 0.9 : 0.3), radius: 0.6)
+            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
     }
 }
 
@@ -1196,7 +1220,7 @@ private struct GemsArt: View {
                         Match3GemView(gem: Gem(id: i, color: Self.colors[i],
                                                ice: blitz && i == 18 ? 2 : 0,
                                                crystal: blitz && [1, 7, 13, 21].contains(i)),
-                                      size: 28)
+                                      size: 28, faceted: true)
                     }
             }
         }
@@ -1215,7 +1239,7 @@ private struct GemsArcadeArt: View {
                         .overlay {
                             Match3GemView(gem: Gem(id: r * 5 + c, color: Self.colors[(r * 2 + c) % 6],
                                                    crystal: (r == 1 && c == 2) || (r == 3 && c == 1)),
-                                          size: 28)
+                                          size: 28, faceted: true)
                         }
                 }
             }
@@ -1339,8 +1363,7 @@ private struct SimonArt: View {
             quadrant(.yellow, start: 0, lit: false)
             quadrant(.blue, start: 90, lit: false)
             dot(.black, 54).at(80, 80)
-            label("3", 24, .white).at(80, 76)
-            label("steps", 8, .gray, weight: .semibold).at(80, 94)
+            label("3", 26, .white).at(80, 80)
         }
     }
 
@@ -1517,7 +1540,7 @@ private struct StackArt: View {
 
     var body: some View {
         ArtCanvas(colors: [Color(hue: Self.hue, saturation: 0.45, brightness: 0.32), Color(hue: Self.hue + 0.08, saturation: 0.5, brightness: 0.12)]) {
-            label("6", 64, .white.opacity(0.07), weight: .black).at(80, 30)
+            label("6", 56, .white.opacity(0.07), weight: .black).at(80, 40)
             ForEach(slabs.indices, id: \.self) { i in
                 let s = slabs[i]
                 slab(x: s.0, z: s.1, w: s.2, d: s.3, level: i, hue: 0.52 + Double(max(0, i - 2)) * 0.031)
@@ -1850,66 +1873,90 @@ private struct DurakArt: View {
 }
 
 private struct BattleshipArt: View {
+    // The game's sea and steel, in its dark appearance.
+    private static let seaTop = Color(red: 0.09, green: 0.20, blue: 0.36)
+    private static let seaBottom = Color(red: 0.05, green: 0.12, blue: 0.25)
+    private static let steel = Color(red: 0.42, green: 0.48, blue: 0.55)
+    private static let steelEdge = Color(red: 0.24, green: 0.28, blue: 0.33)
+    private static let splash = Color(red: 0.35, green: 0.55, blue: 0.80)
+
     var body: some View {
         ArtCanvas(colors: Arena.colors) {
             let cell: CGFloat = 20
             let origin = CGPoint(x: 10, y: 10)
-            box(Color.blue.opacity(0.12), cell * 7, cell * 7, 8).at(80, 80)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(LinearGradient(colors: [Self.seaTop, Self.seaBottom], startPoint: .top, endPoint: .bottom))
+                .frame(width: cell * 7, height: cell * 7).at(80, 80)
             Path { path in
-                for i in 0...7 {
+                for i in 1..<7 {
                     let offset = CGFloat(i) * cell
                     path.move(to: CGPoint(x: origin.x + offset, y: origin.y)); path.addLine(to: CGPoint(x: origin.x + offset, y: origin.y + cell * 7))
                     path.move(to: CGPoint(x: origin.x, y: origin.y + offset)); path.addLine(to: CGPoint(x: origin.x + cell * 7, y: origin.y + offset))
                 }
             }
-            .stroke(Color.blue.opacity(0.35), lineWidth: 0.8)
-            // Ships in grey; the one being hit turns red.
+            .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
             ship(length: 4, horizontal: true, sunk: false).at(origin.x + cell * 3, origin.y + cell * 1.5)
             ship(length: 3, horizontal: false, sunk: false).at(origin.x + cell * 1.5, origin.y + cell * 4.5)
             ship(length: 2, horizontal: true, sunk: true).at(origin.x + cell * 5, origin.y + cell * 5.5)
             ForEach(Array([(2.5, 1.5), (3.5, 1.5)].enumerated()), id: \.offset) { _, hit in
-                Image(systemName: "xmark").font(.system(size: 11, weight: .black)).foregroundStyle(.red).at(origin.x + cell * hit.0, origin.y + cell * hit.1)
+                Image(systemName: "xmark").font(.system(size: 11, weight: .black))
+                    .foregroundStyle(Color(red: 1, green: 0.45, blue: 0.25))
+                    .at(origin.x + cell * hit.0, origin.y + cell * hit.1)
             }
+            // Misses: a ripple ring with a drop, as on the board.
             ForEach(Array([(5.5, 3.5), (4.5, 6.5), (6.5, 0.5), (0.5, 0.5), (3.5, 3.5)].enumerated()), id: \.offset) { _, miss in
-                dot(Color.gray, 5).at(origin.x + cell * miss.0, origin.y + cell * miss.1)
+                ZStack {
+                    Circle().stroke(Self.splash.opacity(0.6), lineWidth: 1).frame(width: 10, height: 10)
+                    dot(Self.splash, 4)
+                }
+                .at(origin.x + cell * miss.0, origin.y + cell * miss.1)
             }
         }
     }
 
     private func ship(length: Int, horizontal: Bool, sunk: Bool) -> some View {
-        let long = CGFloat(length) * 20 - 5
-        return Capsule()
-            .fill(sunk ? Color.red.opacity(0.25) : Color.white.opacity(0.55))
-            .overlay(Capsule().strokeBorder(sunk ? Color.red : Color.white.opacity(0.7), lineWidth: 1.2))
-            .frame(width: horizontal ? long : 15, height: horizontal ? 15 : long)
+        let long = CGFloat(length) * 20 - 3.2
+        let hull = HullShape(vertical: !horizontal)
+        let layout = horizontal ? AnyLayout(HStackLayout(spacing: 16)) : AnyLayout(VStackLayout(spacing: 16))
+        return hull
+            .fill(sunk ? Color.red.opacity(0.3) : Self.steel)
+            .overlay {
+                layout {
+                    ForEach(0..<length, id: \.self) { _ in
+                        dot(.white.opacity(sunk ? 0.25 : 0.55), 4)
+                    }
+                }
+            }
+            .overlay { hull.stroke(sunk ? Color.red : Self.steelEdge, lineWidth: 1) }
+            .frame(width: horizontal ? long : 16.8, height: horizontal ? 16.8 : long)
     }
 }
 
 private struct HangmanArt: View {
+    /// The game's revealed-letter teal.
+    private static let teal = Color(red: 0.16, green: 0.66, blue: 0.64)
+
     var body: some View {
         ArtCanvas(colors: Arena.colors) {
-            GallowsView(mistakes: 4)
+            // The wooden gallows the game table draws.
+            GallowsView(mistakes: 4, wooden: true)
                 .environment(\.colorScheme, .dark)
-                .frame(width: 90, height: 90)
-                .at(80, 52)
-            HStack(spacing: 4) {
-                ForEach(Array(["W", "O", "", "D", ""].enumerated()), id: \.offset) { _, letter in
-                    Text(letter)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                .frame(width: 100, height: 100)
+                .at(80, 58)
+            // The hidden word: two letters found, three still open. No text,
+            // so the tile reads the same in every language.
+            HStack(spacing: 5) {
+                ForEach(0..<5, id: \.self) { i in
+                    let found = i == 1 || i == 3
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(found ? Self.teal.opacity(0.35) : Color.white.opacity(0.1))
+                        .overlay(alignment: .bottom) {
+                            Capsule().fill(found ? Self.teal : Color.white.opacity(0.35)).frame(height: 2)
+                        }
                         .frame(width: 20, height: 22)
-                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                 }
             }
-            .at(80, 112)
-            HStack(spacing: 3) {
-                ForEach(["A", "B", "C", "D", "E", "F"], id: \.self) { key in
-                    Text(key).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(key == "D" ? 0.3 : 0.9))
-                        .frame(width: 19, height: 17)
-                        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
-                }
-            }
-            .at(80, 142)
+            .at(80, 128)
         }
     }
 }

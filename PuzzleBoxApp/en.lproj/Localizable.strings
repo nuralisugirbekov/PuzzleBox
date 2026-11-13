@@ -772,3 +772,5 @@
 "Wait" = "Wait";
 "Start" = "Start";
 "Step %d of 3: %@" = "Step %d of 3: %@";
+"Time" = "Time";
+"Mistakes: %d/%d" = "Mistakes: %d/%d";
