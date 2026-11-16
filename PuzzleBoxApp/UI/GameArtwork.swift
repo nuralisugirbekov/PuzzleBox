@@ -775,7 +775,7 @@ private struct NumberConnectArt: View {
             stroke(Color.green.opacity(0.7), 10) { p in p.move(to: .init(x: c(4), y: c(0))); p.addLine(to: .init(x: c(4), y: c(2))) }
             ForEach(balls.indices, id: \.self) { i in
                 let b = balls[i]
-                shinyBall(b.3, 21).overlay { label("\(b.2)", 11, .black, weight: .bold) }.at(c(b.1), c(b.0))
+                shinyBall(b.3, 21).at(c(b.1), c(b.0))
             }
         }
     }

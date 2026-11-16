@@ -11,7 +11,7 @@ struct GameTutorial {
         case .arrowMaze:
             return GameTutorial(rules: "The rocket flies forward on its own and speeds up with every star. Collect all the stars, then fly into the green portal. Touching the rocks ends the round.", controls: "Tap the left half of the maze to turn left, or the right half to turn right. Each turn is 90°. Turn near the center of a junction. You can also use the buttons below.")
         case .numberConnect:
-            return GameTutorial(rules: PuzzleMode.numberConnect.hint, controls: "Drag from a numbered endpoint through neighboring cells to its matching number. Start from an endpoint again to redraw that path.")
+            return GameTutorial(rules: "Join each pair of matching pieces with a tube. Tubes can't cross. Every level has one solution, and it uses every cell.", controls: "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it.")
 
         case .nonogram:
             return GameTutorial(rules: "Numbers show consecutive filled groups in each row and column, in order. Leave at least one empty cell between groups.", controls: "Tap to fill or clear a cell. Switch to × to mark cells that should stay empty.")

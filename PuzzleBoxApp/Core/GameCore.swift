@@ -297,7 +297,7 @@ enum GameID: String, CaseIterable, Identifiable {
             GameInfo(title: L10n.text("Nonogram"), tagline: L10n.text(PuzzleMode.nonogram.hint),
                      symbol: "square.grid.3x3.fill", tint: .cyan, category: .japanese, difficulty: .medium)
         case .numberConnect:
-            GameInfo(title: L10n.text("Numberlink"), tagline: L10n.text(PuzzleMode.numberConnect.hint),
+            GameInfo(title: L10n.text("Pair Link"), tagline: L10n.text(ToyNumberLink.hint),
                      symbol: "point.topleft.down.to.point.bottomright.curvepath", tint: .pink, category: .japanese, difficulty: .medium)
         case .mazePaint:
             GameInfo(title: L10n.text("Maze Paint"), tagline: L10n.text("Swipe to paint every square"),
@@ -536,7 +536,7 @@ func gameView(for id: GameID) -> some View {
     case .chainReaction: ActionCollectionView(mode: .chainReaction)
     case .lightsOut: PuzzleCollectionView(mode: .lightsOut)
     case .nonogram: PuzzleCollectionView(mode: .nonogram)
-    case .numberConnect: PuzzleCollectionView(mode: .numberConnect)
+    case .numberConnect: NumberLinkView()
     case .oneLine: PuzzleCollectionView(mode: .oneLine)
     case .mazePaint: MazePaintView()
     case .unblock: PuzzleCollectionView(mode: .unblock)
