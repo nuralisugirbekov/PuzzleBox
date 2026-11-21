@@ -62,21 +62,6 @@ enum PuzzleGenerators {
         }
     }
 
-    /// Splits a Hamiltonian path into `pairs` segments of at least three cells.
-    static func numberConnect(n: Int, pairs: Int, random: inout PuzzleRandom) -> [Int] {
-        let path = hamiltonianPath(n: n, random: &random)
-        var lengths = Array(repeating: 3, count: pairs)
-        for _ in 0..<(n * n - 3 * pairs) { lengths[Int.random(in: 0..<pairs, using: &random)] += 1 }
-        var grid = Array(repeating: 0, count: n * n)
-        var start = 0
-        for (color, length) in lengths.enumerated() {
-            grid[path[start]] = color + 1
-            grid[path[start + length - 1]] = color + 1
-            start += length
-        }
-        return grid
-    }
-
     /// One closed route through every pipe tile, entering at the top-left from the left
     /// and leaving through the border at the far end. Returns solved masks, end cell and exit bit.
     static func pipes(n: Int, random: inout PuzzleRandom) -> (grid: [Int], end: Int, exit: Int) {
@@ -135,70 +120,6 @@ enum PuzzleGenerators {
             return (grid, source, cell)
         }
         return (Array(repeating: 0, count: n * n), 0, n - 1)
-    }
-
-    // MARK: Rush hour
-
-    /// Breadth-first search over single-step slides; returns the shortest solution length.
-    static func rushHourDepth(_ pieces: [SlidingPiece], limit: Int = 25_000) -> Int? {
-        func key(_ p: [SlidingPiece]) -> UInt64 { p.reduce(0) { $0 << 3 | UInt64($1.horizontal ? $1.col : $1.row) } }
-        var seen: Set<UInt64> = [key(pieces)]
-        var frontier = [pieces]
-        var depth = 0
-        while !frontier.isEmpty, seen.count < limit {
-            var next: [[SlidingPiece]] = []
-            for state in frontier {
-                if state[0].col + state[0].length == 6 { return depth }
-                var occupied = Set<Int>()
-                for p in state { occupied.formUnion(p.cells) }
-                for (index, piece) in state.enumerated() {
-                    for delta in [-1, 1] {
-                        var moved = piece
-                        if piece.horizontal { moved.col += delta } else { moved.row += delta }
-                        guard moved.row >= 0, moved.col >= 0,
-                              moved.row + (moved.horizontal ? 1 : moved.length) <= 6,
-                              moved.col + (moved.horizontal ? moved.length : 1) <= 6 else { continue }
-                        let fresh = Set(moved.cells).subtracting(piece.cells)
-                        guard fresh.isDisjoint(with: occupied) else { continue }
-                        var copy = state; copy[index] = moved
-                        if seen.insert(key(copy)).inserted { next.append(copy) }
-                    }
-                }
-            }
-            frontier = next
-            depth += 1
-        }
-        return nil
-    }
-
-    /// Random solvable rush-hour layout whose shortest solution is as close as possible to `targetDepth`.
-    static func rushHour(pieceCount: Int, targetDepth: Int, random: inout PuzzleRandom) -> [SlidingPiece] {
-        var best: [SlidingPiece] = []
-        var bestDepth = -1
-        let deadline = Date().addingTimeInterval(0.25)
-        for _ in 0..<60 where Date() < deadline {
-            var pieces = [SlidingPiece(id: 0, row: 2, col: Int.random(in: 0...1, using: &random), length: 2, horizontal: true)]
-            var occupied = Set(pieces[0].cells)
-            var attempts = 0
-            while pieces.count < pieceCount, attempts < 200 {
-                attempts += 1
-                let horizontal = Bool.random(using: &random)
-                let length = Int.random(in: 0..<100, using: &random) < 70 ? 2 : 3
-                let row = Int.random(in: 0..<(horizontal ? 6 : 7 - length), using: &random)
-                let col = Int.random(in: 0..<(horizontal ? 7 - length : 6), using: &random)
-                if horizontal && row == 2 { continue } // would wall in the red block
-                let piece = SlidingPiece(id: pieces.count, row: row, col: col, length: length, horizontal: horizontal)
-                guard Set(piece.cells).isDisjoint(with: occupied) else { continue }
-                pieces.append(piece); occupied.formUnion(piece.cells)
-            }
-            guard let depth = rushHourDepth(pieces, limit: 12_000), depth >= 3 else { continue }
-            if abs(depth - targetDepth) < abs(bestDepth - targetDepth) || bestDepth < 0 {
-                best = pieces; bestDepth = depth
-            }
-            if depth >= targetDepth { break }
-        }
-        return best.isEmpty ? [SlidingPiece(id: 0, row: 2, col: 0, length: 2, horizontal: true),
-                               SlidingPiece(id: 1, row: 1, col: 3, length: 3, horizontal: false)] : best
     }
 
     /// Greedy flood-fill solution length: an upper bound used to set a fair move limit.

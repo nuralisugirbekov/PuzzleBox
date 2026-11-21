@@ -8,15 +8,45 @@ struct ToyView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     init(mode:ToyMode) { _engine = State(initialValue:ToyEngine(mode:mode)) }
+    static let palette = ToyPuzzles.world(top: (0.90, 0.97, 0.93), bottom: (0.74, 0.90, 0.80),
+                                          darkTop: (0.08, 0.16, 0.12), darkBottom: (0.04, 0.09, 0.07),
+                                          tray: (0.66, 0.48, 0.34), darkTray: (0.36, 0.25, 0.17),
+                                          ink: (0.13, 0.33, 0.23), accent: (0.95, 0.40, 0.55), darkAccent: (1.0, 0.5, 0.62))
+
+    private var isShowcase = false
+
+    /// Just the scene, a moment into a round, for the Home preview.
+    init(showcase engine: ToyEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
+
     var body: some View {
-        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.level)) {
+        if isShowcase {
+            ToyShowcaseFrame(palette: Self.palette, focus: engine.mode == .basketShot || engine.mode == .drawBridge ? 0.62 : 0.5) {
+                Canvas { context, size in
+                    context.scaleBy(x: size.width / 320, y: size.height / 460); draw(&context)
+                }
+            }
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = Self.palette
+        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.level),
+                          chrome: .inGame, backdrop: AnyView(palette.backdrop), toyStyle: palette.style) {
+          ToyGameStage(palette: palette, headline: .score, trailing: { lives }) {
             VStack(spacing:12) {
                 hud
                 GeometryReader { geometry in
                     Canvas { context,size in
                         context.scaleBy(x:size.width/320,y:size.height/460); draw(&context)
-                    }.arenaBackground()
-                    .environment(\.colorScheme, .dark).clipShape(RoundedRectangle(cornerRadius:24))
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius:20, style: .continuous))
+                    .toyTray(palette.tray, cornerRadius: 26, padding: 8)
                         .overlay {
                             if !engine.started {
                             TapToStartCard()
@@ -33,20 +63,23 @@ struct ToyView: View {
                                 else { engine.gesture(from:normalized(v.startLocation,geometry.size),to:normalized(v.location,geometry.size)) }
                                 engine.endTouch(); finger = nil; dragStart = nil; blade = []
                             })
-                }.arenaFit(320.0/460)
+                }.arenaFit(336.0/476)
 
                 if engine.mode == .drawBridge {
                     HStack {
-                        Button(L10n.text("Clear")) { engine.clearBridge() }
-                        Button(L10n.text("Roll")) { engine.roll() }.buttonStyle(.borderedProminent)
-                    }.buttonStyle(.bordered).disabled(!engine.started || engine.launched)
+                        ToyCapsuleButton(title: L10n.text("Clear"), symbol: "eraser.fill", color: palette.card, ink: palette.ink) { engine.clearBridge() }
+                        ToyCapsuleButton(title: L10n.text("Roll"), symbol: "play.fill", color: palette.accent, ink: .white) { engine.roll() }
+                    }.disabled(!engine.started || engine.launched)
                 }
+                // The hint keeps its place; a notice takes over the same line.
                 Text(L10n.text(engine.notice.isEmpty ? engine.mode.hint : engine.notice))
-                    .font(engine.notice.isEmpty ? .footnote : .subheadline.bold())
-                    .foregroundStyle(engine.notice.isEmpty ? GameTheme.textSecondary : GameTheme.accent)
+                    .font(.system(engine.notice.isEmpty ? .footnote : .subheadline, design: .rounded).weight(engine.notice.isEmpty ? .regular : .bold))
+                    .foregroundStyle(engine.notice.isEmpty ? palette.ink.opacity(0.6) : palette.accent)
                     .multilineTextAlignment(.center).frame(minHeight:36)
                     .animation(reduceMotion ? nil : .spring(duration:0.3),value:engine.notice)
             }
+            .padding(.top, 12)
+          }
         }
         .onAppear { engine.active = scenePhase == .active; engine.reduceMotion = reduceMotion }.onDisappear { engine.active = false }
         .onChange(of:reduceMotion) { _,value in engine.reduceMotion = value }
@@ -62,29 +95,40 @@ struct ToyView: View {
     }
 
     private var hud: some View {
-        HStack(spacing:10) {
-            Text(L10n.format("Level %d",engine.level))
+        let palette = Self.palette
+        return HStack(spacing:8) {
+            ToyChip(color: palette.card) {
+                Text(L10n.format("Level %d",engine.level)).foregroundStyle(palette.ink)
+            }
             if engine.streak >= 2 {
-                Label { Text(verbatim:"×\(engine.nextMultiplier)") } icon: { Image(systemName:"flame.fill") }
-                    .foregroundStyle(.orange)
-                    .transition(.scale.combined(with:.opacity))
+                ToyChip(color: Color(red: 1, green: 0.62, blue: 0.25)) {
+                    Label { Text(verbatim:"×\(engine.nextMultiplier)") } icon: { Image(systemName:"flame.fill") }
+                        .foregroundStyle(.white)
+                }
+                .transition(.scale.combined(with:.opacity))
             }
             Spacer()
             if engine.mode == .basketShot && engine.wind != 0 {
-                Label(String(format:"%@ %d",engine.wind > 0 ? "→" : "←",Int(abs(engine.wind))),systemImage:"wind")
-                    .foregroundStyle(GameTheme.textSecondary)
-            }
-            HStack(spacing:3) {
-                ForEach(0..<engine.maxLives,id:\.self) { i in
-                    Image(systemName:i < engine.lives ? "heart.fill" : "heart")
-                        .foregroundStyle(i < engine.lives ? Color.pink : GameTheme.textSecondary)
+                ToyChip(color: palette.card) {
+                    Label(String(format:"%@ %d",engine.wind > 0 ? "→" : "←",Int(abs(engine.wind))),systemImage:"wind")
+                        .foregroundStyle(palette.ink)
                 }
             }
-            .accessibilityElement(children:.ignore)
-            .accessibilityLabel(L10n.format("Lives: %d",engine.lives))
         }
-        .font(.headline.monospacedDigit()).foregroundStyle(GameTheme.accent)
         .animation(reduceMotion ? nil : .spring(duration:0.3),value:engine.streak)
+    }
+
+    private var lives: some View {
+        HStack(spacing:3) {
+            ForEach(0..<engine.maxLives,id:\.self) { i in
+                Image(systemName:"heart.fill")
+                    .foregroundStyle(i < engine.lives ? Self.palette.accent : Self.palette.ink.opacity(0.18))
+            }
+        }
+        .font(.subheadline.weight(.bold))
+        .frame(height: 44)
+        .accessibilityElement(children:.ignore)
+        .accessibilityLabel(L10n.format("Lives: %d",engine.lives))
     }
 
     private func normalized(_ p:CGPoint,_ size:CGSize) -> CGPoint { CGPoint(x:p.x/size.width*320,y:p.y/size.height*460) }
@@ -144,16 +188,6 @@ struct ToyView: View {
             let pad = CGRect(x:engine.padX-engine.padWidth/2,y:396,width:engine.padWidth,height:6)
             circle(CGPoint(x:engine.padX,y:399),engine.padWidth*0.6,.yellow.opacity(0.12))
             box(pad,.yellow)
-        case .miniGolf:
-            gradientBox(CGRect(x:0,y:0,width:320,height:460),Color(red:0.10,green:0.33,blue:0.16),Color(red:0.05,green:0.20,blue:0.09),0)
-            for i in 0..<9 where i.isMultiple(of:2) { box(CGRect(x:10,y:30+CGFloat(i)*46,width:300,height:46),.white.opacity(0.03)) }
-            context.stroke(Path(roundedRect:CGRect(x:6,y:26,width:308,height:423),cornerRadius:8),with:.color(Color(red:0.45,green:0.30,blue:0.18)),lineWidth:6)
-            for s in engine.obstacles { line(s.a,s.b,Color(red:0.85,green:0.55,blue:0.25),12); line(s.a,s.b,Color(red:1,green:0.75,blue:0.4),4) }
-            if let bar = engine.movingBar { line(bar.a,bar.b,.pink,12); line(bar.a,bar.b,.white.opacity(0.6),3) }
-            circle(engine.target,15,.black.opacity(0.25)); circle(engine.target,13,.black)
-            line(engine.target,CGPoint(x:engine.target.x,y:engine.target.y-38),.white,2)
-            var flag = Path(); flag.move(to:CGPoint(x:engine.target.x,y:engine.target.y-38)); flag.addLine(to:CGPoint(x:engine.target.x+22,y:engine.target.y-28)); flag.addLine(to:CGPoint(x:engine.target.x,y:engine.target.y-20)); context.fill(flag,with:.color(.pink))
-            for i in 0..<3 { circle(CGPoint(x:24+CGFloat(i)*14,y:14),4.5,i < 3-engine.strokes ? .white : .white.opacity(0.2)) }
         case .plinko:
             gradientBox(CGRect(x:0,y:0,width:320,height:460),Color(red:0.12,green:0.08,blue:0.22),Color(red:0.04,green:0.05,blue:0.12),0)
             for (i,p) in engine.pegs.enumerated() {
@@ -226,14 +260,13 @@ struct ToyView: View {
             seams.stroke(Path { $0.move(to:CGPoint(x:-10,y:0)); $0.addLine(to:CGPoint(x:10,y:0)) },with:.color(.black.opacity(0.4)),lineWidth:1)
             seams.stroke(Path { $0.move(to:CGPoint(x:0,y:-10)); $0.addLine(to:CGPoint(x:0,y:10)) },with:.color(.black.opacity(0.4)),lineWidth:1)
         case .ropeCut: ball(engine.ball,11,.pink,Color(red:0.7,green:0.1,blue:0.4)); circle(CGPoint(x:engine.ball.x-3,y:engine.ball.y-3),3.5,.white.opacity(0.85))
-        case .miniGolf: ball(engine.ball,8,.white,Color(white:0.7))
         case .plinko: ball(engine.ball,8,.white,GameTheme.accent)
         case .drawBridge: ball(engine.ball,10,.orange,.red)
         }
-        if let finger,!engine.launched,[.basketShot,.miniGolf].contains(engine.mode) {
+        if let finger,!engine.launched,engine.mode == .basketShot {
             let start = dragStart ?? engine.ball
             let dx = start.x-finger.x, dy = start.y-finger.y
-            let power = min(1,hypot(dx,dy)/(engine.mode == .basketShot ? 145 : 175))
+            let power = min(1,hypot(dx,dy)/145)
             let scale = min(1,90/max(1,hypot(dx,dy)))
             let aim = CGPoint(x:engine.ball.x+dx*scale,y:engine.ball.y+dy*scale)
             let tint = Color(hue:0.33*(1-power),saturation:0.85,brightness:1)

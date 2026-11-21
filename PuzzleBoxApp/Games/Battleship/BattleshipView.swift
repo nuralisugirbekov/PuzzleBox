@@ -118,11 +118,18 @@ struct BattleshipView: View {
     @State private var engine = BattleshipEngine()
 
     var body: some View {
-        GameContainerView(gameID: .battleship, engine: engine) {
-            BattleshipTableView(table: engine.table,
-                                seat: BattleshipEngine.playerSeat,
-                                names: [L10n.text("You"), L10n.text("Bot")],
-                                onAction: engine.play)
+        let palette = ToyBattleship.palette
+        GameContainerView(gameID: .battleship, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+            ToyGameStage(palette: palette, headline: .clock(caption: L10n.text("vs Bot"))) {
+                BattleshipTableView(table: engine.table,
+                                    seat: BattleshipEngine.playerSeat,
+                                    names: [L10n.text("You"), L10n.text("Bot")],
+                                    onAction: engine.play)
+                    .padding(.top, 12)
+            }
         }
     }
 }
@@ -139,6 +146,7 @@ struct BattleshipTableView: View {
     let onAction: (BattleshipAction) -> Void
 
     private var enemy: Int { table.opponent(of: seat) }
+    private let palette = ToyBattleship.palette
     private var myTurn: Bool { table.currentTurn == seat }
 
     private func name(_ player: Int) -> String {
@@ -150,6 +158,7 @@ struct BattleshipTableView: View {
         Group {
             if table.isPlacing { setup } else { battle }
         }
+        .foregroundStyle(palette.ink)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: table)
     }
 
@@ -160,45 +169,34 @@ struct BattleshipTableView: View {
         return VStack(spacing: 16) {
             VStack(spacing: 4) {
                 Text(L10n.text("Set up your fleet"))
-                    .font(.title3.weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.heavy))
                 Text(L10n.text("Ships can't touch, not even at the corners. Drag a ship to move it, tap it to turn it, or shuffle."))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(palette.ink.opacity(0.65))
                     .multilineTextAlignment(.center)
             }
             BattleshipBoardView(ships: table.fleets[seat], wrecked: [], hits: [], misses: [],
                                 onRearrange: ready ? nil : { onAction(.place($0)) })
+                .toyTray(palette.tray, cornerRadius: 22, padding: 8)
                 .frame(maxWidth: 420)
                 .frame(maxHeight: .infinity)
             HStack(spacing: 12) {
-                Button {
+                ToyCapsuleButton(title: L10n.text("Shuffle"), symbol: "shuffle", color: palette.card, ink: palette.ink) {
                     onAction(.place(BattleshipState.randomFleet()))
-                } label: {
-                    Label(L10n.text("Shuffle"), systemImage: "shuffle")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(Color.primary.opacity(0.08), in: Capsule())
                 }
-                .buttonStyle(.plain)
                 .disabled(ready)
                 .opacity(ready ? 0.45 : 1)
-                Button {
+                ToyCapsuleButton(title: L10n.text("Ready"), symbol: "checkmark", color: palette.accent, ink: .white) {
                     onAction(.ready)
-                } label: {
-                    Label(L10n.text("Ready"), systemImage: "checkmark")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .background(ready ? Color.gray : GameTheme.accent, in: Capsule())
                 }
-                .buttonStyle(.plain)
                 .disabled(ready)
+                .opacity(ready ? 0.45 : 1)
             }
             HStack(spacing: 8) {
                 if ready && !table.ready[enemy] { ProgressView() }
                 Text(setupStatus)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(palette.ink.opacity(0.65))
             }
             .frame(minHeight: 24)
         }
@@ -218,6 +216,7 @@ struct BattleshipTableView: View {
                 playerChip(enemy)
             }
             board(of: enemy, revealAll: table.isFinished)
+                .toyTray(palette.tray, cornerRadius: 22, padding: 8)
                 .frame(maxWidth: 420)
                 .frame(maxHeight: .infinity)
             status
@@ -225,9 +224,10 @@ struct BattleshipTableView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(L10n.text("Your fleet"))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(palette.ink.opacity(0.65))
                     board(of: seat, revealAll: true)
-                        .frame(width: 132, height: 132)
+                        .frame(width: 112, height: 112)
+                        .toyTray(palette.tray, cornerRadius: 14, padding: 5)
                 }
                 fleetLeft
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -263,13 +263,14 @@ struct BattleshipTableView: View {
             Label("\(table.shipsAfloat(of: player).count)", systemImage: "ferry.fill")
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(palette.ink.opacity(0.65))
         }
         .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(Color.primary.opacity(0.06), in: Capsule())
+        .frame(maxWidth: .infinity, minHeight: 40)
+        .padding(.bottom, 3)
+        .background { ToyBlock(color: palette.card, shape: Capsule(), lip: 3) }
         .overlay {
-            Capsule().strokeBorder(GameTheme.accent, lineWidth: 2).opacity(active ? 1 : 0)
+            Capsule().strokeBorder(palette.accent, lineWidth: 2.5).padding(.bottom, 3).opacity(active ? 1 : 0)
         }
         .accessibilityElement(children: .combine)
         .accessibilityValue(L10n.format("Ships afloat: %d", table.shipsAfloat(of: player).count))
@@ -278,8 +279,8 @@ struct BattleshipTableView: View {
     private var status: some View {
         VStack(spacing: 4) {
             Text(statusText)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(myTurn ? .primary : .secondary)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(palette.ink.opacity(myTurn ? 1 : 0.6))
                 .contentTransition(.opacity)
             if let shot = table.lastShot {
                 HStack(spacing: 4) {
@@ -288,7 +289,7 @@ struct BattleshipTableView: View {
                         .foregroundStyle(shot.hit ? .red : .blue)
                 }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(palette.ink.opacity(0.65))
                 .id(table.shots.map(\.count))
                 .transition(.opacity)
             }
@@ -312,22 +313,22 @@ struct BattleshipTableView: View {
         return VStack(alignment: .leading, spacing: 6) {
             Text(L10n.text("Enemy ships left"))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(palette.ink.opacity(0.65))
             ForEach(Array(Set(BattleshipState.fleetLengths)).sorted(by: >), id: \.self) { length in
                 let total = BattleshipState.fleetLengths.filter { $0 == length }.count
                 let left = afloat.filter { $0 == length }.count
                 HStack(spacing: 6) {
                     HStack(spacing: 2) {
                         ForEach(0..<length, id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(left > 0 ? Color.primary.opacity(0.7) : Color.red.opacity(0.6))
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(left > 0 ? BattleshipBoardView.steel : palette.accent.opacity(0.5))
                                 .frame(width: 10, height: 10)
                         }
                     }
                     Text("\(left)/\(total)")
                         .font(.caption.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(left > 0 ? .primary : .secondary)
+                        .foregroundStyle(palette.ink.opacity(left > 0 ? 1 : 0.5))
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(L10n.format("%d-deck ships: %d of %d", length, left, total))
@@ -382,7 +383,7 @@ struct BattleshipBoardView: View {
                 }
                 if let lifted {
                     let fits = BattleshipState.fleet(ships, replacing: lifted.index, with: lifted.ship) != nil
-                    shipShape(lifted.ship, cell: cell, tint: fits ? GameTheme.accent : .red)
+                    shipShape(lifted.ship, cell: cell, tint: fits ? ToyBattleship.palette.accent : Self.wreck)
                 }
                 ForEach(Array(misses), id: \.self) { pos in
                     // A splash: a ripple ring around a drop.
@@ -411,7 +412,7 @@ struct BattleshipBoardView: View {
                 }
                 if let highlight {
                     RoundedRectangle(cornerRadius: cell * 0.2)
-                        .strokeBorder(GameTheme.accent, lineWidth: 2)
+                        .strokeBorder(ToyBattleship.palette.accent, lineWidth: 2)
                         .frame(width: cell, height: cell)
                         .position(center(highlight, cell: cell))
                 }
@@ -471,8 +472,8 @@ struct BattleshipBoardView: View {
         ? UIColor(red: 0.05, green: 0.12, blue: 0.25, alpha: 1)
         : UIColor(red: 0.72, green: 0.85, blue: 0.97, alpha: 1) })
     private static let splash = Color(red: 0.35, green: 0.55, blue: 0.80).opacity(0.8)
-    private static let steel = Color(red: 0.42, green: 0.48, blue: 0.55)
-    private static let steelEdge = Color(red: 0.24, green: 0.28, blue: 0.33)
+    static let steel = Color.dynamic(light: (0.56, 0.62, 0.70), dark: (0.58, 0.64, 0.72))
+    private static let wreck = Color.dynamic(light: (0.90, 0.45, 0.38), dark: (0.86, 0.42, 0.38))
 
     private func center(_ pos: GridPos, cell: CGFloat) -> CGPoint {
         CGPoint(x: (CGFloat(pos.c) + 0.5) * cell, y: (CGFloat(pos.r) + 0.5) * cell)
@@ -498,11 +499,18 @@ struct BattleshipBoardView: View {
         let sunk = wrecked.contains(ship)
         let first = center(ship.origin, cell: cell)
         let offset = CGFloat(ship.length - 1) * cell / 2
-        let fill = tint.map { $0.opacity(0.35) } ?? (sunk ? Color.red.opacity(0.3) : Self.steel)
-        let stroke = tint ?? (sunk ? Color.red : Self.steelEdge)
+        let base = tint ?? (sunk ? Self.wreck : Self.steel)
         let hull = HullShape(vertical: !ship.horizontal)
+        let lip = max(1.5, cell * 0.1)
         return hull
-            .fill(fill)
+            .fill(LinearGradient(colors: [base.toyShade(0.1), base, base.toyShade(-0.05)],
+                                 startPoint: .top, endPoint: .bottom))
+            .opacity(tint == nil ? 1 : 0.75)
+            .background {
+                // A darker lip under the hull, like the other toy pieces.
+                hull.fill(base.toyShade(-0.24)).offset(y: lip)
+                    .shadow(color: .black.opacity(0.2), radius: 1.5, y: lip)
+            }
             .overlay {
                 // One hatch per deck, along the middle of the hull.
                 let hatch = cell * 0.2
@@ -510,12 +518,11 @@ struct BattleshipBoardView: View {
                                              : AnyLayout(VStackLayout(spacing: cell - hatch))
                 layout {
                     ForEach(0..<ship.length, id: \.self) { _ in
-                        Circle().fill(Color.white.opacity(sunk || tint != nil ? 0.25 : 0.55))
+                        Circle().fill(Color.white.opacity(sunk || tint != nil ? 0.35 : 0.7))
                             .frame(width: hatch, height: hatch)
                     }
                 }
             }
-            .overlay { hull.stroke(stroke, lineWidth: max(1, cell * 0.05)) }
             .frame(width: ship.horizontal ? long : short, height: ship.horizontal ? short : long)
             .position(x: first.x + (ship.horizontal ? offset : 0), y: first.y + (ship.horizontal ? 0 : offset))
     }
@@ -544,5 +551,53 @@ struct HullShape: Shape {
         guard vertical else { return path.offsetBy(dx: rect.minX, dy: rect.minY) }
         // Swap the axes: the bow points down.
         return path.applying(CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: rect.minX, ty: rect.minY))
+    }
+}
+
+/// Battleship's toy world: a sandy harbour with signal-red accents.
+enum ToyBattleship {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.99, 0.95, 0.88), dark: (0.17, 0.14, 0.10)),
+        backdropBottom: .dynamic(light: (0.93, 0.86, 0.73), dark: (0.09, 0.07, 0.05)),
+        tray: .dynamic(light: (0.84, 0.72, 0.55), dark: (0.38, 0.30, 0.20)),
+        socket: .dynamic(light: (0.86, 0.77, 0.62), dark: (0.13, 0.10, 0.07)),
+        ink: .dynamic(light: (0.36, 0.26, 0.16), dark: (0.98, 0.93, 0.85)),
+        deboss: .dynamic(light: (0.94, 0.87, 0.75), dark: (0.28, 0.23, 0.16)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.03, 0.04)),
+        card: .dynamic(light: (1.0, 0.99, 0.97), dark: (0.26, 0.22, 0.17)),
+        accent: .dynamic(light: (0.94, 0.44, 0.32), dark: (1.0, 0.56, 0.42)))
+}
+
+/// The player's own sea under fire, one ship already sunk, for the Home preview.
+struct BattleshipShowcase: View {
+    private let ships: [BattleshipShip]
+    private let wrecked: Set<BattleshipShip>
+    private let hits: Set<GridPos>
+    private let misses: Set<GridPos>
+
+    init() {
+        let fleet = BattleshipState.newGame().fleets[0]
+        let ordered = fleet.sorted { $0.length < $1.length }
+        let sunk = ordered.first { $0.length == 2 } ?? ordered[0]
+        let hurt = ordered.last ?? sunk
+        let decks = Set(fleet.flatMap(\.cells))
+        ships = fleet
+        wrecked = [sunk]
+        hits = Set(sunk.cells + hurt.cells.prefix(2))
+        let tries = [(1, 1), (2, 7), (4, 4), (6, 2), (7, 8), (8, 5), (3, 9), (9, 0), (5, 6)]
+        misses = Set(tries.map { GridPos(r: $0.0, c: $0.1) }).subtracting(decks)
+    }
+
+    var body: some View {
+        let palette = ToyBattleship.palette
+        ZStack {
+            palette.backdrop
+            BattleshipBoardView(ships: ships, wrecked: wrecked, hits: hits, misses: misses)
+                .aspectRatio(1, contentMode: .fit)
+                .toyTray(palette.tray, cornerRadius: 22, padding: 8)
+                .padding(24)
+        }
+        .environment(\.toyStyle, palette.style)
+        .frame(width: 360, height: 360)
     }
 }

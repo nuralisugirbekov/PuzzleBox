@@ -53,6 +53,18 @@ final class SpiderEngine: GameEngine {
         Haptics.tap(); SoundFX.play(.tap)
     }
 
+    /// A game part way through, with runs built down in every column, for
+    /// the Home preview. Nothing is saved.
+    func showcase() {
+        deal()
+        let runs = [(13, 6), (9, 3), (11, 5), (7, 2), (12, 4), (10, 6), (8, 3), (13, 2), (6, 4), (11, 3)]
+        tableau = runs.enumerated().map { col, run in
+            let hidden = (0..<(col < 4 ? 4 : 3)).map { i in Card(suit: .spades, rank: (col * 3 + i) % 13 + 1, faceUp: false) }
+            let shown = (0..<run.1).map { Card(suit: .spades, rank: run.0 - $0) }
+            return hidden + shown
+        }
+    }
+
     private func deal() {
         // 104 cards: eight spade suits, or four spades plus four hearts.
         var deck: [Card] = []
@@ -239,55 +251,117 @@ final class SpiderEngine: GameEngine {
 struct SpiderView: View {
     @State private var engine = SpiderEngine()
     @State private var drag = CardDragController()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: SpiderEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     var body: some View {
-        GameContainerView(gameID: .spiderSolitaire, engine: engine) {
-            GeometryReader { geo in
-                let cardWidth = (geo.size.width - CGFloat(SpiderEngine.columns - 1) * 4) / CGFloat(SpiderEngine.columns)
-                VStack(spacing: 12) {
-                    Picker("", selection: Binding(get: { engine.suitCount }, set: { engine.setSuitCount($0) })) {
-                        Text(L10n.text("1 suit")).tag(1)
-                        Text(L10n.text("2 suits")).tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                    statusBar
-                    // Leave room for the 50pt controls pinned to the bottom.
-                    tableauRow(cardWidth: cardWidth,
-                               maxHeight: geo.size.height - 32 - 12 - 36 - 12 - 50 - CardGameControls.bottomInset - 16)
-                    Spacer(minLength: 0)
-                }
-                .overlay(alignment: .bottom) {
-                    CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
-                }
-                .cardTable(drag)
+        if isShowcase {
+            // Readable cards: the first six columns show, the rest run off the edge.
+            let cardWidth: CGFloat = 50
+            ZStack(alignment: .topLeading) {
+                ToySpider.palette.backdrop
+                tableauRow(cardWidth: cardWidth, maxHeight: 320)
+                    .fixedSize()
+                    .padding(.leading, 22)
+                    .padding(.top, 24)
+                    .cardTable(drag)
             }
+            .environment(\.toyStyle, ToySpider.palette.style)
+            .frame(width: 360, height: 360, alignment: .topLeading)
+            .clipped()
+        } else {
+            gameBody
         }
     }
 
-    private var statusBar: some View {
-        HStack {
-            Label(L10n.format("%d of 8 runs", engine.completedRuns), systemImage: "checkmark.seal.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(GameTheme.accent)
-            if !engine.message.isEmpty {
-                Text(engine.message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = ToySpider.palette
+        GameContainerView(gameID: .spiderSolitaire, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+          ToyGameStage(palette: palette) {
+            ToyChip(color: palette.card) {
+                Label { Text(verbatim: "\(engine.completedRuns)/8") } icon: { Image(systemName: "checkmark.seal.fill") }
+                    .foregroundStyle(palette.ink)
             }
-            Spacer()
-            Button {
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.format("%d of 8 runs", engine.completedRuns))
+          } content: {
+            GeometryReader { geo in
+                let cardWidth = (geo.size.width - CGFloat(SpiderEngine.columns - 1) * 4) / CGFloat(SpiderEngine.columns)
+                VStack(spacing: 14) {
+                    statusBar
+                    // Leave room for the controls pinned to the bottom.
+                    tableauRow(cardWidth: cardWidth,
+                               maxHeight: geo.size.height - 44 - 14 - 56 - CardGameControls.bottomInset - 16)
+                    Spacer(minLength: 0)
+                }
+                .overlay(alignment: .bottom) {
+                    VStack(spacing: 12) {
+                        // The message floats over the table so the cards never move.
+                        Text(engine.message.isEmpty ? " " : engine.message)
+                            .font(.system(.footnote, design: .rounded).weight(.bold))
+                            .foregroundStyle(palette.accent)
+                            .opacity(engine.message.isEmpty ? 0 : 1)
+                            .animation(.easeOut(duration: 0.2), value: engine.message)
+                        CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
+                    }
+                }
+                .cardTable(drag)
+            }
+            .padding(.top, 16)
+          }
+        }
+    }
+
+    /// Suit count on the left, the deal button on the right.
+    private var statusBar: some View {
+        let palette = ToySpider.palette
+        return HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                suitButton(1, title: L10n.text("1 suit"))
+                suitButton(2, title: L10n.text("2 suits"))
+            }
+            .padding(4)
+            .background { ToySocket(color: palette.socket, shape: Capsule()) }
+            Spacer(minLength: 0)
+            ToyCapsuleButton(title: L10n.format("Deal (%d)", engine.stock.count), symbol: "square.stack.fill",
+                             color: palette.accent, ink: .white) {
                 engine.dealFromStock()
-            } label: {
-                Label(L10n.format("Deal (%d)", engine.stock.count), systemImage: "square.stack.fill")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(engine.stock.isEmpty ? GameTheme.textSecondary : .white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(engine.stock.isEmpty ? AnyShapeStyle(GameTheme.surface) : AnyShapeStyle(GameTheme.accent),
-                                in: Capsule())
             }
             .disabled(engine.stock.isEmpty)
+            .opacity(engine.stock.isEmpty ? 0.5 : 1)
         }
+        .frame(height: 44)
+    }
+
+    private func suitButton(_ count: Int, title: String) -> some View {
+        let palette = ToySpider.palette
+        let on = engine.suitCount == count
+        return Button {
+            engine.setSuitCount(count)
+        } label: {
+            Text(title)
+                .font(.system(.footnote, design: .rounded).weight(.bold))
+                .foregroundStyle(on ? palette.ink : palette.ink.opacity(0.6))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(height: 30)
+                .background {
+                    if on { ToyBlock(color: palette.card, shape: Capsule(), lip: 2) }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func tableauRow(cardWidth: CGFloat, maxHeight: CGFloat) -> some View {
@@ -349,4 +423,18 @@ extension SpiderEngine: ResumableGame {
         state = .playing
         return true
     }
+}
+
+/// Spider's toy world: a lilac table with indigo card backs.
+enum ToySpider {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.92, 0.89, 0.98), dark: (0.14, 0.11, 0.22)),
+        backdropBottom: .dynamic(light: (0.80, 0.75, 0.93), dark: (0.07, 0.05, 0.13)),
+        tray: .dynamic(light: (0.68, 0.60, 0.87), dark: (0.30, 0.24, 0.44)),
+        socket: .dynamic(light: (0.70, 0.64, 0.88), dark: (0.10, 0.07, 0.18)),
+        ink: .dynamic(light: (0.28, 0.20, 0.46), dark: (0.94, 0.91, 1.0)),
+        deboss: .dynamic(light: (0.82, 0.77, 0.95), dark: (0.24, 0.19, 0.36)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.04, 0.06)),
+        card: .dynamic(light: (1.0, 0.99, 1.0), dark: (0.22, 0.18, 0.32)),
+        accent: .dynamic(light: (0.45, 0.38, 0.82), dark: (0.60, 0.53, 0.94)))
 }

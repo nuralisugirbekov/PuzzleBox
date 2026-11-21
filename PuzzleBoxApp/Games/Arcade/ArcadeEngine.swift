@@ -142,6 +142,29 @@ final class ArcadeEngine: GameEngine {
 
     init(mode: ArcadeMode) { self.mode = mode; restart() }
 
+    /// A fixed tower for the Home preview, built by the game's own rule:
+    /// each slab lands a little off along alternating axes and only the part
+    /// that overlaps the slab below stays, so the tower only ever narrows.
+    func showcase() {
+        guard mode == .stack else { return }
+        let half = Self.stackSize / 2
+        slabs = (-1...0).map { StackSlab(x: -half, z: -half, w: Self.stackSize, d: Self.stackSize, level: $0, hue: Self.stackHue(0)) }
+        var x = -half, z = -half, w = Self.stackSize, d = Self.stackSize
+        let misses: [CGFloat] = [7, -5, 0, 9, -4]
+        for (i, miss) in misses.enumerated() {
+            if i % 2 == 0 {
+                let left = max(x, x + miss), right = min(x + w, x + miss + w)
+                x = left; w = right - left
+            } else {
+                let back = max(z, z + miss), front = min(z + d, z + miss + d)
+                z = back; d = front - back
+            }
+            slabs.append(StackSlab(x: x, z: z, w: w, d: d, level: i + 1, hue: Self.stackHue(i + 1)))
+        }
+        placed = misses.count
+        stackCamera = CGFloat(misses.count)
+    }
+
     func restart() {
         state = .playing; score = 0; started = false
         player = CGPoint(x: 160, y: 400); velocity = .zero

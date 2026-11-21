@@ -56,6 +56,9 @@ struct RootTabView: View {
     @AppStorage(AppTheme.storageKey) private var theme: AppTheme = .system
     @State private var selection: AppTab = .home
     @State private var presented: PresentedGame?
+    #if DEBUG
+    @State private var debugGallery = false // TEMP, with the screenshot hook below.
+    #endif
     /// A two-player game waiting for "vs Bot" or "vs Friend", or a game
     /// waiting for its mode to be picked.
     @State private var choosingOpponent: GameID?
@@ -152,6 +155,17 @@ struct RootTabView: View {
             .roomLobby()
             .toasts()
             .onOpenURL(perform: openLink)
+            #if DEBUG
+            // TEMP screenshot hook: `-debugOpenGame <id>` opens that game at launch.
+            .task {
+                if let raw = UserDefaults.standard.string(forKey: "debugOpenGame"),
+                   let id = GameID(rawValue: raw) {
+                    presented = .solo(id)
+                }
+                if UserDefaults.standard.bool(forKey: "debugGallery") { debugGallery = true }
+            }
+            .fullScreenCover(isPresented: $debugGallery) { ToyGallery() }
+            #endif
             .onChange(of: friends.pendingMatch) { _, match in
                 guard let match else { return }
                 friends.pendingMatch = nil

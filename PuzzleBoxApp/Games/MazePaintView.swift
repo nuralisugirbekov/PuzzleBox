@@ -69,6 +69,21 @@ final class MazePaintEngine: GameEngine {
         state = .playing
     }
 
+    /// A maze part way painted, for the Home preview. Rolled quietly, so no
+    /// sounds play and nothing is saved.
+    func showcase() {
+        level = 9
+        restart()
+        var rolls = 0
+        for direction in [MazeDirection.right, .down, .left, .up, .right, .down, .left, .down] where rolls < 5 {
+            let path = Self.path(from: ball, direction, open: open)
+            guard path.count > 1, !Set(path).isSubset(of: painted) else { continue }
+            painted.formUnion(path)
+            ball = path[path.count - 1]
+            rolls += 1
+        }
+    }
+
     func selectLevel(_ value: Int) {
         guard (1...Self.levelCount).contains(value) else { return }
         level = value
@@ -234,21 +249,59 @@ struct MazePaintView: View {
     /// Where the finger was when the current swipe's direction was last read.
     @State private var dragAnchor: CGPoint?
     @State private var dragDirection: MazeDirection?
+    private var isShowcase = false
 
-    static let corridor = Color(red: 0.45, green: 0.53, blue: 0.72)
-    static let paint = Color(red: 0.78, green: 0.2, blue: 0.3)
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: MazePaintEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
+
+    static let palette = ToyPuzzles.world(top: (1.0, 0.94, 0.88), bottom: (0.99, 0.84, 0.72),
+                                          darkTop: (0.20, 0.13, 0.10), darkBottom: (0.11, 0.07, 0.05),
+                                          tray: (0.58, 0.62, 0.88), darkTray: (0.26, 0.28, 0.46),
+                                          ink: (0.46, 0.24, 0.16), accent: (0.95, 0.45, 0.48), darkAccent: (1.0, 0.52, 0.55))
+    static var corridor: Color { palette.socket }
+    static var paint: Color { palette.accent }
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                Self.palette.backdrop
+                board.padding(24)
+            }
+            .environment(\.toyStyle, Self.palette.style)
+            .frame(width: 360, height: 360)
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = Self.palette
         GameContainerView(gameID: .mazePaint, engine: engine,
                           resultSummary: L10n.format("Level %d", engine.level),
-                          nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil) {
-            VStack(spacing: 16) {
+                          nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+          ToyGameStage(palette: palette, headline: .clock(caption: L10n.format("%d moves", engine.moves))) {
+            VStack(spacing: 14) {
                 statusBar
                 board
+                // The rules keep their place and fade after the first roll.
                 Text(L10n.text("Swipe to roll the ball until it hits a wall. Keep your finger down and swipe again to turn. Paint every square."))
-                    .font(.footnote).foregroundStyle(GameTheme.textSecondary)
+                    .font(.system(.footnote, design: .rounded))
+                    .opacity(engine.moves == 0 ? 0.6 : 0)
+                    .animation(.easeOut(duration: 0.3), value: engine.moves == 0)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
+            .padding(.top, 12)
+          }
         }
         .id(engine.level)
         .onChange(of: engine.lastRoll) { _, roll in
@@ -268,22 +321,24 @@ struct MazePaintView: View {
     }
 
     private var statusBar: some View {
-        HStack(spacing: 10) {
+        let palette = Self.palette
+        return HStack(spacing: 8) {
             Menu {
                 ForEach(1...MazePaintEngine.levelCount, id: \.self) { level in
                     Button(L10n.format("Level %d", level)) { engine.selectLevel(level) }
                 }
             } label: {
-                Label(L10n.format("Level %d", engine.level), systemImage: "paintbrush.pointed.fill")
-                    .font(.subheadline.weight(.semibold))
+                ToyMenuChip(color: palette.card, ink: palette.ink) {
+                    Text(L10n.format("Level %d", engine.level))
+                }
             }
-            Label(L10n.format("%d moves", engine.moves), systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(GameTheme.accent)
-                .contentTransition(.numericText())
             Spacer()
+            ToyChip(color: palette.card) {
+                Label { Text(verbatim: "\(engine.painted.count) / \(engine.open.count)").monospacedDigit() }
+                    icon: { Image(systemName: "paintbrush.pointed.fill").foregroundStyle(palette.accent) }
+                    .foregroundStyle(palette.ink)
+            }
         }
-        .padding(.horizontal, 4)
     }
 
     private var board: some View {
@@ -297,8 +352,7 @@ struct MazePaintView: View {
             }
         }
         .aspectRatio(columns / rows, contentMode: .fit)
-        .padding(10)
-        .background(Color(red: 0.12, green: 0.13, blue: 0.18), in: RoundedRectangle(cornerRadius: 20))
+        .toyTray(Self.palette.tray, cornerRadius: 22, padding: 10)
         .contentShape(Rectangle())
         // Every change of direction while the finger stays down is a new roll,
         // so the ball can be steered round a maze in one continuous swipe.
@@ -331,7 +385,23 @@ struct MazePaintView: View {
         // Faint seams between squares, as on graph paper.
         var seams = Path()
         for m in engine.open { seams.addRect(rect(m).insetBy(dx: 0.5, dy: 0.5)) }
-        context.stroke(seams, with: .color(.black.opacity(0.08)), lineWidth: 0.6)
+        context.stroke(seams, with: .color(.black.opacity(0.05)), lineWidth: 0.6)
+        // The walls stand up out of the board: shade the corridor under each
+        // wall's edge, and give the walls a lighter top rim.
+        let openSet = Set(engine.open)
+        for m in engine.open {
+            let r = rect(m)
+            if !openSet.contains(MazeCell(c: m.c, r: m.r - 1)) {
+                context.fill(Path(CGRect(x: r.minX, y: r.minY, width: r.width, height: cell * 0.22)),
+                             with: .linearGradient(Gradient(colors: [.black.opacity(0.2), .clear]),
+                                                   startPoint: CGPoint(x: 0, y: r.minY), endPoint: CGPoint(x: 0, y: r.minY + cell * 0.22)))
+            }
+            if !openSet.contains(MazeCell(c: m.c - 1, r: m.r)) {
+                context.fill(Path(CGRect(x: r.minX, y: r.minY, width: cell * 0.12, height: r.height)),
+                             with: .linearGradient(Gradient(colors: [.black.opacity(0.1), .clear]),
+                                                   startPoint: CGPoint(x: r.minX, y: 0), endPoint: CGPoint(x: r.minX + cell * 0.12, y: 0)))
+            }
+        }
 
         // Squares this roll paints appear as the ball reaches them.
         let roll = rolling?.roll
@@ -355,12 +425,7 @@ struct MazePaintView: View {
             var tail = Path(); tail.move(to: tailStart); tail.addLine(to: position)
             context.stroke(tail, with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: cell * 0.35, lineCap: .round))
         }
-        let r = cell * 0.32
-        context.fill(Path(ellipseIn: CGRect(x: position.x - r * 1.6, y: position.y - r * 1.6, width: r * 3.2, height: r * 3.2)),
-                     with: .color(.white.opacity(0.15)))
-        context.fill(Path(ellipseIn: CGRect(x: position.x - r, y: position.y - r, width: r * 2, height: r * 2)),
-                     with: .radialGradient(Gradient(colors: [.white, Color(white: 0.8)]),
-                                           center: CGPoint(x: position.x - r * 0.3, y: position.y - r * 0.3), startRadius: 0, endRadius: r * 1.3))
+        ToyCanvas.bead(&context, position, cell * 0.32, Color(red: 1, green: 0.99, blue: 0.97))
     }
 }
 

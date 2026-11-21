@@ -64,6 +64,13 @@ final class WaterSortEngine: GameEngine {
         state = .playing
     }
 
+    /// A mixed level with one tube picked up, for the Home preview. Nothing is saved.
+    func showcase() {
+        level = 7
+        restart()
+        selected = 1
+    }
+
     func selectLevel(_ value: Int) {
         guard (1...Self.levelCount).contains(value) else { return }
         level = value
@@ -227,6 +234,15 @@ struct WaterSortView: View {
     @State private var tubeFrames: [Int: CGRect] = [:]
     /// The board's distance from the screen's left edge, to keep tipped tubes on screen.
     @State private var boardOrigin: CGFloat = 16
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the tubes, in a fixed position, for the Home preview.
+    init(showcase engine: WaterSortEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     /// Red, blue, green, yellow, purple, cyan, orange, pink, mint and brown,
     /// spread apart so neighbouring layers never blur together.
@@ -239,6 +255,24 @@ struct WaterSortView: View {
     ]
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                ToyWaterSort.palette.backdrop
+                tubesGrid
+                    .fixedSize()
+                    .scaleEffect(0.76)
+                    .offset(y: 8)
+            }
+            .environment(\.toyStyle, ToyWaterSort.palette.style)
+            .frame(width: 360, height: 360)
+            .clipped()
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
         GameContainerView(gameID: .waterSort, engine: engine,
                           resultSummary: L10n.format("Level %d", engine.level),
                           nextLevel: engine.hasNextLevel ? { engine.nextLevel() } : nil,
@@ -281,7 +315,7 @@ struct WaterSortView: View {
                     Button(L10n.format("Level %d", level)) { engine.selectLevel(level) }
                 }
             } label: {
-                ToyChip(color: palette.card) {
+                ToyMenuChip(color: palette.card, ink: palette.ink) {
                     Label(L10n.format("Level %d", engine.level), systemImage: "flask.fill")
                 }
             }

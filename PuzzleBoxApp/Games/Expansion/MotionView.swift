@@ -5,8 +5,38 @@ struct MotionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     init(mode: MotionMode) { _engine = State(initialValue: MotionEngine(mode: mode)) }
+    private var palette: ToyPalette { ToyArcades.pong }
+
+    private var isShowcase = false
+
+    /// Just the scene, a moment into a round, for the Home preview.
+    init(showcase engine: MotionEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
+
     var body: some View {
-        GameContainerView(gameID: engine.mode.gameID, engine: engine) {
+        if isShowcase {
+            ToyShowcaseFrame(palette: palette, focus: engine.mode == .endlessClimb ? 0.6 : 0.5, cornerRadius: 18) {
+                Canvas { context, size in
+                    context.scaleBy(x: size.width / 320, y: size.height / 460)
+                    draw(&context)
+                    engine.fx.draw(in: &context)
+                }
+            }
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = palette
+        GameContainerView(gameID: engine.mode.gameID, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+          ToyGameStage(palette: palette) {
             VStack(spacing: 12) {
                 GeometryReader { geometry in
                     Canvas { context, size in
@@ -17,9 +47,7 @@ struct MotionView: View {
                         engine.fx.draw(in: &context)
                         engine.fx.drawFlash(in: &context, bounds: CGRect(x: -20, y: -20, width: 360, height: 500), reduceMotion: reduceMotion)
                     }
-                    .arenaBackground()
-                    .environment(\.colorScheme, .dark)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay {
                         if !engine.started {
                             TapToStartCard()
@@ -31,13 +59,19 @@ struct MotionView: View {
                         .onEnded { _ in engine.start() })
                 }
                 .arenaFit(320.0 / 460)
+                .toyTray(palette.tray, cornerRadius: 24, padding: 6)
+                // The hints keep their place and fade once the round starts.
                 VStack(spacing: 4) {
-                    Text(L10n.text(engine.mode.hint))
-                    Text(L10n.text(engine.mode.bonusHint)).foregroundStyle(GameTheme.accent)
+                    Text(L10n.text(engine.mode.hint)).opacity(0.6)
+                    Text(L10n.text(engine.mode.bonusHint)).foregroundStyle(palette.accent)
                 }
-                .font(.footnote).foregroundStyle(GameTheme.textSecondary)
+                .font(.system(.footnote, design: .rounded))
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .opacity(engine.started ? 0 : 1)
+                .animation(.easeOut(duration: 0.3), value: engine.started)
             }
+            .padding(.top, 12)
+          }
         }
         .onAppear { engine.active = scenePhase == .active }
         .onDisappear { engine.active = false }
@@ -137,22 +171,31 @@ struct MotionView: View {
                              at: CGPoint(x: engine.player.x + 26, y: engine.player.y - 16))
             }
         case .circlePong:
-            background(Color(red: 0.06, green: 0.04, blue: 0.16), Color(red: 0.02, green: 0.02, blue: 0.07))
+            let pal = palette
+            background(pal.socket, pal.socket.toyShade(-0.04))
             let center = CGPoint(x: 160, y: 230)
+            // A raised clay ring with the court pressed into it.
+            context.fill(Path(ellipseIn: CGRect(x: 10, y: 86, width: 300, height: 300)), with: .color(.black.opacity(0.1)))
+            context.fill(Path(ellipseIn: CGRect(x: 10, y: 80, width: 300, height: 300)), with: .color(pal.tray.toyShade(-0.2)))
+            context.fill(Path(ellipseIn: CGRect(x: 10, y: 74, width: 300, height: 300)), with: .color(pal.tray))
+            context.fill(Path(ellipseIn: CGRect(x: 26, y: 96, width: 268, height: 268)), with: .color(pal.socket))
+            context.fill(Path(ellipseIn: CGRect(x: 26, y: 96, width: 268, height: 268)),
+                         with: .linearGradient(Gradient(colors: [.black.opacity(0.14), .clear]), startPoint: CGPoint(x: 0, y: 96), endPoint: CGPoint(x: 0, y: 180)))
             for r in stride(from: 30, through: 120, by: 30) {
                 context.stroke(Path(ellipseIn: CGRect(x: center.x - CGFloat(r), y: center.y - CGFloat(r), width: CGFloat(r) * 2, height: CGFloat(r) * 2)),
-                               with: .color(.white.opacity(0.04)), lineWidth: 1)
+                               with: .color(pal.ink.opacity(0.06)), lineWidth: 1.5)
             }
-            context.stroke(Path(ellipseIn: CGRect(x: 26, y: 96, width: 268, height: 268)), with: .color(.pink.opacity(0.35)), lineWidth: 2)
-            context.draw(Text(verbatim: "\(engine.rally)").font(.system(size: 64, weight: .black, design: .rounded)).foregroundStyle(.white.opacity(0.07)), at: center)
-            for p in engine.pickups { star(p.p, 10, p.spin, .yellow) }
+            context.draw(Text(verbatim: "\(engine.rally)").font(.system(size: 64, weight: .black, design: .rounded)).foregroundStyle(pal.ink.opacity(0.12)), at: center)
+            for p in engine.pickups { star(p.p, 10, p.spin, Color(red: 0.99, green: 0.76, blue: 0.24)) }
             var arc = Path()
             arc.addArc(center: center, radius: 134, startAngle: .radians(Double(engine.paddle - engine.paddleHalfWidth)),
                        endAngle: .radians(Double(engine.paddle + engine.paddleHalfWidth)), clockwise: false)
-            context.stroke(arc, with: .color(GameTheme.accent.opacity(0.3)), style: StrokeStyle(lineWidth: 18, lineCap: .round))
-            context.stroke(arc, with: .color(GameTheme.accent), style: StrokeStyle(lineWidth: 10, lineCap: .round))
-            trail(.white, 7)
-            shinyBall(engine.player, 8, .white, Color(white: 0.7))
+            // A clay paddle: dark lip under a bright face.
+            context.stroke(arc.offsetBy(dx: 0, dy: 3), with: .color(pal.accent.toyShade(-0.24)), style: StrokeStyle(lineWidth: 13, lineCap: .round))
+            context.stroke(arc, with: .color(pal.accent), style: StrokeStyle(lineWidth: 13, lineCap: .round))
+            context.stroke(arc.offsetBy(dx: 0, dy: -2), with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            trail(pal.card, 7)
+            ToyCanvas.bead(&context, engine.player, 9, pal.card)
         case .spaceDodge:
             background(Color(red: 0.02, green: 0.02, blue: 0.08), Color(red: 0.08, green: 0.03, blue: 0.14))
             for i in 0..<40 {

@@ -68,23 +68,30 @@ final class NumberLinkEngine: GameEngine {
     func nextLevel() { selectLevel(level + 1) }
 
     func restart() {
+        drawing = nil; stroke = []; strokeStart = []
         load(NumberLinkLevels.all[level - 1])
         state = .playing; score = 0; moves = 0
-        committed = Array(repeating: [], count: pairs.count)
-        paths = committed; history = []; lastMovedPair = nil; drawing = nil; stroke = []
+        history = []; lastMovedPair = nil
     }
 
+    /// Swaps the whole board in one go, tubes first, so the counts of
+    /// `pairs` and `paths` always agree whenever the view reads them.
     private func load(_ entry: (size: Int, puzzle: String, solution: String)) {
-        n = entry.size
         let letters = Array("abcdefghijkl")
-        let puzzle = Array(entry.puzzle)
-        pieces = puzzle.map { letters.firstIndex(of: $0) ?? -1 }
-        solution = Array(entry.solution).map { letters.firstIndex(of: $0) ?? -1 }
-        let count = (pieces.max() ?? -1) + 1
-        pairs = (0..<count).map { pair in
-            let cells = pieces.indices.filter { pieces[$0] == pair }
-            return (cells[0], cells[1])
+        let newPieces = Array(entry.puzzle).map { letters.firstIndex(of: $0) ?? -1 }
+        var ends: [Int: [Int]] = [:]
+        for (cell, pair) in newPieces.enumerated() where pair >= 0 { ends[pair, default: []].append(cell) }
+        let count = (newPieces.max() ?? -1) + 1
+        let newPairs = (0..<count).map { pair -> (Int, Int) in
+            let cells = ends[pair] ?? []
+            return (cells.first ?? 0, cells.count > 1 ? cells[1] : (cells.first ?? 0))
         }
+        committed = Array(repeating: [], count: count)
+        paths = committed
+        n = entry.size
+        pieces = newPieces
+        solution = Array(entry.solution).map { letters.firstIndex(of: $0) ?? -1 }
+        pairs = newPairs
     }
 
     /// Starts over on the current level, keeping the level.
@@ -107,11 +114,24 @@ final class NumberLinkEngine: GameEngine {
     private func adjacent(_ a: Int, _ b: Int) -> Bool { abs(a / n - b / n) + abs(a % n - b % n) == 1 }
     private func partner(of cell: Int, pair: Int) -> Int { pairs[pair].0 == cell ? pairs[pair].1 : pairs[pair].0 }
     func isJoined(_ pair: Int) -> Bool {
-        guard let first = paths[pair].first, let last = paths[pair].last, paths[pair].count > 1 else { return false }
+        guard paths.indices.contains(pair), let first = paths[pair].first, let last = paths[pair].last, paths[pair].count > 1 else { return false }
+        guard pieces.indices.contains(first), pieces.indices.contains(last) else { return false }
         return pieces[first] == pair && pieces[last] == pair && first != last
     }
     /// The pair whose tube covers `cell`, if any.
     func owner(of cell: Int) -> Int? { paths.firstIndex { $0.contains(cell) } }
+    /// The pair whose tube covers each cell (-1 for none), built in one pass.
+    var ownerMap: [Int] {
+        var map = Array(repeating: -1, count: n * n)
+        for (pair, path) in paths.enumerated() {
+            for cell in path where map.indices.contains(cell) && map[cell] < 0 { map[cell] = pair }
+        }
+        return map
+    }
+    /// Every piece on the board with its pair, for drawing.
+    var pieceCells: [(pair: Int, cell: Int)] {
+        pieces.enumerated().compactMap { $0.element >= 0 ? ($0.element, $0.offset) : nil }
+    }
 
     func begin(at cell: Int) {
         guard state == .playing, pieces.indices.contains(cell) else { return }
@@ -168,6 +188,7 @@ final class NumberLinkEngine: GameEngine {
         guard let pair = drawing else { return }
         refresh()
         drawing = nil; stroke = []
+        guard paths.indices.contains(pair) else { paths = committed; return }
         let changed = paths != committed
         if changed {
             history.append(committed)
@@ -201,9 +222,10 @@ final class NumberLinkEngine: GameEngine {
         solvedWave += 1
         Haptics.success()
         // Let the wave run over the board before the result window comes up.
+        let solvedLevel = level
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(900))
-            guard let self, self.isSolved, self.state == .playing else { return }
+            guard let self, self.level == solvedLevel, self.isSolved, self.state == .playing else { return }
             self.state = .gameOver(won: true)
         }
     }

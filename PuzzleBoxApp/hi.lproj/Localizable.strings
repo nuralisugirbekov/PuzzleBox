@@ -142,7 +142,6 @@
 "Nonogram" = "नोनोग्राम";
 "Number Connect" = "अंक जोड़ो";
 "One Line" = "एक रेखा";
-"Unblock" = "रास्ता खोलो";
 "15 Puzzle" = "पंद्रह पहेली";
 "Pipe Connect" = "पाइप जोड़ो";
 "Dots" = "बिंदु";
@@ -157,7 +156,6 @@
 "Tap to toggle a light and its neighbors. Turn all lights off." = "टैप से बत्ती और पड़ोसी बत्तियाँ बदलती हैं। सभी बुझाओ।";
 "Use the row and column clues to fill the picture." = "पंक्तियों और स्तंभों के संकेतों से चित्र भरो।";
 "Trace every edge once. Tap connected nodes." = "जुड़े बिंदुओं पर टैप करके हर किनारा एक बार खींचो।";
-"Slide blocks along their length. Free the red block." = "ब्लॉकों को लंबाई की दिशा में खिसकाओ। लाल ब्लॉक निकालो।";
 "Slide tiles into order, with the empty cell last." = "टाइलें क्रम में लगाओ और खाली खाना अंत में रखो।";
 "Rotate pipes to connect IN to OUT through every cell." = "पाइप घुमाकर हर खाने से होते हुए प्रवेश को निकास से जोड़ो।";
 "Connect adjacent matching dots, then release or tap Collect." = "पास के एक रंग वाले बिंदु जोड़ो, फिर छोड़ो या इकट्ठा करो दबाओ।";
@@ -767,6 +765,10 @@
 "Step %d of 3: %@" = "चरण %d/3: %@";
 "Time" = "समय";
 "Mistakes: %d/%d" = "गलतियाँ: %d/%d";
+"Shots left: %d" = "बचे शॉट: %d";
+"Replay" = "फिर से";
+"So close!" = "बस थोड़ा सा!";
+"Picked up where you left off" = "जहाँ छोड़ा था वहीं से जारी";
 
 /* Pair Link (Number Link redesign) */
 "Pair Link" = "जोड़ी मिलाओ";
@@ -775,3 +777,36 @@
 "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it." = "किसी आकृति या नली के खुले सिरे से पास के खानों में खींचो। नली छोटी करने के लिए वापस खींचो। दूसरी नली के आर-पार खींचने से वह कट जाती है।";
 "%d of %d pairs joined" = "%2$d में से %1$d जोड़ियाँ जुड़ीं";
 "%d stars" = "%d सितारे";
+
+/* Mini golf */
+"Hole %d" = "होल %d";
+"Strokes · par %d" = "शॉट · पार %d";
+"Restart hole" = "होल फिर से खेलें";
+"Out of strokes" = "शॉट खत्म";
+"Splash! +1 stroke" = "छपाक! +1 शॉट";
+"Pull back from the ball, aim and let go. Sink it in as few strokes as you can." = "गेंद से पीछे खींचें, निशाना लगाएँ और छोड़ें। कम से कम शॉट में होल में डालें।";
+
+/* Car park */
+"Car Park" = "पार्किंग";
+"Bumps" = "टक्करें";
+"Restart level" = "लेवल फिर से शुरू करें";
+"Vehicles left: %d" = "बची गाड़ियाँ: %d";
+"Bump!" = "धड़ाम!";
+"Beep! Let them cross." = "पीं-पीं! पहले पैदल यात्री।";
+"Not a scratch!" = "एक खरोंच भी नहीं!";
+"Swipe a car along its length to drive it out. Clear the lot without a bump." = "गाड़ी को उसकी लंबाई की दिशा में स्वाइप करो ताकि वह निकल जाए। बिना टक्कर पार्किंग खाली करो।";
+
+/* Mini golf worlds */
+"First Steps" = "पहले कदम";
+"Ice Rink" = "आइस रिंक";
+"Portal Park" = "पोर्टल पार्क";
+"Switch Yard" = "स्विच यार्ड";
+"Spring Fair" = "स्प्रिंग मेला";
+"Clockwork" = "घड़ी का यंत्र";
+"Grand Tour" = "ग्रैंड टूर";
+"Gate open!" = "गेट खुल गया!";
+"Ice keeps the ball sliding. Arrow pads speed it up." = "बर्फ़ पर गेंद फिसलती रहती है। तीर वाले पैड उसे तेज़ करते हैं।";
+"Roll into a ring and the ball pops out of its twin." = "गेंद को छल्ले में डालो, वह उसके जोड़ीदार से निकलेगी।";
+"Roll over a button to drop the gate of the same colour." = "बटन पर से गुज़रो, उसी रंग का गेट नीचे हो जाएगा।";
+"Yellow springs kick the ball away. Mind the swinging paddles." = "पीली स्प्रिंग गेंद को उछाल देती हैं। झूलते पैडल से बचो।";
+"Time your shot past the moving rails, windmills and paddles." = "चलती रेलिंग, पवनचक्की और पैडल के बीच सही समय पर मारो।";

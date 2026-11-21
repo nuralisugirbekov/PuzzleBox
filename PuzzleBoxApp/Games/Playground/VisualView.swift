@@ -5,49 +5,112 @@ struct VisualView:View {
     init(mode:VisualMode) { _engine = State(initialValue:VisualEngine(mode:mode)) }
     private let pictureColors:[Color] = [.cyan,.pink,.orange,.green,.purple,.yellow,.mint]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var body:some View {
-        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.levelIndex+1),nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil) {
-            VStack(spacing:12) {
-                HStack(spacing:10) {
+    static let palette = ToyPuzzles.world(top: (0.99, 0.95, 0.84), bottom: (0.97, 0.84, 0.64),
+                                          darkTop: (0.18, 0.13, 0.08), darkBottom: (0.10, 0.07, 0.04),
+                                          tray: (0.24, 0.33, 0.48), darkTray: (0.15, 0.20, 0.30),
+                                          ink: (0.42, 0.26, 0.10), accent: (0.96, 0.52, 0.20), darkAccent: (1.0, 0.6, 0.3))
+    /// The part of the 320×460 scene the equation sits in.
+    private static let window = CGRect(x:0,y:140,width:320,height:150)
+
+    private var isShowcase = false
+
+    /// Just the board for the Home preview.
+    init(showcase engine: VisualEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
+
+    var body: some View {
+        if isShowcase {
+            switch engine.mode {
+            case .rotatePuzzle:
+                ZStack {
+                    Self.palette.backdrop
+                    rotateBoard.padding(26)
+                }
+                .environment(\.toyStyle, Self.palette.style)
+                .frame(width: 360, height: 360)
+            case .matchstick:
+                ToyShowcaseFrame(palette: Self.palette, aspect: Self.window.width / Self.window.height) {
+                    Canvas { context, size in
+                        let w = Self.window
+                        context.scaleBy(x: size.width / w.width, y: size.height / w.height)
+                        context.translateBy(x: -w.minX, y: -w.minY)
+                        draw(&context)
+                    }
+                }
+            }
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody:some View {
+        let palette = Self.palette
+        GameContainerView(gameID:engine.mode.id,engine:engine,resultSummary:L10n.format("Level %d",engine.levelIndex+1),nextLevel:engine.hasNextLevel ? { engine.nextLevel() } : nil,
+                          chrome: .inGame, backdrop: AnyView(palette.backdrop), toyStyle: palette.style) {
+          ToyGameStage(palette: palette, headline: .clock(caption: L10n.format("%d moves",engine.moves)), trailing: {
+              if engine.mode == .matchstick {
+                  ToyIconButton(symbol: "arrow.counterclockwise", label: L10n.text("Reset"), ink: palette.ink) { engine.resetMatches() }
+              }
+          }) {
+            VStack(spacing:14) {
+                HStack(spacing:8) {
                     Menu {
                         ForEach(0..<engine.levelCount,id: \.self) { level in
                             Button(levelTitle(level)) { engine.loadLevel(level) }
                         }
                     } label: {
-                        Label(levelTitle(engine.levelIndex),systemImage:"square.grid.2x2")
-                    }
-                    Text(L10n.format("%d moves",engine.moves))
-                    Spacer()
-                    HStack(spacing:1) {
-                        ForEach(0..<3,id:\.self) { i in
-                            Image(systemName:i < engine.stars ? "star.fill" : "star").foregroundStyle(i < engine.stars ? Color.yellow : GameTheme.textSecondary)
+                        ToyMenuChip(color: palette.card, ink: palette.ink) {
+                            Text(levelTitle(engine.levelIndex))
                         }
-                    }.font(.caption)
-                    if engine.mode == .matchstick {
-                        Button { engine.resetMatches() } label: { Image(systemName:"arrow.counterclockwise.circle") }
-                            .accessibilityLabel(L10n.text("Reset"))
+                    }
+                    Spacer()
+                    ToyChip(color: palette.card) {
+                        HStack(spacing:2) {
+                            ForEach(0..<3,id:\.self) { i in
+                                Image(systemName:"star.fill").foregroundStyle(i < engine.stars ? Color(red:1,green:0.75,blue:0.15) : palette.ink.opacity(0.18))
+                            }
+                        }
                     }
                 }
-                .font(.subheadline.monospacedDigit()).foregroundStyle(GameTheme.accent)
                 switch engine.mode {
                 case .rotatePuzzle: rotateBoard
                 case .matchstick:
+                    Spacer(minLength: 0)
                     Text(L10n.format(engine.matchesToMove == 1 ? "Move %d match" : "Move %d matches", engine.matchesToMove - engine.matchesMoved))
-                        .font(.headline).foregroundStyle(.orange)
+                        .font(.system(.title3, design: .rounded).weight(.heavy)).foregroundStyle(palette.ink)
+                        .contentTransition(.numericText())
                     GeometryReader { geometry in
-                        Canvas { context,size in context.scaleBy(x:size.width/320,y:size.height/460); draw(&context) }
-                            .arenaBackground()
-                            .environment(\.colorScheme, .dark).clipShape(RoundedRectangle(cornerRadius:24))
-                            .contentShape(Rectangle())
-                            .gesture(DragGesture(minimumDistance:0)
-                                .onEnded { v in
-                                    interact(CGPoint(x:v.location.x/geometry.size.width*320,y:v.location.y/geometry.size.height*460))
-                                })
-                    }.arenaFit(320.0/460)
+                        let w = Self.window
+                        Canvas { context,size in
+                            context.scaleBy(x:size.width/w.width,y:size.height/w.height)
+                            context.translateBy(x:-w.minX,y:-w.minY)
+                            draw(&context)
+                        }
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance:0)
+                            .onEnded { v in
+                                interact(CGPoint(x:w.minX+v.location.x/geometry.size.width*w.width,
+                                                 y:w.minY+v.location.y/geometry.size.height*w.height))
+                            })
+                    }
+                    .aspectRatio(Self.window.width/Self.window.height, contentMode:.fit)
+                    .toyTray(palette.tray, cornerRadius: 26, padding: 10)
                 }
-                if !engine.feedback.isEmpty { Text(L10n.text(engine.feedback)).font(.caption).foregroundStyle(.orange) }
-                Text(L10n.text(engine.mode.hint)).font(.footnote).foregroundStyle(GameTheme.textSecondary).multilineTextAlignment(.center)
+                // Feedback and the rules keep their place, so the board never shifts.
+                Text(L10n.text(engine.feedback.isEmpty ? " " : engine.feedback))
+                    .font(.system(.subheadline, design: .rounded).weight(.bold)).foregroundStyle(palette.accent)
+                Text(L10n.text(engine.mode.hint))
+                    .font(.system(.footnote, design: .rounded)).foregroundStyle(palette.ink)
+                    .opacity(engine.moves == 0 ? 0.6 : 0)
+                    .animation(.easeOut(duration: 0.3), value: engine.moves == 0)
+                    .multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
+                if engine.mode == .matchstick { Spacer(minLength: 0); Spacer(minLength: 0) }
             }
+            .padding(.top, 12)
+          }
         }
         .id(engine.levelIndex)
     }
@@ -138,17 +201,28 @@ struct VisualView:View {
         switch engine.mode {
         case .rotatePuzzle: break // Drawn by `rotateBoard` as individual tiles.
         case .matchstick:
-            for (i,segment) in matchSegments().enumerated() {
-                if engine.cells[i] == 1 {
-                    line(segment.0,segment.1,engine.selectedMatch == i ? GameTheme.accent.opacity(0.4) : .black.opacity(0.4),11)
-                    line(segment.0,segment.1,engine.selectedMatch == i ? GameTheme.accent : Color(red:0.95,green:0.75,blue:0.45),6)
-                } else {
-                    line(segment.0,segment.1,.white.opacity(engine.selectedMatch == nil ? 0.1 : 0.3),5)
-                }
-                if engine.cells[i] == 1 { context.fill(Path(ellipseIn:CGRect(x:segment.0.x-3,y:segment.0.y-3,width:6,height:6)),with:.color(.red)) }
+            // Empty places are grooves in the felt; they glow while a match is picked up.
+            for (i,segment) in matchSegments().enumerated() where engine.cells[i] != 1 {
+                line(segment.0,segment.1,.black.opacity(0.22),7)
+                line(CGPoint(x:segment.0.x,y:segment.0.y+1),CGPoint(x:segment.1.x,y:segment.1.y+1),.white.opacity(engine.selectedMatch == nil ? 0.06 : 0.22),5)
             }
-            line(CGPoint(x:197,y:204),CGPoint(x:229,y:204),.white,4)
-            line(CGPoint(x:197,y:223),CGPoint(x:229,y:223),.white,4)
+            // Matches are wooden clay sticks with a red head; a picked match lifts.
+            let wood = Color(red:0.98,green:0.80,blue:0.50)
+            for (i,segment) in matchSegments().enumerated() where engine.cells[i] == 1 {
+                let picked = engine.selectedMatch == i
+                let lift:CGFloat = picked ? -4 : 0
+                let a = CGPoint(x:segment.0.x,y:segment.0.y+lift), b = CGPoint(x:segment.1.x,y:segment.1.y+lift)
+                line(CGPoint(x:a.x,y:a.y+(picked ? 7 : 3)),CGPoint(x:b.x,y:b.y+(picked ? 7 : 3)),.black.opacity(picked ? 0.25 : 0.3),7)
+                line(CGPoint(x:a.x,y:a.y+1.5),CGPoint(x:b.x,y:b.y+1.5),wood.toyShade(-0.3),6)
+                line(a,b,picked ? Self.palette.accent.toyShade(0.15) : wood,6)
+                line(CGPoint(x:a.x,y:a.y-1),CGPoint(x:b.x,y:b.y-1),.white.opacity(0.45),1.6)
+                ToyCanvas.bead(&context,a,4.2,Color(red:0.88,green:0.22,blue:0.20))
+            }
+            // The equals sign, two cream bars.
+            for y:CGFloat in [204,223] {
+                line(CGPoint(x:197,y:y+2),CGPoint(x:229,y:y+2),.black.opacity(0.3),6)
+                line(CGPoint(x:197,y:y),CGPoint(x:229,y:y),Color(red:1,green:0.97,blue:0.9),5)
+            }
         }
     }
 

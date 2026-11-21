@@ -166,8 +166,8 @@ struct NumberLinkBoard: View {
         return r * n + c
     }
 
-    private func center(_ i: Int, _ cell: CGFloat) -> CGPoint {
-        CGPoint(x: (CGFloat(i % engine.n) + 0.5) * cell, y: (CGFloat(i / engine.n) + 0.5) * cell)
+    private func center(_ i: Int, _ n: Int, _ cell: CGFloat) -> CGPoint {
+        CGPoint(x: (CGFloat(i % n) + 0.5) * cell, y: (CGFloat(i / n) + 0.5) * cell)
     }
 
     /// 0 → 1 → 0 as the wave front passes a cell, `wave` seconds after the win.
@@ -184,6 +184,7 @@ struct NumberLinkBoard: View {
         let n = engine.n
         ZStack(alignment: .topLeading) {
             // Sockets, tinted by the tube lying in them.
+            let owners = engine.ownerMap
             Canvas { context, _ in
                 for i in 0..<(n * n) {
                     let rect = CGRect(x: CGFloat(i % n) * cell, y: CGFloat(i / n) * cell, width: cell, height: cell)
@@ -193,7 +194,8 @@ struct NumberLinkBoard: View {
                     context.fill(shape, with: .linearGradient(Gradient(colors: [.black.opacity(0.13), .clear]),
                                                               startPoint: rect.origin,
                                                               endPoint: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.35)))
-                    if let pair = engine.owner(of: i) {
+                    if owners.indices.contains(i), owners[i] >= 0 {
+                        let pair = owners[i]
                         context.fill(shape, with: .color(ToyNumberLink.color(pair).opacity(0.16)))
                     }
                     let lift = waveLift(i, wave)
@@ -201,11 +203,12 @@ struct NumberLinkBoard: View {
                 }
             }
             // Clay tubes: a darker wall under a lit face with a soft shine.
+            let tubes = engine.paths
             Canvas { context, _ in
                 let width = cell * 0.36
-                for (pair, path) in engine.paths.enumerated() where path.count > 1 {
+                for (pair, path) in tubes.enumerated() where path.count > 1 {
                     var line = Path()
-                    line.addLines(path.map { center($0, cell) })
+                    line.addLines(path.map { center($0, n, cell) })
                     let color = ToyNumberLink.color(pair)
                     let style = StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round)
                     context.stroke(line.applying(.init(translationX: 0, y: cell * 0.07)),
@@ -217,11 +220,11 @@ struct NumberLinkBoard: View {
                 }
             }
             // The pieces.
-            ForEach(engine.pairs.indices, id: \.self) { pair in
-                ForEach([engine.pairs[pair].0, engine.pairs[pair].1], id: \.self) { i in
-                    piece(pair: pair, cell: cell, lift: waveLift(i, wave))
-                        .position(center(i, cell))
-                }
+            // Iterates a snapshot, so a level change can never ask for a pair
+            // the new level doesn't have.
+            ForEach(engine.pieceCells, id: \.cell) { item in
+                piece(pair: item.pair, cell: cell, lift: waveLift(item.cell, wave))
+                    .position(center(item.cell, n, cell))
             }
         }
     }
@@ -308,14 +311,18 @@ private struct Extrusion: Shape {
     let shape: PairShape
     let depth: CGFloat
 
+    /// Stacked copies of the same outline wind the same way, so the
+    /// non-zero fill paints their union without any costly boolean ops.
     func path(in rect: CGRect) -> Path {
-        var path = shape.path(in: rect)
+        let base = shape.path(in: rect)
+        var path = base
         var step: CGFloat = 0.75
-        while step <= depth {
-            path = path.union(shape.path(in: rect.offsetBy(dx: 0, dy: step)))
+        while step < depth {
+            path.addPath(base, transform: .init(translationX: 0, y: step))
             step += 0.75
         }
-        return path.union(shape.path(in: rect.offsetBy(dx: 0, dy: depth)))
+        path.addPath(base, transform: .init(translationX: 0, y: depth))
+        return path
     }
 }
 

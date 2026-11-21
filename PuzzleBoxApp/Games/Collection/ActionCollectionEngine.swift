@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-enum ActionMode: String {
+enum ActionMode: String, CaseIterable {
     case redGreen, perfectTiming, bubblePop, whackMole, chainReaction
     var id: GameID {
         switch self {
@@ -339,6 +339,14 @@ final class ActionCollectionEngine: GameEngine {
             fx.burst(at: bubble.p, color: .gray, count: 6, speed: 60, gravity: 0, size: 2)
             loseLife(at: bubble.p)
         }
+    }
+
+    /// Fixed moles up for the Home preview: a normal one, a golden one and a bomb.
+    func showcase() {
+        guard mode == .whackMole else { return }
+        holes = [nil, ActionMole(kind: 0, age: 0.4, life: 1.3), nil,
+                 nil, nil, ActionMole(kind: 1, age: 0.4, life: 1.3),
+                 ActionMole(kind: 2, age: 0.4, life: 1.3), nil, nil]
     }
 
     private func updateMoles(_ dt: Double) {

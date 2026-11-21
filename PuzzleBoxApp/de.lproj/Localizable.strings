@@ -142,7 +142,6 @@
 "Nonogram" = "Nonogramm";
 "Number Connect" = "Zahlen verbinden";
 "One Line" = "Eine Linie";
-"Unblock" = "Freischieben";
 "15 Puzzle" = "15-Puzzle";
 "Pipe Connect" = "Rohre verbinden";
 "Dots" = "Punkte";
@@ -157,7 +156,6 @@
 "Tap to toggle a light and its neighbors. Turn all lights off." = "Tippen schaltet eine Lampe und ihre Nachbarn um. Schalte alle aus.";
 "Use the row and column clues to fill the picture." = "Fülle das Bild mithilfe der Zeilen- und Spaltenhinweise.";
 "Trace every edge once. Tap connected nodes." = "Zeichne jede Kante einmal. Tippe verbundene Punkte an.";
-"Slide blocks along their length. Free the red block." = "Schiebe die Blöcke längs. Befreie den roten Block.";
 "Slide tiles into order, with the empty cell last." = "Ordne die Kacheln, mit dem leeren Feld am Ende.";
 "Rotate pipes to connect IN to OUT through every cell." = "Drehe Rohre, um Eingang und Ausgang durch jedes Feld zu verbinden.";
 "Connect adjacent matching dots, then release or tap Collect." = "Verbinde benachbarte gleichfarbige Punkte, dann loslassen oder Sammeln tippen.";
@@ -767,6 +765,10 @@
 "Step %d of 3: %@" = "Schritt %d von 3: %@";
 "Time" = "Zeit";
 "Mistakes: %d/%d" = "Fehler: %d/%d";
+"Shots left: %d" = "Verbleibende Schläge: %d";
+"Replay" = "Nochmal";
+"So close!" = "Fast!";
+"Picked up where you left off" = "Weiter, wo du aufgehört hast";
 
 /* Pair Link (Number Link redesign) */
 "Pair Link" = "Paare verbinden";
@@ -775,3 +777,36 @@
 "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it." = "Ziehe von einer Figur oder vom offenen Ende einer Röhre über benachbarte Felder. Ziehe zurück, um eine Röhre zu kürzen. Ziehst du durch eine andere Röhre, wird sie abgeschnitten.";
 "%d of %d pairs joined" = "%d von %d Paaren verbunden";
 "%d stars" = "%d Sterne";
+
+/* Mini golf */
+"Hole %d" = "Bahn %d";
+"Strokes · par %d" = "Schläge · Par %d";
+"Restart hole" = "Bahn neu starten";
+"Out of strokes" = "Keine Schläge mehr";
+"Splash! +1 stroke" = "Platsch! +1 Schlag";
+"Pull back from the ball, aim and let go. Sink it in as few strokes as you can." = "Zieh vom Ball zurück, ziele und lass los. Lochen mit möglichst wenigen Schlägen.";
+
+/* Car park */
+"Car Park" = "Parkplatz";
+"Bumps" = "Rempler";
+"Restart level" = "Level neu starten";
+"Vehicles left: %d" = "Fahrzeuge übrig: %d";
+"Bump!" = "Rums!";
+"Beep! Let them cross." = "Hup! Erst die Fußgänger.";
+"Not a scratch!" = "Kein Kratzer!";
+"Swipe a car along its length to drive it out. Clear the lot without a bump." = "Wische ein Auto in Fahrtrichtung, damit es losfährt. Räume den Parkplatz ohne Rempler.";
+
+/* Mini golf worlds */
+"First Steps" = "Erste Schritte";
+"Ice Rink" = "Eisbahn";
+"Portal Park" = "Portalpark";
+"Switch Yard" = "Weichenhof";
+"Spring Fair" = "Federjahrmarkt";
+"Clockwork" = "Uhrwerk";
+"Grand Tour" = "Große Tour";
+"Gate open!" = "Tor offen!";
+"Ice keeps the ball sliding. Arrow pads speed it up." = "Auf Eis rutscht der Ball weiter. Pfeilfelder beschleunigen ihn.";
+"Roll into a ring and the ball pops out of its twin." = "Roll in einen Ring, und der Ball kommt aus seinem Zwilling.";
+"Roll over a button to drop the gate of the same colour." = "Roll über einen Knopf, und das Tor in seiner Farbe senkt sich.";
+"Yellow springs kick the ball away. Mind the swinging paddles." = "Gelbe Federn schleudern den Ball weg. Achte auf schwingende Paddel.";
+"Time your shot past the moving rails, windmills and paddles." = "Pass den Schlag ab: bewegliche Banden, Windmühlen und Paddel.";

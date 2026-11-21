@@ -674,3 +674,21 @@ enum ToyGems {
     static let timeOK = Color.dynamic(light: (0.47, 0.76, 0.56), dark: (0.42, 0.70, 0.50))
     static let warning = Color.dynamic(light: (0.95, 0.52, 0.50), dark: (0.88, 0.42, 0.42))
 }
+
+/// A fresh board for the Home preview, in the given mode.
+struct Match3Showcase: View {
+    let engine: Match3Engine
+
+    var body: some View {
+        let palette = ToyGems.palette
+        ZStack {
+            palette.backdrop
+            Match3BoardView(engine: engine)
+                .aspectRatio(CGFloat(engine.board.cols) / CGFloat(engine.board.rows), contentMode: .fit)
+                .toyTray(palette.tray, cornerRadius: 22, padding: 8)
+                .padding(24)
+        }
+        .environment(\.toyStyle, palette.style)
+        .frame(width: 360, height: 360)
+    }
+}

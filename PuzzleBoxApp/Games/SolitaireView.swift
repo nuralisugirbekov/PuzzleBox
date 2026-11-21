@@ -52,6 +52,17 @@ final class SolitaireEngine: GameEngine {
 
     func restart() { deal() }
 
+    /// A fresh deal with three cards turned onto the waste, for the Home
+    /// preview. Nothing is saved.
+    func showcase() {
+        deal()
+        for _ in 0..<3 where !stock.isEmpty {
+            var card = stock.removeLast()
+            card.faceUp = true
+            waste.append(card)
+        }
+    }
+
     private func deal() {
         history.removeAll()
         var deck = Card.deck().shuffled()
@@ -334,12 +345,50 @@ final class SolitaireEngine: GameEngine {
 struct SolitaireView: View {
     @State private var engine = SolitaireEngine()
     @State private var drag = CardDragController()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the table, in a fixed position, for the Home preview.
+    init(showcase engine: SolitaireEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     /// Figma gaps: 4pt between piles, 32pt between the top row and the tableau.
     private static let gap: CGFloat = 4
 
     var body: some View {
-        GameContainerView(gameID: .solitaire, engine: engine) {
+        if isShowcase {
+            // Drawn a little small, then scaled up so the deal fills the card.
+            let side: CGFloat = 290
+            let cardWidth = (side - 6 * Self.gap) / 7
+            ZStack {
+                ToyKlondike.palette.backdrop
+                VStack(spacing: 18) {
+                    topRow(cardWidth: cardWidth)
+                    tableauRow(cardWidth: cardWidth, maxHeight: 200)
+                }
+                .frame(width: side)
+                .cardTable(drag)
+                .scaleEffect(1.12)
+            }
+            .environment(\.toyStyle, ToyKlondike.palette.style)
+            .frame(width: 360, height: 360)
+            .clipped()
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = ToyKlondike.palette
+        GameContainerView(gameID: .solitaire, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+          ToyGameStage(palette: palette) {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - 6 * Self.gap) / 7
                 let cardHeight = cardWidth * CardView.aspectRatio
@@ -353,14 +402,11 @@ struct SolitaireView: View {
                 .overlay(alignment: .bottom) {
                     VStack(spacing: 16) {
                         if engine.canAutoComplete {
-                            Button {
+                            ToyCapsuleButton(title: L10n.text("Auto-complete"), symbol: "wand.and.stars",
+                                             color: palette.accent, ink: .white) {
                                 Task { await engine.autoComplete() }
-                            } label: {
-                                Label(L10n.text("Auto-complete"), systemImage: "wand.and.stars")
-                                    .font(.subheadline.bold()).foregroundStyle(.white)
-                                    .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .background(GameTheme.accent, in: Capsule())
                             }
+                            .frame(maxWidth: 220)
                             .transition(.scale.combined(with: .opacity))
                         }
                         CardGameControls(hint: engine.hint, canUndo: engine.canUndo, undo: engine.undo)
@@ -369,6 +415,8 @@ struct SolitaireView: View {
                 }
                 .cardTable(drag)
             }
+            .padding(.top, 16)
+          }
         }
     }
 
@@ -496,4 +544,18 @@ extension SolitaireEngine: ResumableGame {
         state = .playing
         return true
     }
+}
+
+/// Klondike's toy world: a sage felt table with coral card backs.
+enum ToyKlondike {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.84, 0.93, 0.83), dark: (0.11, 0.21, 0.15)),
+        backdropBottom: .dynamic(light: (0.69, 0.85, 0.70), dark: (0.05, 0.12, 0.08)),
+        tray: .dynamic(light: (0.56, 0.76, 0.58), dark: (0.20, 0.34, 0.24)),
+        socket: .dynamic(light: (0.50, 0.70, 0.52), dark: (0.14, 0.26, 0.18)),
+        ink: .dynamic(light: (0.13, 0.33, 0.20), dark: (0.88, 0.97, 0.90)),
+        deboss: .dynamic(light: (0.74, 0.88, 0.75), dark: (0.18, 0.32, 0.22)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.04, 0.06)),
+        card: .dynamic(light: (0.99, 1.0, 0.98), dark: (0.17, 0.27, 0.20)),
+        accent: .dynamic(light: (0.93, 0.42, 0.37), dark: (1.0, 0.56, 0.50)))
 }

@@ -102,6 +102,21 @@ final class BlockBlastEngine: GameEngine {
         refillTray()
     }
 
+    /// A fixed, half-built board with a tray of three pieces, for the Home preview.
+    func showcase() {
+        let colorCount = Self.colors.count
+        grid = (0..<Self.size).map { r in
+            (0..<Self.size).map { c in
+                r > 2 && (r * 3 + c * 7) % 5 != 0 ? (r + c) % colorCount : nil
+            }
+        }
+        tray = [
+            BBPiece(cells: [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)], colorIndex: 1 % colorCount),
+            BBPiece(cells: [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 0, c: 2)], colorIndex: 3 % colorCount),
+            BBPiece(cells: [GridPos(r: 0, c: 0), GridPos(r: 0, c: 1), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)], colorIndex: 2 % colorCount),
+        ]
+    }
+
     func restart() {
         grid = Array(repeating: Array(repeating: nil, count: Self.size), count: Self.size)
         score = 0
@@ -495,6 +510,68 @@ struct BlockBlastCell: View {
     }
 }
 
+/// The Blocks drop zone with one piece in hand, hovering above the board
+/// before it is placed. The tray is left out: the preview shows the moment
+/// of playing, not the whole screen.
+struct BlockBlastShowcase: View {
+    let engine: BlockBlastEngine
+    private let gap: CGFloat = 4
+    private let cell: CGFloat = 28
+
+    var body: some View {
+        let pitch = cell + gap
+        // The piece in hand: an L over columns 4–5, and where it would land.
+        let column = 4
+        let hand = BBPiece(cells: [GridPos(r: 0, c: 0), GridPos(r: 1, c: 0), GridPos(r: 1, c: 1)],
+                           colorIndex: 1 % BlockBlastEngine.colors.count)
+        let landing = (row: 1, col: column)
+        VStack(spacing: 6) {
+            // The piece floats above the board, lifted off the grid.
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 10 + CGFloat(column) * pitch)
+                PieceView(piece: hand, cellSize: cell, spacing: gap)
+                    .shadow(color: .black.opacity(0.22), radius: 6, y: 8)
+                Spacer(minLength: 0)
+            }
+            .frame(height: 2 * cell + gap + 8, alignment: .bottom)
+            VStack(spacing: gap) {
+                ForEach(0..<BlockBlastEngine.size, id: \.self) { r in
+                    HStack(spacing: gap) {
+                        ForEach(0..<BlockBlastEngine.size, id: \.self) { c in
+                            boardCell(r: r, c: c, landing: landing, hand: hand)
+                                .frame(width: cell, height: cell)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .background {
+                ToyBlock(color: ToyBlocks.palette.tray,
+                         shape: RoundedRectangle(cornerRadius: 24, style: .continuous), lip: 8)
+            }
+        }
+        .foregroundStyle(ToyBlocks.palette.ink)
+        .frame(width: 360, height: 360)
+        .background(ToyBlocks.palette.backdrop)
+    }
+
+    @ViewBuilder
+    private func boardCell(r: Int, c: Int, landing: (row: Int, col: Int), hand: BBPiece) -> some View {
+        let offset = (r - landing.row, c - landing.col)
+        let isLanding = hand.cells.contains { $0.r == offset.0 && $0.c == offset.1 }
+        ZStack {
+            if let colorIndex = engine.grid[r][c] {
+                BlockBlastCell(color: BlockBlastEngine.colors[colorIndex])
+            } else if isLanding {
+                BlockBlastCell(color: BlockBlastEngine.colors[hand.colorIndex]).opacity(0.5)
+            } else {
+                ToySocket(color: ToyBlocks.palette.socket,
+                          shape: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+        }
+    }
+}
+
 /// The mint toy world of Blocks.
 enum ToyBlocks {
     static let palette = ToyPalette(
@@ -529,8 +606,7 @@ private struct BlocksTopBar: View {
                 .disabled(!engine.canUndo)
                 .opacity(engine.canUndo ? 1 : 0.55)
             }
-            ToyPressedScore(score: hud.score, best: hud.best, deboss: palette.deboss,
-                            rim: palette.debossRim, ink: palette.ink, bump: bump)
+            ToyPressedScore(score: hud.score, best: hud.best, ink: palette.ink, bump: bump)
                 .padding(.horizontal, 56)
         }
         // Line clears make the score jump.

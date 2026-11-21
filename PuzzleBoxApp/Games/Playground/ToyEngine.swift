@@ -2,13 +2,12 @@ import SwiftUI
 import Observation
 
 enum ToyMode: String, CaseIterable {
-    case basketShot, bottleFlip, miniGolf, plinko, ropeCut, drawBridge
+    case basketShot, bottleFlip, plinko, ropeCut, drawBridge
     var id: GameID { GameID(rawValue:rawValue)! }
     var title: String {
         switch self {
         case .basketShot:"Basket Shot"
         case .bottleFlip:"Bottle Flip"
-        case .miniGolf:"Golf"
         case .plinko:"Plinko"
         case .ropeCut:"Rope Cut"
         case .drawBridge:"Draw Bridge"
@@ -18,7 +17,6 @@ enum ToyMode: String, CaseIterable {
         switch self {
         case .basketShot:"Pull back from the ball and release to throw in the opposite direction."
         case .bottleFlip:"Swipe up from the bottle. Land upright after a full flip."
-        case .miniGolf:"Pull back from the ball and release. Sink it in 3 shots or fewer."
         case .plinko:"Drag across the top and release. Aim for the highlighted bin."
         case .ropeCut:"Swipe across ropes to cut them. Swing the candy into the goal."
         case .drawBridge:"Draw a bridge between the platforms, then tap Roll."
@@ -78,9 +76,6 @@ final class ToyEngine: GameEngine {
 
     // Mode-specific layout, varied by level.
     private(set) var wind: CGFloat = 0
-    private(set) var strokes = 0
-    private(set) var obstacles: [ToySegment] = []
-    private(set) var movingBar: ToySegment?
     private(set) var goldPegs: Set<Int> = []
     private(set) var stars: [CGPoint] = []
     private(set) var leftTop: CGFloat = 200
@@ -139,7 +134,7 @@ final class ToyEngine: GameEngine {
     private func prepare() {
         ball = CGPoint(x:70,y:380); velocity = .zero; target = CGPoint(x:245,y:190)
         launched = false; angle = 0; spin = 0; flight = 0; trail = []; bridge = []; bridgePath = Path(); bridgeSegments = []
-        notice = ""; strokes = 0; wind = 0; movingAmplitude = 0; movingBar = nil; touchedRim = false; cutLast = nil
+        notice = ""; wind = 0; movingAmplitude = 0; touchedRim = false; cutLast = nil
         stars = []; inkUsed = 0
         let level = CGFloat(self.level)
         switch mode {
@@ -156,35 +151,11 @@ final class ToyEngine: GameEngine {
             padWidth = max(30,62-level*4)
             padX = CGFloat.random(in:40...280)
             while abs(padX-130) < 40 { padX = CGFloat.random(in:40...280) }
-        case .miniGolf: layoutGolf()
         case .plinko:
             ball = CGPoint(x:160,y:35); selectedBin = Int.random(in:0..<6)
             goldPegs = Set(pegs.indices.shuffled().prefix(4))
         case .ropeCut: layoutRopes()
         case .drawBridge: layoutBridge()
-        }
-    }
-
-    private func layoutGolf() {
-        ball = CGPoint(x:CGFloat.random(in:60...260),y:405)
-        target = CGPoint(x:CGFloat.random(in:45...275),y:CGFloat.random(in:70...140))
-        let templates: [[ToySegment]] = [
-            [ToySegment(a:CGPoint(x:100,y:240),b:CGPoint(x:225,y:240))],
-            [ToySegment(a:CGPoint(x:10,y:280),b:CGPoint(x:170,y:280)),ToySegment(a:CGPoint(x:150,y:190),b:CGPoint(x:310,y:190))],
-            [ToySegment(a:CGPoint(x:55,y:265),b:CGPoint(x:145,y:215)),ToySegment(a:CGPoint(x:175,y:215),b:CGPoint(x:265,y:265))],
-            [ToySegment(a:CGPoint(x:130,y:200),b:CGPoint(x:190,y:200)),ToySegment(a:CGPoint(x:190,y:200),b:CGPoint(x:190,y:260)),
-             ToySegment(a:CGPoint(x:190,y:260),b:CGPoint(x:130,y:260)),ToySegment(a:CGPoint(x:130,y:260),b:CGPoint(x:130,y:200))],
-            [ToySegment(a:CGPoint(x:10,y:230),b:CGPoint(x:120,y:230)),ToySegment(a:CGPoint(x:200,y:230),b:CGPoint(x:310,y:230))],
-        ]
-        var layout = level == 1 ? templates[0] : templates[Int.random(in:0..<templates.count)]
-        // Mirror half of the layouts so they feel less familiar.
-        if level > 1, Bool.random() {
-            layout = layout.map { ToySegment(a:CGPoint(x:320-$0.a.x,y:$0.a.y),b:CGPoint(x:320-$0.b.x,y:$0.b.y)) }
-        }
-        obstacles = layout
-        if level >= 3 {
-            movingBaseX = 160; movingAmplitude = 105
-            movingBar = ToySegment(a:CGPoint(x:125,y:340),b:CGPoint(x:195,y:340))
         }
     }
 
@@ -285,7 +256,6 @@ final class ToyEngine: GameEngine {
             velocity = CGVector(dx:min(100,max(-100,dx*1.2)),dy:-power)
             // Flight time is 2*v/g; swipe strength controls the rotation independently.
             spin = 2.5 + (-dy)*0.045
-        case .miniGolf: velocity = capped(CGVector(dx:-dx*3,dy:-dy*3),limit:530); strokes += 1
         case .basketShot: velocity = capped(CGVector(dx:-dx*4,dy:-dy*4),limit:580)
         default: break
         }
@@ -374,9 +344,6 @@ final class ToyEngine: GameEngine {
         switch mode {
         case .basketShot: target.x = movingBaseX + CGFloat(sin(clock*1.3))*movingAmplitude
         case .ropeCut: target.x = movingBaseX + CGFloat(sin(clock*1.1))*movingAmplitude
-        case .miniGolf:
-            let x = movingBaseX + CGFloat(sin(clock*1.2))*movingAmplitude
-            movingBar = ToySegment(a:CGPoint(x:x-35,y:340),b:CGPoint(x:x+35,y:340))
         default: break
         }
     }
@@ -384,7 +351,7 @@ final class ToyEngine: GameEngine {
         let d = CGFloat(dt),previous = ball
         if launched { flight += dt }
 
-        if mode != .miniGolf { velocity.dy += (mode == .bottleFlip ? 500 : 400)*d }
+        velocity.dy += (mode == .bottleFlip ? 500 : 400)*d
         if mode == .basketShot { velocity.dx += wind*d }
 
         ball.x += velocity.dx*d; ball.y += velocity.dy*d
@@ -418,20 +385,6 @@ final class ToyEngine: GameEngine {
                     burst(at:CGPoint(x:ball.x,y:398),colors:[.white.opacity(0.6)],count:8,speed:60)
                     finish(0,.miss)
                 }
-            }
-        case .miniGolf:
-            walls(restitution:0.8)
-            var hit = false
-            for s in obstacles { hit = segmentCollision(s.a,s.b,radius:9,restitution:0.75) || hit }
-            if let bar = movingBar { hit = segmentCollision(bar.a,bar.b,radius:9,restitution:0.85) || hit }
-            if hit { SoundFX.play(.bounce) }
-            let speed = hypot(velocity.dx,velocity.dy),factor = max(0,1-75*d/max(1,speed)); velocity.dx *= factor; velocity.dy *= factor
-            if hypot(ball.x-target.x,ball.y-target.y) < 13 && speed < 185 {
-                ball = target
-                finish([300,150,75][min(2,max(0,strokes-1))],.success,label:strokes == 1 ? "Hole in one!" : nil)
-            } else if speed < 4 || flight > 10 {
-                if strokes >= 3 { finish(0,.miss) }
-                else { launched = false; velocity = .zero; flight = 0; trail = []; SoundFX.play(.tick) }
             }
         case .plinko:
             if ball.x < 9 { ball.x = 9; velocity.dx = abs(velocity.dx)*0.7 }
@@ -502,12 +455,6 @@ final class ToyEngine: GameEngine {
             burst(at:star,colors:[.yellow,.white],count:12,speed:120)
             SoundFX.play(.point); Haptics.tap()
         }
-    }
-    private func walls(restitution:CGFloat) {
-        if ball.x < 10 { ball.x = 10; velocity.dx = abs(velocity.dx)*restitution }
-        if ball.x > 310 { ball.x = 310; velocity.dx = -abs(velocity.dx)*restitution }
-        if ball.y < 30 { ball.y = 30; velocity.dy = abs(velocity.dy)*restitution }
-        if ball.y > 445 { ball.y = 445; velocity.dy = -abs(velocity.dy)*restitution }
     }
     @discardableResult private func circleCollision(_ p:CGPoint,radius:CGFloat,restitution:CGFloat) -> Bool {
         let dx = ball.x-p.x,dy = ball.y-p.y,length = max(0.001,hypot(dx,dy)),limit = radius+8

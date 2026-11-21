@@ -28,34 +28,66 @@ extension Color {
     }
 }
 
-/// A raised piece: lip, face, highlight and shadows, in any shape.
+/// A raised piece: one solid object whose darker lip is the side wall under
+/// the face, in any shape.
+///
+/// Built after the design review (see reports/UI и юзабилити игр Oina.md):
+/// the lip is the face's own hue, darker, and shades towards the ends like a
+/// rounded wall; the highlight is an inner shadow inside the face, not a
+/// ring around it; one tight contact shadow tinted with the piece's colour.
+/// Pressing sinks the face fully into the lip while the lip stays put.
 struct ToyBlock<S: InsettableShape>: View {
     let color: Color
     var shape: S
-    /// Height of the darker side under the face, in points.
+    /// Height of the side wall under the face, in points.
     var lip: CGFloat = 4
     var pressed = false
     /// Off for pieces that sit on a busy surface and shouldn't cast far.
     var castsShadow = true
 
     var body: some View {
-        let sink = pressed ? lip * 0.6 : 0
-        ZStack {
-            shape.fill(color.toyShade(-0.2))
-                .offset(y: lip)
-            shape.fill(LinearGradient(colors: [color.toyShade(0.08), color, color.toyShade(-0.04)],
-                                      startPoint: .top, endPoint: .bottom))
+        let sink = pressed ? lip : 0
+        let wall = color.toyShade(-0.18)
+        ZStack(alignment: .top) {
+            // The wall: same hue, darker, rounding away from the light at both
+            // ends. Drawn as one silhouette from the face's top to the lip's bottom.
+            SilhouetteShape(shape: shape, top: sink, lip: lip)
+                .fill(wall)
                 .overlay {
-                    // A soft sheen along the top edge.
-                    shape.inset(by: 1)
-                        .stroke(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0)],
-                                               startPoint: .top, endPoint: .center), lineWidth: 1.5)
+                    shape.fill(LinearGradient(stops: [
+                        .init(color: .black.opacity(0.16), location: 0),
+                        .init(color: .clear, location: 0.1),
+                        .init(color: .clear, location: 0.9),
+                        .init(color: .black.opacity(0.16), location: 1),
+                    ], startPoint: .leading, endPoint: .trailing))
+                    .mask { SilhouetteShape(shape: shape, top: sink, lip: lip) }
                 }
+            // The face, lit from above, with a soft highlight just inside its top edge.
+            shape.fill(LinearGradient(colors: [color.toyShade(0.05), color],
+                                      startPoint: .top, endPoint: .bottom)
+                .shadow(.inner(color: .white.opacity(0.5), radius: 0.5, y: 1.5))
+                .shadow(.inner(color: wall.opacity(0.35), radius: 1, y: -1)))
                 .offset(y: sink)
         }
         .padding(.bottom, lip)
-        .shadow(color: .black.opacity(castsShadow ? 0.18 : 0), radius: 1, y: lip * 0.5)
-        .shadow(color: .black.opacity(castsShadow ? 0.12 : 0), radius: 10, y: lip + 4)
+        .compositingGroup()
+        .shadow(color: color.toyShade(-0.45).opacity(castsShadow ? (pressed ? 0.18 : 0.28) : 0),
+                radius: pressed ? 1 : 2, y: pressed ? 1 : 2)
+    }
+}
+
+/// `shape` at `top` and a copy `lip` lower, joined into one outline.
+private struct SilhouetteShape<S: Shape>: Shape {
+    let shape: S
+    /// Where the face's top is now (it moves down while pressed).
+    let top: CGFloat
+    let lip: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let band = max(0, lip - top)
+        return shape.path(in: rect.offsetBy(dx: 0, dy: top))
+            .union(shape.path(in: rect.offsetBy(dx: 0, dy: lip)))
+            .union(Path(CGRect(x: rect.minX, y: rect.midY + top, width: rect.width, height: band)))
     }
 }
 
@@ -78,27 +110,52 @@ struct ToySocket<S: InsettableShape>: View {
     }
 }
 
-/// Buttons that sink into their lip while held, with a light tap.
+/// Buttons whose face sinks into its lip while held, with a light tap.
+/// A disabled button lies flat and loses its colour; under Reduce Motion the
+/// face darkens instead of moving.
 struct ToyPressStyle: ButtonStyle {
     var color: Color
     var lip: CGFloat = 4
     var cornerRadius: CGFloat? = nil
 
     func makeBody(configuration: Configuration) -> some View {
+        ToyPressBody(configuration: configuration, color: color, lip: lip, cornerRadius: cornerRadius)
+    }
+}
+
+private struct ToyPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    let color: Color
+    let lip: CGFloat
+    let cornerRadius: CGFloat?
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let pressed = configuration.isPressed && isEnabled
+        let moves = pressed && !reduceMotion
+        let face = isEnabled ? color : color.toyShade(-0.04)
         configuration.label
             .padding(.bottom, lip)
+            .offset(y: moves ? lip : 0)
+            .opacity(isEnabled ? 1 : 0.55)
             .background {
-                if let cornerRadius {
-                    ToyBlock(color: color, shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
-                             lip: lip, pressed: configuration.isPressed)
-                } else {
-                    ToyBlock(color: color, shape: Capsule(), lip: lip, pressed: configuration.isPressed)
+                Group {
+                    if let cornerRadius {
+                        ToyBlock(color: face, shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                                 lip: lip, pressed: moves, castsShadow: isEnabled)
+                    } else {
+                        ToyBlock(color: face, shape: Capsule(), lip: lip, pressed: moves, castsShadow: isEnabled)
+                    }
                 }
+                .saturation(isEnabled ? 1 : 0.25)
+                .brightness(pressed && reduceMotion ? -0.06 : 0)
             }
-            .offset(y: configuration.isPressed ? lip * 0.6 : 0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            .animation(configuration.isPressed ? .easeOut(duration: 0.05)
+                                               : .spring(response: 0.3, dampingFraction: 0.88),
+                       value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, pressed in
-                if pressed { Haptics.soft() }
+                if pressed && isEnabled { Haptics.soft() }
             }
     }
 }
@@ -187,24 +244,26 @@ struct ToyPalette {
     }
 }
 
-/// The score as big letters pressed into the backdrop, the best one below.
+/// The score in the game's ink, with the best score beside it on the same
+/// line. Readable first: ink on the backdrop, and it grows with Dynamic Type.
+/// (`deboss` and `rim` are kept for callers; the pressed-in look was dropped
+/// after the design review because it was nearly invisible.)
 struct ToyPressedScore: View {
     let score: Int
     let best: Int
-    var deboss: Color
-    var rim: Color
+    var deboss: Color = .clear
+    var rim: Color = .clear
     var ink: Color
     /// Changing it plays a little bump, e.g. when points land.
     var bump = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(score, format: .number)
-                .toyDeboss(deboss, rim: rim)
+                .toyHeadlineNumber(ink)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: score)
-                .lineLimit(1).minimumScaleFactor(0.4)
                 .keyframeAnimator(initialValue: CGFloat(1), trigger: bump) { content, scale in
                     content.scaleEffect(scale)
                 } keyframes: { _ in
@@ -213,18 +272,43 @@ struct ToyPressedScore: View {
                         SpringKeyframe(1, duration: 0.25)
                     }
                 }
-            Label {
-                Text(L10n.text("Your best") + " · ") + Text(best, format: .number)
-            } icon: {
-                Image(systemName: "crown.fill")
+            if best > 0 {
+                Label { Text(best, format: .number).monospacedDigit() } icon: { Image(systemName: "crown.fill") }
+                    .toyHeadlineCaption(ink)
+                    .accessibilityLabel(L10n.text("Your best") + " " + "\(best)")
             }
-            .font(.system(.subheadline, design: .rounded).weight(.bold))
-            .foregroundStyle(ink.opacity(0.7))
         }
         .accessibilityElement(children: .combine)
     }
 }
 
+/// The big number of a toy game's headline (score, clock): the game's ink,
+/// 40 pt rounded black at the default text size, growing with Dynamic Type
+/// up to a limit so it never pushes the board off the screen.
+private struct ToyHeadlineNumber: ViewModifier {
+    let ink: Color
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 40
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: min(size, 60), weight: .black, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(ink)
+            .lineLimit(1).minimumScaleFactor(0.6)
+    }
+}
+
+extension View {
+    func toyHeadlineNumber(_ ink: Color) -> some View { modifier(ToyHeadlineNumber(ink: ink)) }
+
+    /// The small text beside the headline number (best score, moves, difficulty).
+    func toyHeadlineCaption(_ ink: Color) -> some View {
+        self.font(.system(.subheadline, design: .rounded).weight(.bold))
+            .foregroundStyle(ink.opacity(0.75))
+            .lineLimit(1)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+    }
+}
 
 extension View {
     /// Big rounded letters pressed into the backdrop.
@@ -246,7 +330,8 @@ extension View {
     }
 }
 
-/// A small raised capsule for a status value (moves, flags, combo).
+/// A read-only status value (moves, flags, combo) pressed into the backdrop,
+/// so it never looks like something to tap. Tappable chips are `ToyMenuChip`.
 struct ToyChip<Content: View>: View {
     var color: Color
     @ViewBuilder var content: () -> Content
@@ -256,9 +341,40 @@ struct ToyChip<Content: View>: View {
             .font(.system(.subheadline, design: .rounded).weight(.bold))
             .lineLimit(1)
             .padding(.horizontal, 14)
-            .frame(height: 34)
-            .padding(.bottom, 3)
-            .background { ToyBlock(color: color, shape: Capsule(), lip: 3) }
+            .frame(minHeight: 32)
+            .background {
+                Capsule()
+                    .fill(color.toyShade(-0.03)
+                        .shadow(.inner(color: .black.opacity(0.2), radius: 2, y: 1.5)))
+                    .overlay {
+                        Capsule().strokeBorder(LinearGradient(colors: [.clear, .white.opacity(0.45)],
+                                                              startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                    }
+            }
+    }
+}
+
+/// A raised chip that opens a menu or switches a mode (level, difficulty):
+/// a toy button with a chevron and a 44 pt tap area.
+struct ToyMenuChip<Content: View>: View {
+    var color: Color
+    var ink: Color
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 5) {
+            content()
+            Image(systemName: "chevron.down").font(.caption2.weight(.heavy)).opacity(0.6)
+        }
+        .font(.system(.subheadline, design: .rounded).weight(.bold))
+        .foregroundStyle(ink)
+        .lineLimit(1)
+        .padding(.horizontal, 14)
+        .frame(minHeight: 36)
+        .padding(.bottom, 3)
+        .background { ToyBlock(color: color, shape: Capsule(), lip: 3) }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 }
 
@@ -277,10 +393,10 @@ struct ToyCapsuleButton: View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .lineLimit(1).minimumScaleFactor(0.6)
+                .lineLimit(1).minimumScaleFactor(0.8)
                 .foregroundStyle(ink)
-                .padding(.horizontal, 10)
-                .frame(maxWidth: .infinity, minHeight: 38)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Capsule())
         }
         .buttonStyle(ToyPressStyle(color: color, lip: 4))
@@ -346,22 +462,30 @@ struct ToyGameStage<Trailing: View, Content: View>: View {
     private var headlineView: some View {
         switch headline {
         case .score:
-            ToyPressedScore(score: hud.score, best: hud.best, deboss: palette.deboss,
-                            rim: palette.debossRim, ink: palette.ink, bump: bump)
+            ToyPressedScore(score: hud.score, best: hud.best, ink: palette.ink, bump: bump)
         case .clock(let caption, let time):
-            VStack(spacing: 0) {
-                // Only the clock redraws each second, not the game below it.
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(verbatim: time?() ?? hud.clock())
-                        .toyDeboss(palette.deboss, rim: palette.debossRim)
-                        .lineLimit(1).minimumScaleFactor(0.4)
-                }
-                Text(caption)
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
-                    .foregroundStyle(palette.ink.opacity(0.7))
+            // The clock with its caption beside it; stacked when they don't fit.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) { clock(time); clockCaption(caption) }
+                VStack(spacing: 0) { clock(time); clockCaption(caption) }
             }
             .accessibilityElement(children: .combine)
         }
+    }
+}
+
+extension ToyGameStage {
+    /// Only the clock redraws each second, not the game below it.
+    fileprivate func clock(_ time: (() -> String)?) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            Text(verbatim: time?() ?? hud.clock())
+                .toyHeadlineNumber(palette.ink)
+        }
+        .fixedSize()
+    }
+
+    fileprivate func clockCaption(_ caption: String) -> some View {
+        Text(caption).toyHeadlineCaption(palette.ink).fixedSize()
     }
 }
 

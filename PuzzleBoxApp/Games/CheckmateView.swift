@@ -157,6 +157,20 @@ final class CheckmateEngine: GameEngine {
         loadPuzzle()
     }
 
+    /// A puzzle with the busiest white piece picked up, for the Home preview.
+    /// The clock never starts and nothing is saved.
+    func showcase() {
+        restart()
+        let best = board.indices
+            .filter { board[$0]?.isWhite == true }
+            .map { ($0, legalMoves(from: $0)) }
+            .max { $0.1.count < $1.1.count }
+        if let best {
+            selected = best.0
+            targets = best.1
+        }
+    }
+
     private func loadPuzzle() {
         hasMoveError = false
         board = Self.parseFEN(puzzle.fen)
@@ -495,8 +509,31 @@ struct CheckmateView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDuration = 60
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: CheckmateEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                Self.palette.backdrop
+                boardView.padding(24)
+            }
+            .environment(\.toyStyle, Self.palette.style)
+            .frame(width: 360, height: 360)
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
         Group {
             if engine.hasStarted {
                 challenge
@@ -504,16 +541,39 @@ struct CheckmateView: View {
                 setup
             }
         }
-        .background(GameTheme.background.ignoresSafeArea())
+        .background(Self.palette.backdrop.ignoresSafeArea())
     }
 
+    static let palette = ToyPuzzles.world(top: (0.88, 0.96, 0.97), bottom: (0.72, 0.88, 0.90),
+                                          darkTop: (0.07, 0.15, 0.17), darkBottom: (0.03, 0.08, 0.10),
+                                          tray: (0.52, 0.34, 0.21), darkTray: (0.34, 0.21, 0.13),
+                                          ink: (0.10, 0.30, 0.36), accent: (0.98, 0.55, 0.25), darkAccent: (1.0, 0.62, 0.32))
+
     private var challenge: some View {
-        GameContainerView(gameID: .checkmate, engine: engine,
+        let palette = Self.palette
+        return GameContainerView(gameID: .checkmate, engine: engine,
                           resultTitle: L10n.text("Time's up!"),
-                          resultSummary: L10n.format("Solved: %d", engine.solvedCount)) {
-            VStack(spacing: 14) {
-                statusBar
-                boardView
+                          resultSummary: L10n.format("Solved: %d", engine.solvedCount),
+                          chrome: .inGame, backdrop: AnyView(palette.backdrop), toyStyle: palette.style) {
+            ToyGameStage(palette: palette,
+                         headline: .clock(caption: L10n.format("Solved: %d", engine.solvedCount),
+                                          time: { String(format: "%d:%02d", engine.secondsLeft / 60, engine.secondsLeft % 60) }),
+                         trailing: {
+                ToyIconButton(symbol: "lightbulb.fill", label: L10n.text("Hint"), ink: palette.ink) { engine.hint() }
+                    .disabled(engine.hintSquare != nil || engine.awaitingBot)
+                    .opacity(engine.hintSquare != nil || engine.awaitingBot ? 0.5 : 1)
+            }) {
+                VStack(spacing: 12) {
+                    statusBar
+                    boardView
+                    // The rules keep their place and fade after the first mate.
+                    Text(L10n.text("Mate on the first try to build a streak. Each mate adds 5 seconds."))
+                        .font(.system(.footnote, design: .rounded))
+                        .opacity(engine.solvedCount == 0 ? 0.6 : 0)
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 12)
             }
         }
         .onAppear { engine.setClockActive(scenePhase == .active) }
@@ -533,23 +593,20 @@ struct CheckmateView: View {
     }
 
     private var setup: some View {
-        VStack(spacing: 24) {
+        let palette = Self.palette
+        return VStack(spacing: 24) {
             HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").foregroundStyle(GameTheme.textSecondary)
-                        .frame(width: 44, height: 44).glassCircle()
-                }
-                .accessibilityLabel(L10n.text("Main Menu"))
+                ToyIconButton(symbol: "xmark", label: L10n.text("Main Menu"), ink: palette.ink) { dismiss() }
                 Spacer()
             }
             Spacer()
             Image(systemName: "crown.fill")
-                .font(.system(size: 48)).foregroundStyle(GameTheme.accent)
-            Text(L10n.text("Checkmate")).font(.largeTitle.bold()).foregroundStyle(GameTheme.ink)
-            VStack(alignment: .leading, spacing: 20) {
-                Text(L10n.text("Choose challenge time")).font(.title2.bold())
-                Text(L10n.text("Solve as many mates as you can"))
-                    .foregroundStyle(GameTheme.textSecondary)
+                .font(.system(size: 48)).foregroundStyle(palette.accent)
+                .shadow(color: palette.accent.toyShade(-0.3), radius: 0, y: 3)
+            Text(L10n.text("Checkmate")).font(.system(.largeTitle, design: .rounded).weight(.heavy))
+            VStack(alignment: .leading, spacing: 18) {
+                Text(L10n.text("Choose challenge time")).font(.system(.title2, design: .rounded).weight(.bold))
+                Text(L10n.text("Solve as many mates as you can")).opacity(0.7)
                 Menu {
                     Picker(L10n.text("Choose challenge time"), selection: $selectedDuration) {
                         ForEach(CheckmateEngine.durations, id: \.self) { seconds in
@@ -558,69 +615,54 @@ struct CheckmateView: View {
                     }
                 } label: {
                     HStack {
-                        Image(systemName: "timer").foregroundStyle(GameTheme.accent)
-                        Text(durationTitle(selectedDuration)).foregroundStyle(GameTheme.ink)
+                        Image(systemName: "timer").foregroundStyle(palette.accent)
+                        Text(durationTitle(selectedDuration))
                         Spacer()
-                        Image(systemName: "chevron.up.chevron.down").foregroundStyle(GameTheme.textSecondary)
+                        Image(systemName: "chevron.up.chevron.down").opacity(0.5)
                     }
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .foregroundStyle(palette.ink)
                     .padding(18)
-                    .background(GameTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 14))
+                    .background(palette.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                Text(L10n.text("100 points per mate")).font(.caption).foregroundStyle(GameTheme.textSecondary)
-                Button {
+                Text(L10n.text("100 points per mate")).font(.caption).opacity(0.6)
+                ToyCapsuleButton(title: L10n.text("Start challenge"), symbol: "play.fill", color: palette.accent, ink: .white) {
                     engine.start(seconds: selectedDuration)
-                } label: {
-                    Text(L10n.text("Start challenge"))
-                        .font(.headline).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).padding(16)
-                        .background(GameTheme.accent, in: Capsule())
                 }
             }
-            .padding(24).gameCard()
+            .padding(24)
+            .toyTray(palette.card, cornerRadius: 28, padding: 0)
             Spacer()
         }
+        .foregroundStyle(palette.ink)
         .padding()
     }
 
     private var statusBar: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Group {
-                    Label(String(format: "%d:%02d", engine.secondsLeft / 60, engine.secondsLeft % 60), systemImage: "timer")
-                        .font(.title3.bold().monospacedDigit())
-                        .foregroundStyle(engine.secondsLeft <= 5 ? Color.red : GameTheme.accent)
-                }
-                if engine.bonusFlash > 0 {
-                    Text(verbatim: "+\(Int(CheckmateEngine.timeBonus))s")
-                        .font(.subheadline.bold()).foregroundStyle(.green)
-                        .id(engine.bonusFlash)
-                        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
+        let palette = Self.palette
+        return VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                ToyChip(color: palette.card) {
+                    Text(engine.puzzle.title).foregroundStyle(palette.ink).lineLimit(1)
                 }
                 if engine.streak > 1 {
-                    Label { Text(verbatim: "×\(engine.streak)") } icon: { Image(systemName: "flame.fill") }
-                        .font(.subheadline.bold()).foregroundStyle(.orange)
+                    ToyChip(color: Color(red: 1, green: 0.62, blue: 0.25)) {
+                        Label { Text(verbatim: "×\(engine.streak)") } icon: { Image(systemName: "flame.fill") }
+                            .foregroundStyle(.white)
+                    }
+                    .transition(.scale.combined(with: .opacity))
                 }
                 Spacer()
-                Button { engine.hint() } label: {
-                    Label(L10n.text("Hint"), systemImage: "lightbulb.fill")
-                        .font(.subheadline.bold())
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(GameTheme.surfaceHigh, in: Capsule())
+                if engine.bonusFlash > 0 {
+                    ToyChip(color: Color(red: 0.36, green: 0.78, blue: 0.45)) {
+                        Text(verbatim: "+\(Int(CheckmateEngine.timeBonus))s").foregroundStyle(.white)
+                    }
+                    .id(engine.bonusFlash)
+                    .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                 }
-                .disabled(engine.hintSquare != nil || engine.awaitingBot)
-                Text(L10n.format("Solved: %d", engine.solvedCount))
-                    .font(.subheadline.bold())
-                    .foregroundStyle(GameTheme.ink)
             }
             .animation(.snappy, value: engine.bonusFlash)
-            Group {
-                Text(L10n.text("Mate on the first try to build a streak. Each mate adds 5 seconds."))
-                    .font(.caption)
-                    .foregroundStyle(GameTheme.textSecondary)
-            }
-            Text(engine.puzzle.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(GameTheme.accent)
+            .animation(.snappy, value: engine.streak)
             HStack(spacing: 6) {
                 if engine.hasMoveError {
                     Image(systemName: "exclamationmark.circle.fill")
@@ -629,12 +671,10 @@ struct CheckmateView: View {
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
             }
-            .font(.footnote.weight(engine.hasMoveError ? .semibold : .regular))
-            .foregroundStyle(engine.hasMoveError ? Color.red : GameTheme.textSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(engine.hasMoveError ? Color.red.opacity(0.12) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 10))
+            .font(.system(.subheadline, design: .rounded).weight(.bold))
+            .foregroundStyle(engine.hasMoveError ? Color(red: 0.9, green: 0.25, blue: 0.25) : palette.ink)
+            .lineLimit(2).minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, minHeight: 40)
         }
     }
 
@@ -648,21 +688,14 @@ struct CheckmateView: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .padding(7)
-        .background {
-            // A walnut frame around the squares.
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LinearGradient(colors: [Self.frameTop, Self.frameBottom], startPoint: .top, endPoint: .bottom))
-                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .aspectRatio(1, contentMode: .fit)
+        // A walnut clay frame around the squares.
+        .toyTray(Self.palette.tray, cornerRadius: 18, padding: 9)
     }
 
     private static let lightSquare = Color(red: 0.94, green: 0.86, blue: 0.71)
     private static let darkSquare = Color(red: 0.71, green: 0.53, blue: 0.38)
-    private static let frameTop = Color(red: 0.42, green: 0.27, blue: 0.17)
-    private static let frameBottom = Color(red: 0.30, green: 0.18, blue: 0.11)
     private static let lastMoveTint = Color(red: 0.80, green: 0.82, blue: 0.28)
     private static let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private static let ebony = Color(red: 0.13, green: 0.11, blue: 0.10)
@@ -697,10 +730,10 @@ struct CheckmateView: View {
                 Rectangle().fill(Self.lastMoveTint.opacity(0.55))
             }
             if engine.selected == index {
-                Rectangle().fill(GameTheme.accent.opacity(0.35))
+                Rectangle().fill(Self.palette.accent.opacity(0.45))
             }
             if engine.hintSquare == index {
-                Rectangle().strokeBorder(Color.yellow, lineWidth: 3)
+                Rectangle().strokeBorder(Color(red: 1, green: 0.8, blue: 0.2), lineWidth: 3)
             }
             if let piece {
                 pieceView(piece)

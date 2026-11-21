@@ -42,6 +42,7 @@ struct CardView: View {
     let card: Card
     var width: CGFloat = 44
     var highlighted = false
+    @Environment(\.toyStyle) private var toy
 
     static let aspectRatio: CGFloat = 72 / 50
     static func cornerRadius(for width: CGFloat) -> CGFloat { width * 4 / 50 }
@@ -55,8 +56,49 @@ struct CardView: View {
     static let glow = Color(red: 0.86, green: 0.62, blue: 0.24)
 
     var body: some View {
+        if toy != nil { toyBody } else { flatBody }
+    }
+
+    /// Toy card: an ivory face on a darker lip, lifted when selected.
+    private var toyBody: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius(for: width) * 1.4, style: .continuous)
+        let lip = max(1.5, width * 0.045)
+        let accent = toy?.accent ?? Self.glow
+        return Group {
+            if card.faceUp {
+                shape.fill(LinearGradient(colors: [Self.face, Self.face.toyShade(-0.03)],
+                                          startPoint: .top, endPoint: .bottom))
+                    .overlay(alignment: .topLeading) { corner }
+                    .overlay { centerPip }
+            } else {
+                CardBack(width: width, color: accent)
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(shape)
+        .overlay { shape.strokeBorder(Color.black.opacity(0.10), lineWidth: 0.75) }
+        .background {
+            shape.fill(card.faceUp ? Self.faceLip : accent.toyShade(-0.22))
+                .offset(y: lip)
+                .shadow(color: .black.opacity(0.16), radius: 2, y: 1)
+        }
+        .overlay {
+            if highlighted {
+                shape.strokeBorder(accent, lineWidth: max(2, width * 0.05))
+            }
+        }
+        .offset(y: highlighted ? -lip * 1.5 : 0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: highlighted)
+        .accessibilityElement()
+        .accessibilityLabel(card.faceUp ? "\(card.rankLabel) \(card.suit.symbol)" : L10n.text("Card"))
+    }
+
+    static let face = Color.dynamic(light: (1, 0.995, 0.98), dark: (0.95, 0.93, 0.90))
+    static let faceLip = Color.dynamic(light: (0.80, 0.77, 0.73), dark: (0.55, 0.52, 0.50))
+
+    private var flatBody: some View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius(for: width))
-        Group {
+        return Group {
             if card.faceUp {
                 shape.fill(Color.white)
                     .overlay(alignment: .topLeading) { corner }
@@ -114,19 +156,49 @@ struct CardView: View {
     }
 }
 
-/// Face-down card. The design has no back, so it uses the app accent.
+/// Face-down card. The design has no back, so it uses the app accent, or
+/// the toy game's accent with a dotted clay panel.
 private struct CardBack: View {
     let width: CGFloat
+    var color: Color? = nil
 
     var body: some View {
         let corner = CardView.cornerRadius(for: width)
-        RoundedRectangle(cornerRadius: corner)
-            .fill(GameTheme.accent.gradient)
-            .overlay {
-                RoundedRectangle(cornerRadius: corner * 0.6)
-                    .strokeBorder(Color.white.opacity(0.45), lineWidth: 1)
-                    .padding(width * 0.08)
-            }
+        if let color {
+            RoundedRectangle(cornerRadius: corner * 1.4, style: .continuous)
+                .fill(LinearGradient(colors: [color.toyShade(0.06), color.toyShade(-0.04)],
+                                     startPoint: .top, endPoint: .bottom))
+                .overlay {
+                    let panel = RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    panel.fill(color.toyShade(-0.08))
+                        .overlay {
+                            Canvas { context, size in
+                                let step = max(4, width * 0.13)
+                                let r = step * 0.18
+                                var row = 0
+                                for y in stride(from: step / 2, to: size.height, by: step) {
+                                    let shift = row % 2 == 0 ? 0 : step / 2
+                                    for x in stride(from: step / 2 + shift, to: size.width, by: step) {
+                                        context.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                                                     with: .color(.white.opacity(0.28)))
+                                    }
+                                    row += 1
+                                }
+                            }
+                            .clipShape(panel)
+                        }
+                        .overlay { panel.strokeBorder(Color.white.opacity(0.55), lineWidth: 1) }
+                        .padding(width * 0.09)
+                }
+        } else {
+            RoundedRectangle(cornerRadius: corner)
+                .fill(GameTheme.accent.gradient)
+                .overlay {
+                    RoundedRectangle(cornerRadius: corner * 0.6)
+                        .strokeBorder(Color.white.opacity(0.45), lineWidth: 1)
+                        .padding(width * 0.08)
+                }
+        }
     }
 }
 
@@ -176,6 +248,7 @@ struct CardGameControls: View {
     var hint: (() -> Void)?
     let canUndo: Bool
     let undo: () -> Void
+    @Environment(\.toyStyle) private var toy
 
     var body: some View {
         HStack(spacing: 64) {
@@ -193,7 +266,16 @@ struct CardGameControls: View {
 
     static let bottomInset: CGFloat = 40
 
+    @ViewBuilder
     private func control(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        if let toy {
+            ToyIconButton(symbol: symbol, label: label, color: toy.card, ink: toy.ink, size: 52, action: action)
+        } else {
+            glassControl(symbol, label: label, action: action)
+        }
+    }
+
+    private func glassControl(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.title3)
@@ -210,8 +292,26 @@ struct CardGameControls: View {
 struct CardSlot: View {
     var width: CGFloat = 44
     var label: String = ""
+    @Environment(\.toyStyle) private var toy
 
     var body: some View {
+        if toy != nil {
+            // A shallow well pressed into the table.
+            let shape = RoundedRectangle(cornerRadius: CardView.cornerRadius(for: width) * 1.4, style: .continuous)
+            ToySocket(color: .black.opacity(0.08), shape: shape)
+                .frame(width: width, height: width * CardView.aspectRatio)
+                .overlay {
+                    Text(label)
+                        .font(.system(size: width * 0.4, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.5))
+                }
+                .contentShape(Rectangle())
+        } else {
+            flatSlot
+        }
+    }
+
+    private var flatSlot: some View {
         RoundedRectangle(cornerRadius: CardView.cornerRadius(for: width))
             .strokeBorder(Color.primary.opacity(0.18), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
             .frame(width: width, height: width * CardView.aspectRatio)

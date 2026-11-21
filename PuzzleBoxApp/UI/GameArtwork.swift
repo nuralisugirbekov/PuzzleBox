@@ -83,7 +83,7 @@ struct GameArtwork: View {
         case .numberConnect: NumberConnectArt()
         case .oneLine: OneLineArt()
         case .mazePaint: MazePaintArt()
-        case .unblock: UnblockArt()
+        case .unblock: CarParkArt()
         case .fifteenPuzzle: FifteenPuzzleArt()
         case .pipeConnect: PipeConnectArt()
         case .dots: DotsArt()
@@ -808,28 +808,30 @@ private struct OneLineArt: View {
     }
 }
 
-private struct UnblockArt: View {
-    private let cell: CGFloat = 24, origin: CGFloat = 8
-    // (row, column, length, horizontal, colour); the red block is the one to free.
-    private let pieces: [(Int, Int, Int, Bool, Color)] = [
-        (2, 0, 2, true, .red), (0, 3, 2, true, .green), (1, 2, 3, true, .purple), (1, 0, 2, true, .pink),
-        (2, 4, 2, false, .yellow), (3, 5, 2, false, .orange), (4, 1, 2, true, .cyan),
+private struct CarParkArt: View {
+    private let cell: CGFloat = 26, origin = CGPoint(x: 15, y: 15)
+    // (row, column, length, horizontal, colour) on a 5 × 5 lot.
+    private let cars: [(Int, Int, Int, Bool, Color)] = [
+        (0, 0, 2, true, .red), (0, 3, 2, false, .blue), (1, 1, 3, false, .orange), (2, 2, 2, true, .green),
+        (3, 4, 2, false, .yellow), (4, 0, 2, true, .purple), (3, 2, 2, true, .cyan),
     ]
 
     var body: some View {
-        ArtCanvas(colors: Arena.colors) {
-            Cells(rows: 6, columns: 6, size: cell - 4, gap: 4, origin: .init(x: origin + 2, y: origin + 2)) { _, _ in
-                box(Arena.cell, cell - 4, cell - 4, 5)
-            }
-            box(.green, 4, cell - 10, 2).at(origin + cell * 6 + 2, origin + cell * 2.5)
-            ForEach(pieces.indices, id: \.self) { i in
-                let piece = pieces[i]
-                let w = (piece.3 ? CGFloat(piece.2) : 1) * cell - 5, h = (piece.3 ? 1 : CGFloat(piece.2)) * cell - 5
-                gradientTile(piece.4, piece.4.opacity(0.7), w, h, 7)
-                    .overlay { RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.15)).padding(4) }
-                    .overlay { label(piece.3 ? "↔" : "↕", 10, .black.opacity(0.6), weight: .bold) }
-                    .shadow(color: .black.opacity(0.35), radius: 1, y: 2)
-                    .at(origin + CGFloat(piece.1) * cell + w / 2 + 2.5, origin + CGFloat(piece.0) * cell + h / 2 + 2.5)
+        ArtCanvas(colors: [Color(red: 0.62, green: 0.65, blue: 0.70), Color(red: 0.50, green: 0.53, blue: 0.58)]) {
+            box(Color(red: 0.38, green: 0.40, blue: 0.45), cell * 5 + 12, cell * 5 + 12, 12).at(80, 80)
+            ForEach(cars.indices, id: \.self) { i in
+                let car = cars[i]
+                let w = (car.3 ? CGFloat(car.2) : 1) * cell - 6, h = (car.3 ? 1 : CGFloat(car.2)) * cell - 6
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7).fill(car.4.opacity(0.75)).offset(y: 2)
+                    RoundedRectangle(cornerRadius: 7).fill(car.4)
+                    RoundedRectangle(cornerRadius: 3).fill(Color.black.opacity(0.4))
+                        .frame(width: car.3 ? 6 : w - 8, height: car.3 ? h - 8 : 6)
+                        .offset(x: car.3 ? w / 2 - 9 : 0, y: car.3 ? 0 : h / 2 - 9)
+                }
+                .frame(width: w, height: h)
+                .shadow(color: .black.opacity(0.3), radius: 1, y: 2)
+                .at(origin.x + CGFloat(car.1) * cell + w / 2 + 3, origin.y + CGFloat(car.0) * cell + h / 2 + 3)
             }
         }
     }

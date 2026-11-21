@@ -178,7 +178,6 @@
 "Nonogram" = "Nonogram";
 "Number Connect" = "Number Connect";
 "One Line" = "One Line";
-"Unblock" = "Unblock";
 "15 Puzzle" = "15 Puzzle";
 "Pipe Connect" = "Pipe Connect";
 "Dots" = "Dots";
@@ -193,7 +192,6 @@
 "Tap to toggle a light and its neighbors. Turn all lights off." = "Tap to toggle a light and its neighbors. Turn all lights off.";
 "Use the row and column clues to fill the picture." = "Use the row and column clues to fill the picture.";
 "Trace every edge once. Tap connected nodes." = "Trace every edge once. Tap connected nodes.";
-"Slide blocks along their length. Free the red block." = "Slide blocks along their length. Free the red block.";
 "Slide tiles into order, with the empty cell last." = "Slide tiles into order, with the empty cell last.";
 "Rotate pipes to connect IN to OUT through every cell." = "Rotate pipes to connect IN to OUT through every cell.";
 "Connect adjacent matching dots, then release or tap Collect." = "Connect adjacent matching dots, then release or tap Collect.";
@@ -771,6 +769,10 @@
 "Step %d of 3: %@" = "Step %d of 3: %@";
 "Time" = "Time";
 "Mistakes: %d/%d" = "Mistakes: %d/%d";
+"Shots left: %d" = "Shots left: %d";
+"Replay" = "Replay";
+"So close!" = "So close!";
+"Picked up where you left off" = "Picked up where you left off";
 
 /* Pair Link (Number Link redesign) */
 "Pair Link" = "Pair Link";
@@ -779,3 +781,36 @@
 "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it." = "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it.";
 "%d of %d pairs joined" = "%d of %d pairs joined";
 "%d stars" = "%d stars";
+
+/* Mini golf */
+"Hole %d" = "Hole %d";
+"Strokes · par %d" = "strokes · par %d";
+"Restart hole" = "Restart hole";
+"Out of strokes" = "Out of strokes";
+"Splash! +1 stroke" = "Splash! +1 stroke";
+"Pull back from the ball, aim and let go. Sink it in as few strokes as you can." = "Pull back from the ball, aim and let go. Sink it in as few strokes as you can.";
+
+/* Car park */
+"Car Park" = "Car Park";
+"Bumps" = "Bumps";
+"Restart level" = "Restart level";
+"Vehicles left: %d" = "Vehicles left: %d";
+"Bump!" = "Bump!";
+"Beep! Let them cross." = "Beep! Let them cross.";
+"Not a scratch!" = "Not a scratch!";
+"Swipe a car along its length to drive it out. Clear the lot without a bump." = "Swipe a car along its length to drive it out. Clear the lot without a bump.";
+
+/* Mini golf worlds */
+"First Steps" = "First Steps";
+"Ice Rink" = "Ice Rink";
+"Portal Park" = "Portal Park";
+"Switch Yard" = "Switch Yard";
+"Spring Fair" = "Spring Fair";
+"Clockwork" = "Clockwork";
+"Grand Tour" = "Grand Tour";
+"Gate open!" = "Gate open!";
+"Ice keeps the ball sliding. Arrow pads speed it up." = "Ice keeps the ball sliding. Arrow pads speed it up.";
+"Roll into a ring and the ball pops out of its twin." = "Roll into a ring and the ball pops out of its twin.";
+"Roll over a button to drop the gate of the same colour." = "Roll over a button to drop the gate of the same colour.";
+"Yellow springs kick the ball away. Mind the swinging paddles." = "Yellow springs kick the ball away. Mind the swinging paddles.";
+"Time your shot past the moving rails, windmills and paddles." = "Time your shot past the moving rails, windmills and paddles.";

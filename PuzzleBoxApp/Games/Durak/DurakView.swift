@@ -160,13 +160,25 @@ struct DurakView: View {
     @State private var engine = DurakEngine()
 
     var body: some View {
+        let palette = ToyDurak.palette
         GameContainerView(gameID: .durak, engine: engine,
-                          resultTitle: engine.isDraw ? L10n.text("Draw") : nil) {
-            DurakTableView(table: engine.table,
-                           seat: DurakEngine.playerSeat,
-                           names: engine.names,
-                           onAction: engine.play)
+                          resultTitle: engine.isDraw ? L10n.text("Draw") : nil,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+            ToyGameStage(palette: palette, headline: .clock(caption: opponents)) {
+                DurakTableView(table: engine.table,
+                               seat: DurakEngine.playerSeat,
+                               names: engine.names,
+                               onAction: engine.play)
+                    .padding(.top, 12)
+            }
         }
+    }
+
+    private var opponents: String {
+        let bots = engine.names.count - 1
+        return bots == 1 ? L10n.text("vs Bot") : "\(L10n.text("Bots at the table")): \(bots)"
     }
 }
 
@@ -217,6 +229,11 @@ struct DurakTableView: View {
     /// How long bots wait after a bluff call, so everyone can read who was caught.
     static let callPause: Duration = .milliseconds(1800)
     static let move = Animation.spring(response: 0.45, dampingFraction: 0.86)
+    static let palette = ToyDurak.palette
+    static let attackColor = Color.dynamic(light: (0.96, 0.58, 0.30), dark: (0.90, 0.55, 0.30))
+    static let defendColor = Color.dynamic(light: (0.30, 0.62, 0.66), dark: (0.30, 0.60, 0.64))
+    static let outColor = Color.dynamic(light: (0.42, 0.72, 0.46), dark: (0.36, 0.64, 0.42))
+    static let caughtColor = Color.dynamic(light: (0.88, 0.36, 0.38), dark: (0.84, 0.36, 0.40))
 
     @State private var drag = CardDragController()
     @Namespace private var cards
@@ -279,6 +296,7 @@ struct DurakTableView: View {
             }
             .cardTable(drag)
         }
+        .environment(\.toyStyle, Self.palette.style)
         .allowsHitTesting(!holding)
         .onChange(of: table) { _, next in receive(next) }
         .onChange(of: board) { transferring = false }
@@ -336,7 +354,7 @@ struct DurakTableView: View {
             HStack(spacing: 4) {
                 Text(name(player))
                     .font(opponents.count > 2 ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
-                    .foregroundStyle(onTurn ? GameTheme.accent : .primary)
+                    .foregroundStyle(onTurn ? Self.palette.accent : Self.palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 if opponents.count <= 2 { roleBadge(for: player) }
@@ -359,9 +377,9 @@ struct DurakTableView: View {
     @ViewBuilder
     private func roleBadge(for player: Int) -> some View {
         let role: (String, String, Color)? = {
-            if board.isOut(player) { return (L10n.text("Out"), "checkmark", .green) }
-            if board.attacker == player { return (L10n.text("Attacking"), "bolt.fill", .orange) }
-            if board.defender == player { return (L10n.text("Defending"), "shield.fill", .teal) }
+            if board.isOut(player) { return (L10n.text("Out"), "checkmark", Self.outColor) }
+            if board.attacker == player { return (L10n.text("Attacking"), "bolt.fill", Self.attackColor) }
+            if board.defender == player { return (L10n.text("Defending"), "shield.fill", Self.defendColor) }
             return nil
         }()
         if let role {
@@ -376,8 +394,8 @@ struct DurakTableView: View {
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .foregroundStyle(role.2)
-            .background(role.2.opacity(0.15), in: Capsule())
+            .foregroundStyle(.white)
+            .background { ToyBlock(color: role.2, shape: Capsule(), lip: 2, castsShadow: false) }
         } else {
             // Keeps every opponent's cards on the same line.
             Text(" ").font(.caption2).padding(.vertical, 3)
@@ -401,9 +419,9 @@ struct DurakTableView: View {
             if board.deck.isEmpty {
                 Text(board.trumpSuit.symbol)
                     .font(.system(size: cardWidth * 0.6))
-                    .foregroundStyle(board.trumpSuit.isRed ? CardView.red : .primary)
+                    .foregroundStyle(board.trumpSuit.isRed ? CardView.red : Self.palette.ink)
                     .frame(width: cardWidth, height: cardWidth * CardView.aspectRatio)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                    .background { ToySocket(color: .black.opacity(0.08), shape: RoundedRectangle(cornerRadius: 8, style: .continuous)) }
             }
         }
         .frame(width: cardWidth * 1.8, height: cardWidth * CardView.aspectRatio, alignment: .leading)
@@ -469,12 +487,12 @@ struct DurakTableView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(notice.caught ? Color.red : Color.orange, in: Capsule())
+                    .background { ToyBlock(color: notice.caught ? Self.caughtColor : Self.attackColor, shape: Capsule(), lip: 2) }
                     .transition(.scale.combined(with: .opacity))
             }
             Text(status)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(myTurn ? .primary : .secondary)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(Self.palette.ink.opacity(myTurn ? 1 : 0.6))
                 .multilineTextAlignment(.center)
                 .frame(minHeight: 20)
                 .contentTransition(.opacity)
@@ -514,6 +532,7 @@ struct DurakTableView: View {
             if board.table.isEmpty { return nil }
             return (L10n.text(board.attacker == seat ? "Bito" : "Pass"), .done)
         }()
+        let palette = Self.palette
         HStack(spacing: 10) {
             if canTransferNow {
                 Button {
@@ -521,24 +540,21 @@ struct DurakTableView: View {
                     transferring.toggle()
                 } label: {
                     Text(L10n.text(transferring ? "Cancel" : "Transfer"))
-                        .font(.headline)
-                        .foregroundStyle(transferring ? Color.primary : Color.white)
-                        .frame(minWidth: 120, minHeight: 44)
-                        .background(transferring ? AnyShapeStyle(Color(.tertiarySystemFill)) : AnyShapeStyle(Color.purple),
-                                    in: Capsule())
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(transferring ? palette.ink : Color.white)
+                        .frame(minWidth: 120, minHeight: 40)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ToyPressStyle(color: transferring ? palette.card : Self.defendColor, lip: 4))
             }
             Button {
                 if let action { onAction(action.1) }
             } label: {
                 Text(action?.0 ?? " ")
-                    .font(.headline)
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(minWidth: canTransferNow ? 120 : 140, minHeight: 44)
-                    .background(GameTheme.accent, in: Capsule())
+                    .frame(minWidth: canTransferNow ? 120 : 140, minHeight: 40)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ToyPressStyle(color: palette.accent, lip: 4))
             .opacity(action == nil || transferring ? 0 : 1)
             .disabled(action == nil || transferring)
         }
@@ -596,5 +612,50 @@ struct DurakTableView: View {
         } else {
             onAction(defending ? .defend(card) : .attack(card))
         }
+    }
+}
+
+/// Durak's toy world: a rosewood table with teal card backs.
+enum ToyDurak {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.99, 0.90, 0.88), dark: (0.22, 0.11, 0.13)),
+        backdropBottom: .dynamic(light: (0.93, 0.77, 0.75), dark: (0.12, 0.05, 0.07)),
+        tray: .dynamic(light: (0.86, 0.62, 0.60), dark: (0.40, 0.20, 0.23)),
+        socket: .dynamic(light: (0.84, 0.66, 0.64), dark: (0.16, 0.07, 0.09)),
+        ink: .dynamic(light: (0.45, 0.16, 0.21), dark: (1.0, 0.90, 0.91)),
+        deboss: .dynamic(light: (0.95, 0.82, 0.80), dark: (0.32, 0.16, 0.19)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.03, 0.04)),
+        card: .dynamic(light: (1.0, 0.99, 0.99), dark: (0.30, 0.16, 0.19)),
+        accent: .dynamic(light: (0.20, 0.56, 0.60), dark: (0.36, 0.72, 0.75)))
+}
+
+/// A bout in play at a three-player table, for the Home preview.
+struct DurakShowcase: View {
+    private let table: DurakState
+
+    init() {
+        var table = DurakState.deal(players: 3)
+        for _ in 0..<3 {
+            guard let seat = table.turn, let action = DurakBot.action(for: table, seat: seat),
+                  let next = try? table.applying(action, by: seat) else { break }
+            table = next
+        }
+        self.table = table
+    }
+
+    var body: some View {
+        let palette = ToyDurak.palette
+        ZStack {
+            palette.backdrop
+            DurakTableView(table: table, seat: 0,
+                           names: [L10n.text("You"), L10n.format("Bot %d", 1), L10n.format("Bot %d", 2)],
+                           onAction: { _ in })
+                .frame(width: 340, height: 510)
+                .scaleEffect(0.69)
+                .frame(width: 360, height: 360)
+        }
+        .environment(\.toyStyle, palette.style)
+        .frame(width: 360, height: 360)
+        .clipped()
     }
 }

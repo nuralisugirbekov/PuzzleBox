@@ -84,6 +84,42 @@ final class MinesweeperEngine: GameEngine {
         state = .playing
     }
 
+    /// An easy board opened from the middle with two flags set, for the Home
+    /// preview. Built directly, so no sounds play and nothing is saved.
+    func showcase() {
+        difficulty = .easy
+        reset()
+        let mines = [(0, 2), (0, 7), (1, 0), (2, 5), (2, 8), (5, 0), (6, 7), (7, 2), (8, 5), (8, 8)]
+        for (r, c) in mines { grid[r][c].isMine = true }
+        for r in 0..<rows {
+            for c in 0..<cols {
+                var count = 0
+                for dr in -1...1 { for dc in -1...1 where (dr, dc) != (0, 0) {
+                    let nr = r + dr, nc = c + dc
+                    if nr >= 0, nr < rows, nc >= 0, nc < cols, grid[nr][nc].isMine { count += 1 }
+                } }
+                grid[r][c].adjacent = count
+            }
+        }
+        var queue = [GridPos(r: 4, c: 4)]
+        grid[4][4].revealed = true
+        while !queue.isEmpty {
+            let p = queue.removeFirst()
+            guard grid[p.r][p.c].adjacent == 0 else { continue }
+            for dr in -1...1 { for dc in -1...1 where (dr, dc) != (0, 0) {
+                let nr = p.r + dr, nc = p.c + dc
+                guard nr >= 0, nr < rows, nc >= 0, nc < cols,
+                      !grid[nr][nc].revealed, !grid[nr][nc].isMine else { continue }
+                grid[nr][nc].revealed = true
+                queue.append(GridPos(r: nr, c: nc))
+            } }
+        }
+        revealedCount = grid.flatMap { $0 }.filter(\.revealed).count
+        minesPlaced = true
+        grid[2][5].flagged = true
+        grid[6][7].flagged = true
+    }
+
     /// Mines are placed after the first dig so the opening tap is always safe.
     private func placeMines(avoiding safe: GridPos) {
         var spots: [GridPos] = []
@@ -194,6 +230,15 @@ final class MinesweeperEngine: GameEngine {
 
 struct MinesweeperView: View {
     @State private var engine = MinesweeperEngine()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: MinesweeperEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
     /// Bumped on a loss to give the board a short shake.
     @State private var shake = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -221,6 +266,20 @@ struct MinesweeperView: View {
     private static let groundAlt = tone((0.92, 0.89, 0.83), (0.14, 0.15, 0.17))
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                ToyMinesweeper.palette.backdrop
+                board.padding(24)
+            }
+            .environment(\.toyStyle, ToyMinesweeper.palette.style)
+            .frame(width: 360, height: 360)
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
         GameContainerView(gameID: .minesweeper, engine: engine,
                           resultSummary: engine.finishSeconds.map { L10n.format("Time: %@", Self.clock($0)) } ?? L10n.text(engine.difficulty.title),
                           chrome: .inGame,

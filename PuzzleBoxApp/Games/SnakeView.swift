@@ -86,6 +86,20 @@ final class SnakeEngine: GameEngine {
         spawnFood()
     }
 
+    /// A bent snake heading for an apple, for the Home preview. The game
+    /// loop is never started.
+    func showcase() {
+        reset()
+        let cells = [(5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (9, 8), (9, 7), (9, 6), (9, 5), (8, 5), (7, 5), (6, 5)]
+        snake = cells.map { GridPos(r: $0.0, c: $0.1) }
+        direction = .up
+        food = GridPos(r: 2, c: 9)
+        golden = GridPos(r: 4, c: 3)
+        goldenTicksLeft = Self.goldenLifetime / 2
+        eaten = 9
+        score = 120
+    }
+
     func start() {
         loopTask?.cancel()
         loopTask = Task { [weak self] in
@@ -244,8 +258,31 @@ extension SnakeEngine: ResumableGame {
 
 struct SnakeView: View {
     @State private var engine = SnakeEngine()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: SnakeEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                ToySnake.palette.backdrop
+                board.padding(24)
+            }
+            .environment(\.toyStyle, ToySnake.palette.style)
+            .frame(width: 360, height: 360)
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
         let palette = ToySnake.palette
         GameContainerView(gameID: .snake, engine: engine,
                           chrome: .inGame,

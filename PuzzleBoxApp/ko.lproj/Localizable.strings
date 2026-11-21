@@ -142,7 +142,6 @@
 "Nonogram" = "노노그램";
 "Number Connect" = "숫자 연결";
 "One Line" = "한붓그리기";
-"Unblock" = "블록 탈출";
 "15 Puzzle" = "15 퍼즐";
 "Pipe Connect" = "파이프 연결";
 "Dots" = "도트";
@@ -157,7 +156,6 @@
 "Tap to toggle a light and its neighbors. Turn all lights off." = "칸을 탭하면 이웃과 함께 바뀝니다. 모두 끄세요.";
 "Use the row and column clues to fill the picture." = "행과 열의 숫자 힌트로 그림을 완성하세요.";
 "Trace every edge once. Tap connected nodes." = "연결된 점을 탭해 각 선을 한 번씩 지나세요.";
-"Slide blocks along their length. Free the red block." = "블록을 길이 방향으로 밀어 빨간 블록을 꺼내세요.";
 "Slide tiles into order, with the empty cell last." = "숫자를 순서대로 놓고 빈칸은 마지막에 두세요.";
 "Rotate pipes to connect IN to OUT through every cell." = "파이프를 돌려 모든 칸을 거쳐 입구와 출구를 연결하세요.";
 "Connect adjacent matching dots, then release or tap Collect." = "이웃한 같은 색 점을 연결한 뒤 손을 떼거나 모으기를 누르세요.";
@@ -767,6 +765,10 @@
 "Step %d of 3: %@" = "%d/3단계: %@";
 "Time" = "시간";
 "Mistakes: %d/%d" = "실수: %d/%d";
+"Shots left: %d" = "남은 샷: %d";
+"Replay" = "다시";
+"So close!" = "아깝다!";
+"Picked up where you left off" = "지난번에 이어서 계속해요";
 
 /* Pair Link (Number Link redesign) */
 "Pair Link" = "짝 잇기";
@@ -775,3 +777,36 @@
 "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it." = "모양이나 관의 끝에서 이웃 칸으로 드래그하세요. 되돌아가면 관이 짧아져요. 다른 관을 지나가면 그 관이 끊어져요.";
 "%d of %d pairs joined" = "%d / %d 쌍 연결됨";
 "%d stars" = "별 %d개";
+
+/* Mini golf */
+"Hole %d" = "%d번 홀";
+"Strokes · par %d" = "타 · 파 %d";
+"Restart hole" = "홀 다시 하기";
+"Out of strokes" = "타수를 다 썼어요";
+"Splash! +1 stroke" = "풍덩! +1타";
+"Pull back from the ball, aim and let go. Sink it in as few strokes as you can." = "공에서 뒤로 당겨 조준하고 놓으세요. 가능한 적은 타수로 홀에 넣으세요.";
+
+/* Car park */
+"Car Park" = "주차장";
+"Bumps" = "충돌";
+"Restart level" = "레벨 다시 시작";
+"Vehicles left: %d" = "남은 차량: %d";
+"Bump!" = "쾅!";
+"Beep! Let them cross." = "빵빵! 보행자 먼저.";
+"Not a scratch!" = "흠집 하나 없이!";
+"Swipe a car along its length to drive it out. Clear the lot without a bump." = "차를 길이 방향으로 밀어서 빼내세요. 부딪히지 않고 주차장을 비우세요.";
+
+/* Mini golf worlds */
+"First Steps" = "첫걸음";
+"Ice Rink" = "아이스 링크";
+"Portal Park" = "포털 공원";
+"Switch Yard" = "스위치 야드";
+"Spring Fair" = "스프링 축제";
+"Clockwork" = "태엽 장치";
+"Grand Tour" = "그랜드 투어";
+"Gate open!" = "문이 열렸어요!";
+"Ice keeps the ball sliding. Arrow pads speed it up." = "얼음 위에서는 공이 계속 미끄러져요. 화살표 패드가 속도를 높여요.";
+"Roll into a ring and the ball pops out of its twin." = "고리에 공을 넣으면 짝 고리에서 나와요.";
+"Roll over a button to drop the gate of the same colour." = "버튼 위로 굴리면 같은 색 문이 내려가요.";
+"Yellow springs kick the ball away. Mind the swinging paddles." = "노란 스프링은 공을 튕겨 내요. 흔들리는 패들을 조심하세요.";
+"Time your shot past the moving rails, windmills and paddles." = "움직이는 벽, 풍차, 패들 사이로 타이밍을 맞춰 치세요.";

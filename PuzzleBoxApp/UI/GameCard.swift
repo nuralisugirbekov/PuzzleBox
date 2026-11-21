@@ -139,8 +139,11 @@ struct GamePreviewArt: View {
     /// Darkens the bottom so overlaid text and buttons stay legible.
     var fade = true
 
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var snapshot: UIImage?
+
     var body: some View {
-        GameArtwork(gameID: gameID)
+        artwork
             .overlay {
                 if fade {
                     // Fade starts 105pt down a 178pt preview; proportional so it scales.
@@ -151,5 +154,19 @@ struct GamePreviewArt: View {
             }
             .clipped()
             .accessibilityHidden(true)
+            .task(id: "\(gameID.rawValue)-\(colorScheme == .dark)") {
+                snapshot = GameSnapshot.image(for: gameID, dark: colorScheme == .dark)
+            }
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let snapshot {
+            Image(uiImage: snapshot)
+                .resizable()
+                .scaledToFill()
+        } else {
+            GameArtwork(gameID: gameID)
+        }
     }
 }

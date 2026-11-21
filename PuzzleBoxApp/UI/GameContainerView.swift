@@ -35,15 +35,15 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
     @State private var awardedTimeBonus = 0
     @State private var showingTutorial = false
     @State private var resumeAfterTutorial = false
-    /// A won level with a successor advances by itself instead of asking.
-    @State private var autoAdvancing = false
+    /// A saved round was picked up on open; the bottom note offers to start over.
+    @State private var resumeNote = false
+    /// The first open of a game: one line of its rules along the bottom edge.
+    @State private var ruleHint: String?
     @State private var confetti = 0
     /// The game-over alert was closed with its ✕ to look at the final board.
     @State private var gameOverHidden = false
     @State private var contentShown = false
     @Environment(\.resumeOffer) private var resumeOffer
-    /// A saved round was restored; the "Continue previous game?" alert is up.
-    private var offeringResume: Bool { resumeOffer.awaiting.contains(gameID) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var tutorial: GameTutorial? { GameTutorial.forGame(gameID) }
     private var tutorialKey: String { "gameTutorial.v1." + gameID.rawValue }
@@ -126,21 +126,11 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             .padding(fullBleed ? [.top, .horizontal] : .all)
             .ignoresSafeArea(edges: fullBleed ? .bottom : [])
 
-            if engine.state == .paused && offeringResume {
-                ResumeAlert(continueGame: {
-                                resumeOffer.answer(gameID)
-                                engine.state = .playing
-                                AppAnalytics.log("game_resumed_session", parameters: ["game_id": gameID.rawValue])
-                            },
-                            startOver: {
-                                resumeOffer.answer(gameID)
-                                restart()
-                            },
-                            exit: {
-                                resumeOffer.answer(gameID)
-                                dismiss()
-                            })
-            } else if engine.state == .paused {
+            if engine.state == .playing, resumeNote || ruleHint != nil {
+                edgeNote
+            }
+
+            if engine.state == .paused {
                 PauseAlert(resume: {
                                roundAnalytics.event("game_resume", score: engine.score)
                                engine.state = .playing
@@ -150,25 +140,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                            howToPlay: tutorial == nil ? nil : { showTutorial() })
             }
 
-            if autoAdvancing {
-                VStack(spacing: 6) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 44, weight: .semibold))
-                        .foregroundStyle(.green)
-                        .symbolEffect(.bounce, value: autoAdvancing)
-                    Text(L10n.text("Level complete!")).font(.title3.weight(.semibold))
-                    Text(displayedScore, format: .number)
-                        .font(.headline.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 36)
-                .padding(.vertical, 22)
-                .alertSurface(cornerRadius: 28)
-                .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isStaticText)
-            } else if case .gameOver(let won) = engine.state, !gameOverHidden {
+            if case .gameOver(let won) = engine.state, !gameOverHidden {
                 GameOverOverlay(won: won,
                                 score: displayedScore,
                                 highScore: stats.highScore(for: gameID),
@@ -176,6 +148,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                                 resultTitle: resultTitle,
                                 resultSummary: summary,
                                 playAgain: restart,
+                                next: won ? nextLevel : nil,
+                                isLevel: nextLevel != nil,
                                 home: { dismiss() },
                                 close: { gameOverHidden = true })
             }
@@ -202,7 +176,8 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
         .foregroundStyle(GameTheme.ink)
         .tint(GameTheme.accent)
         .animation(.spring(duration: 0.35, bounce: 0.25), value: engine.state)
-        .animation(.spring(duration: 0.4, bounce: 0.3), value: autoAdvancing)
+        .animation(.spring(duration: 0.4, bounce: 0.3), value: resumeNote)
+        .animation(.spring(duration: 0.4, bounce: 0.3), value: ruleHint)
         .onAppear {
             if reduceMotion { contentShown = true }
             else { withAnimation(.spring(duration: 0.45, bounce: 0.2).delay(0.05)) { contentShown = true } }
@@ -224,7 +199,12 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             if let tutorial { GameTutorialView(gameID: gameID, tutorial: tutorial).closesWhenRoomOpens() }
         }
         .onAppear {
-            if tutorial != nil && !offeringResume && !UserDefaults.standard.bool(forKey: tutorialKey) { showTutorial() }
+            // The first open shows one line of the rules at the bottom edge
+            // instead of a sheet; the full rules live under Pause › How to play.
+            if let tutorial, !resumeNote, !UserDefaults.standard.bool(forKey: tutorialKey) {
+                UserDefaults.standard.set(true, forKey: tutorialKey)
+                ruleHint = Self.firstSentence(of: L10n.text(tutorial.rules))
+            }
         }
         .onDisappear {
             saveRound()
@@ -256,18 +236,6 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
                 // Wins and new records get a confetti shower.
                 if won || isNewHighScore { confetti += 1 }
                 SoundFX.play(won ? .win : .lose)
-                if won, let nextLevel {
-                    autoAdvancing = true
-                    Task {
-                        // Let the final move and the banner register before switching.
-                        try? await Task.sleep(for: .milliseconds(1700))
-                        guard case .gameOver(won: true) = engine.state else {
-                            autoAdvancing = false
-                            return
-                        }
-                        nextLevel()
-                    }
-                }
             }
         }
     }
@@ -298,9 +266,40 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
             GameSessionStore.delete(gameID)
             return
         }
-        cardClock.resume(from: session.elapsed, active: false)
-        resumeOffer.markAwaiting(gameID)
-        engine.state = .paused
+        // Straight back into the round; a note at the bottom offers a fresh start.
+        cardClock.resume(from: session.elapsed, active: scenePhase == .active)
+        engine.state = .playing
+        resumeNote = true
+        AppAnalytics.log("game_resumed_session", parameters: ["game_id": gameID.rawValue])
+    }
+
+    /// The bottom-edge note: the restored round, or the first line of the rules.
+    /// It never covers the board's middle and goes away by itself.
+    private var edgeNote: some View {
+        EdgeNote(symbol: resumeNote ? "clock.arrow.circlepath" : "hand.point.up.left.fill",
+                 text: resumeNote ? L10n.text("Picked up where you left off") : (ruleHint ?? ""),
+                 actionTitle: resumeNote ? L10n.text("Start over") : (tutorial == nil ? nil : L10n.text("Rules")),
+                 action: {
+                     if resumeNote { resumeNote = false; restart() }
+                     else { ruleHint = nil; showTutorial() }
+                 },
+                 close: { resumeNote = false; ruleHint = nil })
+            .id(resumeNote)
+            .task(id: resumeNote) {
+                try? await Task.sleep(for: .seconds(resumeNote ? 4 : 7))
+                guard !Task.isCancelled else { return }
+                resumeNote = false
+                ruleHint = nil
+            }
+    }
+
+    static func firstSentence(of text: String) -> String {
+        var first = text
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sub, _, _, stop in
+            if let sub { first = sub.trimmingCharacters(in: .whitespaces) }
+            stop = true
+        }
+        return first
     }
 
     /// Writes the unfinished round to disk, or clears it when there is
@@ -317,7 +316,7 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
     private func restart() {
         Haptics.tap()
-        autoAdvancing = false
+        resumeNote = false
         gameOverHidden = false
         let wasPaused = engine.state == .paused
         let wasCompleted: Bool
@@ -443,48 +442,69 @@ struct GameContainerView<Engine: GameEngine, Content: View>: View {
 
 
 
-/// Figma "Solitare. Rejoined": offered when a game opens on a round the
-/// player left unfinished.
-struct ResumeAlert: View {
+/// A short note along the bottom edge, over the board's margin: a symbol,
+/// one line, an optional action and a close button. Used for the restored
+/// round and for the first line of a game's rules.
+private struct EdgeNote: View {
+    let symbol: String
+    let text: String
+    var actionTitle: String? = nil
+    var action: () -> Void = {}
+    let close: () -> Void
     @Environment(\.toyStyle) private var toy
-    let continueGame: () -> Void
-    let startOver: () -> Void
-    let exit: () -> Void
 
     var body: some View {
-        ZStack {
-            AlertDim()
-                .onTapGesture { } // Block taps to the restored board.
-            VStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    AlertGlyph(symbol: "questionmark")
-                    Text(L10n.text("Continue previous game?"))
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(L10n.text("If you restart, you’ll lose your progress"))
-                        .font(.body)
-                        .padding(.top, 4)
-                        .foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(16)
-                VStack(spacing: 8) {
-                    AlertActionButton(title: L10n.text("Continue"), symbol: "play.fill",
-                                      prominent: true, action: continueGame)
-                    AlertActionButton(title: L10n.text("Start over"), symbol: "arrow.counterclockwise",
-                                      action: startOver)
-                    AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: exit)
-                }
+        let ink = toy?.ink ?? Color.primary
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundStyle(toy?.accent ?? GameTheme.accent)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(ink)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let actionTitle {
+                Button(actionTitle, action: action)
+                    .font(.system(.subheadline, design: .rounded).weight(.heavy))
+                    .foregroundStyle(toy?.accent ?? GameTheme.accent)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
             }
-            .padding(14)
-            .frame(width: 300)
-            .alertSurface(cornerRadius: 34)
-            .accessibilityElement(children: .contain)
-            .accessibilityAddTraits(.isModal)
+            Button(action: close) {
+                Image(systemName: "xmark")
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .foregroundStyle(ink.opacity(0.6))
+                    .frame(width: 32, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.text("Close"))
         }
-        .transition(.opacity)
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
+        .padding(.vertical, 4)
+        .background { surface }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var surface: some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        if let toy {
+            ToyBlock(color: toy.card, shape: shape, lip: 4)
+                .padding(.bottom, -4)
+        } else if #available(iOS 26.0, *) {
+            Color.clear.glassEffect(.regular, in: shape)
+        } else {
+            shape.fill(.thickMaterial)
+        }
     }
 }
 
@@ -680,8 +700,25 @@ struct GameOverOverlay: View {
     var resultTitle: String? = nil
     var resultSummary: String? = nil
     let playAgain: () -> Void
+    /// A won level with a successor: the card leads with "Next level".
+    var next: (() -> Void)? = nil
+    /// A levelled game: a loss reads as "So close!" with Try again first.
+    var isLevel = false
     let home: () -> Void
     let close: () -> Void
+
+    private var glyph: String {
+        if won { return next != nil ? "star.fill" : "trophy.fill" }
+        if isNewHighScore { return "crown.fill" }
+        return isLevel ? "arrow.counterclockwise" : "flag.pattern.checkered"
+    }
+
+    private var title: String {
+        if let resultTitle { return resultTitle }
+        if won { return L10n.text(isLevel ? "Level complete!" : "You Win!") }
+        if isNewHighScore { return L10n.text("New best!") }
+        return L10n.text(isLevel ? "So close!" : "Game Over")
+    }
 
     var body: some View {
         ZStack {
@@ -689,8 +726,8 @@ struct GameOverOverlay: View {
                 .onTapGesture { } // Block taps to the finished board.
             VStack(spacing: 0) {
                 VStack(spacing: 0) {
-                    AlertGlyph(symbol: won || isNewHighScore ? "trophy.fill" : "flag.pattern.checkered")
-                    Text(resultTitle ?? L10n.text(won ? "You Win!" : "Game Over"))
+                    AlertGlyph(symbol: glyph)
+                    Text(title)
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
@@ -719,9 +756,15 @@ struct GameOverOverlay: View {
                             .font(.title2.bold().monospacedDigit())
                             .foregroundStyle(.primary)
                     }
-                    Text(isNewHighScore ? L10n.text("New best!") : L10n.format("Best: %d", highScore))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if isNewHighScore {
+                        Label(L10n.text("New best!"), systemImage: "crown.fill")
+                            .font(.system(.headline, design: .rounded).weight(.heavy))
+                            .foregroundStyle(toy?.accent ?? GameTheme.accent)
+                    } else if highScore > 0 {
+                        Label(L10n.format("Best: %d", highScore), systemImage: "crown.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                     if let resultSummary {
                         Text(resultSummary)
                             .font(.footnote)
@@ -735,9 +778,20 @@ struct GameOverOverlay: View {
                 .padding(.bottom, 16)
 
                 VStack(spacing: 8) {
-                    AlertActionButton(title: L10n.text("Play Again"), symbol: "arrow.counterclockwise",
-                                      prominent: true, action: playAgain)
-                    AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: home)
+                    if let next {
+                        AlertActionButton(title: L10n.text("Next level"), symbol: "arrow.forward",
+                                          prominent: true, action: next)
+                        HStack(spacing: 8) {
+                            AlertActionButton(title: L10n.text("Replay"), symbol: "arrow.counterclockwise",
+                                              action: playAgain)
+                            AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: home)
+                        }
+                    } else {
+                        AlertActionButton(title: L10n.text(isLevel ? "Try again" : "Play Again"),
+                                          symbol: "arrow.counterclockwise",
+                                          prominent: true, action: playAgain)
+                        AlertActionButton(title: L10n.text("Home"), symbol: "house.fill", action: home)
+                    }
                 }
             }
             .padding(14)
@@ -746,7 +800,7 @@ struct GameOverOverlay: View {
                 Group {
                     if let toy {
                         ToyIconButton(symbol: "xmark", label: L10n.text("Close"), color: toy.clay.toyShade(0.1),
-                                      ink: toy.ink, size: 40, action: close)
+                                      ink: toy.ink, size: 44, action: close)
                     } else {
                         Button(action: close) {
                             Image(systemName: "xmark")

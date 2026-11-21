@@ -142,7 +142,6 @@
 "Nonogram" = "数织";
 "Number Connect" = "数字连线";
 "One Line" = "一笔画";
-"Unblock" = "解锁方块";
 "15 Puzzle" = "数字华容道";
 "Pipe Connect" = "连接管道";
 "Dots" = "点点连线";
@@ -157,7 +156,6 @@
 "Tap to toggle a light and its neighbors. Turn all lights off." = "点击切换当前格及相邻格，熄灭所有灯。";
 "Use the row and column clues to fill the picture." = "根据行列提示填出图案。";
 "Trace every edge once. Tap connected nodes." = "点击相连节点，每条边只走一次。";
-"Slide blocks along their length. Free the red block." = "沿方块长边滑动，让红色方块出去。";
 "Slide tiles into order, with the empty cell last." = "按顺序排列数字，空格留在最后。";
 "Rotate pipes to connect IN to OUT through every cell." = "旋转管道，经过每个格子连接入口和出口。";
 "Connect adjacent matching dots, then release or tap Collect." = "连接相邻同色圆点，然后松手或点击收集。";
@@ -768,6 +766,10 @@
 "Step %d of 3: %@" = "第 %d 步，共 3 步：%@";
 "Time" = "时间";
 "Mistakes: %d/%d" = "错误：%d/%d";
+"Shots left: %d" = "剩余击球：%d";
+"Replay" = "再玩";
+"So close!" = "差一点！";
+"Picked up where you left off" = "从上次的进度继续";
 
 /* Pair Link (Number Link redesign) */
 "Pair Link" = "配对连线";
@@ -776,3 +778,36 @@
 "Drag from a piece, or from the loose end of a tube, through neighboring cells. Drag back to shorten a tube. Drawing through another tube cuts it." = "从图形或管子的空端拖过相邻的格子。往回拖可以缩短管子。穿过别的管子会把它截断。";
 "%d of %d pairs joined" = "已连接 %d / %d 对";
 "%d stars" = "%d 颗星";
+
+/* Mini golf */
+"Hole %d" = "第 %d 洞";
+"Strokes · par %d" = "杆 · 标准杆 %d";
+"Restart hole" = "重打此洞";
+"Out of strokes" = "杆数用完了";
+"Splash! +1 stroke" = "扑通！罚 1 杆";
+"Pull back from the ball, aim and let go. Sink it in as few strokes as you can." = "从球向后拉，瞄准后松手。用尽量少的杆数把球打进洞。";
+
+/* Car park */
+"Car Park" = "停车场";
+"Bumps" = "碰撞";
+"Restart level" = "重新开始本关";
+"Vehicles left: %d" = "剩余车辆：%d";
+"Bump!" = "砰！";
+"Beep! Let them cross." = "嘀嘀！先让行人过。";
+"Not a scratch!" = "毫发无损！";
+"Swipe a car along its length to drive it out. Clear the lot without a bump." = "沿车身方向滑动车辆，把它开出去。不碰撞地清空停车场。";
+
+/* Mini golf worlds */
+"First Steps" = "初次上场";
+"Ice Rink" = "溜冰场";
+"Portal Park" = "传送门公园";
+"Switch Yard" = "机关场";
+"Spring Fair" = "弹簧游乐会";
+"Clockwork" = "发条工坊";
+"Grand Tour" = "环游大赛";
+"Gate open!" = "门开了！";
+"Ice keeps the ball sliding. Arrow pads speed it up." = "冰面上球会一直滑行，箭头加速板让它更快。";
+"Roll into a ring and the ball pops out of its twin." = "把球滚进一个圈，它会从另一个同色圈出来。";
+"Roll over a button to drop the gate of the same colour." = "滚过按钮，同色的门就会落下。";
+"Yellow springs kick the ball away. Mind the swinging paddles." = "黄色弹簧会把球弹开，小心摆动的挡板。";
+"Time your shot past the moving rails, windmills and paddles." = "看准时机，穿过移动挡板、风车和摆板。";

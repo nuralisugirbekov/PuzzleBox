@@ -97,6 +97,20 @@ final class ArrowEscapePuzzleEngine: GameEngine {
         }
     }
 
+    /// A fixed position for the Home preview: a mid level with a few arrows
+    /// already gone. Nothing is saved.
+    func showcase() {
+        levelIndex = 4
+        puzzle = ArrowEscapePuzzle.make(level: levelIndex)
+        resetBoard()
+        var removed = 0
+        for arrow in puzzle.arrows where removed < 2 && puzzle.canRemove(arrow, occupancy: occupancy) {
+            remaining.remove(arrow.id)
+            for cell in arrow.cells { occupancy[cell] = nil }
+            removed += 1
+        }
+    }
+
     private func resetBoard() {
         animationToken += 1
         moving = [:]

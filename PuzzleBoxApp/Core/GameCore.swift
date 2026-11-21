@@ -246,7 +246,7 @@ enum GameID: String, CaseIterable, Identifiable {
             GameInfo(title: L10n.text(ToyMode.bottleFlip.title), tagline: L10n.text(ToyMode.bottleFlip.hint),
                      symbol: "waterbottle.fill", tint: .pink, category: .physics, difficulty: .medium)
         case .miniGolf:
-            GameInfo(title: L10n.text(ToyMode.miniGolf.title), tagline: L10n.text(ToyMode.miniGolf.hint),
+            GameInfo(title: L10n.text("Golf"), tagline: L10n.text(ToyMiniGolf.hint),
                      symbol: "flag.fill", tint: .purple, category: .physics, difficulty: .medium)
         case .plinko:
             GameInfo(title: L10n.text(ToyMode.plinko.title), tagline: L10n.text(ToyMode.plinko.hint),
@@ -306,8 +306,8 @@ enum GameID: String, CaseIterable, Identifiable {
             GameInfo(title: L10n.text("One Line"), tagline: L10n.text(PuzzleMode.oneLine.hint),
                      symbol: "pencil.tip", tint: .mint, category: .logic, difficulty: .medium)
         case .unblock:
-            GameInfo(title: L10n.text("Unblock"), tagline: L10n.text(PuzzleMode.unblock.hint),
-                     symbol: "rectangle.split.3x1.fill", tint: .orange, category: .logic, difficulty: .medium)
+            GameInfo(title: L10n.text("Car Park"), tagline: L10n.text(ToyCarPark.hint),
+                     symbol: "car.fill", tint: .orange, category: .logic, difficulty: .medium)
         case .fifteenPuzzle:
             GameInfo(title: L10n.text("15 Puzzle"), tagline: L10n.text(PuzzleMode.fifteenPuzzle.hint),
                      symbol: "square.grid.3x3.fill", tint: .indigo, category: .logic, difficulty: .medium)
@@ -519,7 +519,7 @@ func gameView(for id: GameID) -> some View {
     case .findPair: AttentionView(mode: .findPair)
     case .basketShot: ToyView(mode: .basketShot)
     case .bottleFlip: ToyView(mode: .bottleFlip)
-    case .miniGolf: ToyView(mode: .miniGolf)
+    case .miniGolf: MiniGolfView()
     case .plinko: ToyView(mode: .plinko)
     case .ropeCut: ToyView(mode: .ropeCut)
     case .drawBridge: ToyView(mode: .drawBridge)
@@ -539,7 +539,7 @@ func gameView(for id: GameID) -> some View {
     case .numberConnect: NumberLinkView()
     case .oneLine: PuzzleCollectionView(mode: .oneLine)
     case .mazePaint: MazePaintView()
-    case .unblock: PuzzleCollectionView(mode: .unblock)
+    case .unblock: CarParkView()
     case .fifteenPuzzle: PuzzleCollectionView(mode: .fifteenPuzzle)
     case .pipeConnect: PuzzleCollectionView(mode: .pipeConnect)
     case .dots: PuzzleCollectionView(mode: .dots)
@@ -601,13 +601,16 @@ enum Haptics {
     static func success() { notify(.success) }
     static func error() { notify(.error) }
 
+    /// Set while a Home preview runs a game for a moment.
+    static var quiet = false
+
     private static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        guard isEnabled else { return }
+        guard isEnabled, !quiet else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
 
     private static func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        guard isEnabled else { return }
+        guard isEnabled, !quiet else { return }
         UINotificationFeedbackGenerator().notificationOccurred(type)
     }
 }

@@ -48,6 +48,15 @@ final class FreeCellEngine: GameEngine {
 
     func restart() { deal() }
 
+    /// A fresh deal with two cards in the free cells, for the Home preview.
+    /// Nothing is saved.
+    func showcase() {
+        deal()
+        for (cell, col) in [(0, 2), (1, 5)] {
+            freeCells[cell] = cascades[col].removeLast()
+        }
+    }
+
     private func deal() {
         history.removeAll()
         var deck = Card.deck().shuffled()
@@ -312,9 +321,47 @@ final class FreeCellEngine: GameEngine {
 struct FreeCellView: View {
     @State private var engine = FreeCellEngine()
     @State private var drag = CardDragController()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: FreeCellEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     var body: some View {
-        GameContainerView(gameID: .freecell, engine: engine) {
+        if isShowcase {
+            // Drawn a little small, then scaled up so the deal fills the card.
+            let side: CGFloat = 296
+            let cardWidth = (side - 7 * 4) / 8
+            ZStack {
+                ToyFreeCell.palette.backdrop
+                VStack(spacing: 18) {
+                    topRow(cardWidth: cardWidth)
+                    cascadesRow(cardWidth: cardWidth, maxHeight: 220)
+                }
+                .frame(width: side)
+                .cardTable(drag)
+                .scaleEffect(1.1)
+            }
+            .environment(\.toyStyle, ToyFreeCell.palette.style)
+            .frame(width: 360, height: 360)
+            .clipped()
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
+        let palette = ToyFreeCell.palette
+        GameContainerView(gameID: .freecell, engine: engine,
+                          chrome: .inGame,
+                          backdrop: AnyView(palette.backdrop),
+                          toyStyle: palette.style) {
+          ToyGameStage(palette: palette) {
             GeometryReader { geo in
                 let cardWidth = (geo.size.width - 7 * 4) / 8
                 let cardHeight = cardWidth * CardView.aspectRatio
@@ -329,6 +376,8 @@ struct FreeCellView: View {
                 }
                 .cardTable(drag)
             }
+            .padding(.top, 16)
+          }
         }
     }
 
@@ -424,4 +473,18 @@ extension FreeCellEngine: ResumableGame {
         state = .playing
         return true
     }
+}
+
+/// FreeCell's toy world: a sky-blue table with amber card backs.
+enum ToyFreeCell {
+    static let palette = ToyPalette(
+        backdropTop: .dynamic(light: (0.87, 0.94, 0.99), dark: (0.08, 0.14, 0.22)),
+        backdropBottom: .dynamic(light: (0.72, 0.85, 0.97), dark: (0.04, 0.08, 0.14)),
+        tray: .dynamic(light: (0.56, 0.71, 0.91), dark: (0.20, 0.30, 0.45)),
+        socket: .dynamic(light: (0.60, 0.74, 0.92), dark: (0.06, 0.11, 0.19)),
+        ink: .dynamic(light: (0.13, 0.27, 0.45), dark: (0.90, 0.95, 1.0)),
+        deboss: .dynamic(light: (0.76, 0.87, 0.97), dark: (0.17, 0.26, 0.38)),
+        debossRim: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.02, 0.04, 0.06)),
+        card: .dynamic(light: (1.0, 1.0, 1.0), dark: (0.16, 0.23, 0.33)),
+        accent: .dynamic(light: (0.96, 0.62, 0.30), dark: (1.0, 0.70, 0.40)))
 }

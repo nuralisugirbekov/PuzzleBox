@@ -22,8 +22,11 @@ enum SoundFX {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
 
+    /// Set while a Home preview runs a game for a moment, so it stays silent.
+    static var quiet = false
+
     static func play(_ sound: Sound) {
-        guard isEnabled else { return }
+        guard isEnabled, !quiet else { return }
         Player.shared.play(sound)
     }
 

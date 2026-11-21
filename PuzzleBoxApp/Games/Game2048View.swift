@@ -101,6 +101,23 @@ final class Game2048Engine: GameEngine {
         spawn()
     }
 
+    /// A fixed, busy mid-game position for the Home preview, so it reads as
+    /// the game without depending on a random start.
+    func showcase() {
+        difficulty = .hard
+        tiles = []
+        score = 2048
+        bestTile = 256
+        for r in 0..<size {
+            for c in 0..<size {
+                let value = [0, 2, 4, 0, 8, 16, 32, 2, 64, 128, 4, 256][(r * 5 + c * 3 + r * c) % 12]
+                guard value > 0 else { continue }
+                nextID += 1
+                tiles.append(Game2048Tile(id: nextID, value: value, row: r, col: c))
+            }
+        }
+    }
+
     private func spawn() {
         let grid = values
         guard let index = grid.indices.filter({ grid[$0] == 0 }).randomElement() else { return }
@@ -242,12 +259,14 @@ struct Game2048View: View {
                           chrome: .inGame,
                           backdrop: AnyView(Toy2048.backdrop),
                           toyStyle: Toy2048.style) {
-            Game2048Stage(engine: engine) { board }
+            Game2048Stage(engine: engine) { board(engine: engine, reduceMotion: reduceMotion) }
         }
     }
 
-    private var board: some View {
-        GeometryReader { geo in
+    /// The board alone, so Home previews can render a live snapshot of it.
+    func board(engine: Game2048Engine, reduceMotion: Bool) -> some View {
+        let spacing: CGFloat = engine.size > 4 ? 6 : 8
+        return GeometryReader { geo in
             let side = geo.size.width
             let n = CGFloat(engine.size)
             let cell = (side - spacing * (n + 1)) / n
@@ -301,10 +320,10 @@ struct Game2048View: View {
             }
         })
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilitySummary)
+        .accessibilityLabel(accessibilitySummary(engine))
     }
 
-    private var accessibilitySummary: String {
+    private func accessibilitySummary(_ engine: Game2048Engine) -> String {
         let grid = engine.values
         return (0..<engine.size).map { r in
             (0..<engine.size).map { c in
@@ -381,6 +400,24 @@ private struct Game2048TileView: View {
 // MARK: - Toy stage
 
 /// Colours of the 2048 toy box: warm sand around a clay tray.
+/// The 2048 board as it looks in play, drawn from a fixed position for the
+/// Home preview.
+struct Game2048Showcase: View {
+    let engine: Game2048Engine
+
+    var body: some View {
+        ZStack {
+            Toy2048.backdrop
+            Game2048View().board(engine: engine, reduceMotion: true)
+                .padding(24)
+        }
+        .coordinateSpace(name: Toy2048.space)
+        .environment(\.toyStyle, Toy2048.style)
+        .foregroundStyle(Toy2048.ink)
+        .frame(width: 360, height: 360)
+    }
+}
+
 enum Toy2048 {
     static let backdropTop = Color.dynamic(light: (0.98, 0.95, 0.90), dark: (0.17, 0.14, 0.12))
     static let backdropBottom = Color.dynamic(light: (0.94, 0.88, 0.80), dark: (0.10, 0.08, 0.07))
@@ -509,17 +546,13 @@ private struct Game2048Stage<Board: View>: View {
         .accessibilityValue(Text(verbatim: "\(engine.undosLeft)"))
     }
 
-    /// The score as big letters pressed into the backdrop.
+    /// The score in ink, the best score beside it.
     private var pressedScore: some View {
-        VStack(spacing: 0) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(hud.score, format: .number)
-                .font(.system(size: 64, weight: .black, design: .rounded))
-                .foregroundStyle(Toy2048.deboss)
-                .shadow(color: Toy2048.debossRim, radius: 0, y: 1.5)
-                .shadow(color: .black.opacity(0.08), radius: 0, y: -1)
+                .toyHeadlineNumber(Toy2048.ink)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: hud.score)
-                .lineLimit(1).minimumScaleFactor(0.4)
                 .keyframeAnimator(initialValue: CGFloat(1), trigger: scoreBump) { content, scale in
                     content.scaleEffect(scale)
                 } keyframes: { _ in
@@ -532,13 +565,10 @@ private struct Game2048Stage<Board: View>: View {
                     let frame = proxy.frame(in: .named(Toy2048.space))
                     return CGPoint(x: frame.midX, y: frame.midY)
                 } action: { scoreTarget = $0 }
-            Label {
-                Text(L10n.text("Your best") + " · ") + Text(hud.best, format: .number)
-            } icon: {
-                Image(systemName: "crown.fill")
+            if hud.best > 0 {
+                Label { Text(hud.best, format: .number).monospacedDigit() } icon: { Image(systemName: "crown.fill") }
+                    .toyHeadlineCaption(Toy2048.ink)
             }
-            .font(.system(.subheadline, design: .rounded).weight(.bold))
-            .foregroundStyle(Toy2048.ink.opacity(0.7))
         }
         .accessibilityElement(children: .combine)
     }

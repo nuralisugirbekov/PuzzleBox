@@ -6,6 +6,8 @@ import SwiftUI
 struct ArrowEscapeBoard: View {
     let engine: ArrowEscapePuzzleEngine
     let reduceMotion: Bool
+    /// Off for the Home preview, which only shows the board.
+    var showsZoomControls = true
 
     /// 1 shows the whole board; more zooms in.
     @State private var zoom: CGFloat?
@@ -75,7 +77,7 @@ struct ArrowEscapeBoard: View {
                             })
             )
             .overlay(alignment: .bottomTrailing) {
-                if maxZoom > 1.01 {
+                if showsZoomControls, maxZoom > 1.01 {
                     zoomButtons(current: zoom, maxZoom: maxZoom)
                 }
             }
@@ -146,20 +148,29 @@ struct ArrowEscapeBoard: View {
                                             width: cell - 2, height: cell - 2),
                                  cornerSize: CGSize(width: cell * 0.2, height: cell * 0.2))
         }
-        context.fill(tiles, with: .color(GameTheme.accent.opacity(0.07)))
+        // Pressed-in dimples, so heart, house and flower boards read as such.
+        context.fill(tiles, with: .color(ArrowEscapePuzzleView.palette.socket))
 
-        let palette: [Color] = [.primary, .blue, .indigo, .teal]
-        let lineWidth = max(2.5, cell * 0.22)
+        // Candy clay tubes: a darker lip below, the colour, a soft highlight on top.
+        let palette: [Color] = [Color(red: 0.36, green: 0.52, blue: 0.95), Color(red: 0.98, green: 0.62, blue: 0.22),
+                                Color(red: 0.55, green: 0.40, blue: 0.90), Color(red: 0.16, green: 0.70, blue: 0.62)]
+        let lineWidth = max(2.5, cell * 0.24)
         let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+        let lip = max(1, lineWidth * 0.28)
         for arrow in engine.puzzle.arrows where remaining.contains(arrow.id) {
             let elapsed = moving[arrow.id]
             let travel = elapsed.map { reduceMotion ? 0 : Self.flightDistance($0) / cell } ?? 0
-            let color = missed.contains(arrow.id) ? Color.red : palette[arrow.id % palette.count]
+            let color = missed.contains(arrow.id) ? Color(red: 0.92, green: 0.22, blue: 0.24) : palette[arrow.id % palette.count]
             var layer = context
             if reduceMotion, let elapsed {
                 layer.opacity = max(0, 1 - elapsed / ArrowEscapePuzzleEngine.reducedMotionDuration)
             }
-            layer.stroke(arrowShape(arrow, travel: travel, origin: origin, cell: cell), with: .color(color), style: style)
+            let shape = arrowShape(arrow, travel: travel, origin: origin, cell: cell)
+            layer.stroke(shape.offsetBy(dx: 0, dy: lip), with: .color(color.toyShade(-0.25)), style: style)
+            layer.stroke(shape, with: .color(color), style: style)
+            layer.stroke(shape.offsetBy(dx: 0, dy: -lip * 0.6),
+                         with: .color(.white.opacity(0.35)),
+                         style: StrokeStyle(lineWidth: lineWidth * 0.3, lineCap: .round, lineJoin: .round))
         }
     }
 

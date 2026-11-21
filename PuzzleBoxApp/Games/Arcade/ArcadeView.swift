@@ -6,9 +6,51 @@ struct ArcadeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
+    private var isShowcase = false
+
     init(mode: ArcadeMode) { _engine = State(initialValue: ArcadeEngine(mode: mode)) }
 
+    /// The scene alone, mid-round, for the Home preview.
+    init(showcase engine: ArcadeEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
+
     var body: some View {
+        if isShowcase { showcase } else { gameBody }
+    }
+
+    /// A square window onto the scene, on the game's own sky: the window's
+    /// scale and top edge (in scene points) keep each game's action in view.
+    private var showcase: some View {
+        let skin = ArcadeSkin(mode: engine.mode)
+        let (scale, top): (CGFloat, CGFloat) = switch engine.mode {
+        case .knifeSpin: (1.2, 70)
+        case .helixDrop: (1.125, 96)
+        case .flappyFlight: (1.3, 172)
+        case .roadHop: (1.125, 128)
+        case .stack: (1.125, 0)
+        }
+        return ZStack {
+            skin.palette.backdrop
+            Canvas { context, size in
+                context.translateBy(x: (size.width - 320 * scale) / 2, y: -top * scale)
+                context.scaleBy(x: scale, y: scale)
+                switch engine.mode {
+                case .stack: drawStack(&context)
+                case .knifeSpin: drawKnife(&context)
+                case .helixDrop: drawHelix(&context)
+                case .flappyFlight: drawFlappy(&context)
+                case .roadHop: drawRoad(&context)
+                }
+                engine.fx.draw(in: &context)
+            }
+        }
+        .environment(\.toyStyle, skin.palette.style)
+        .frame(width: 360, height: 360)
+    }
+
+    private var gameBody: some View {
         Group {
             fullScreen
         }
@@ -141,7 +183,8 @@ struct ArcadeView: View {
 
     /// One block in isometric view: its top and the two faces toward the viewer,
     /// each shaded as if lit from the upper left.
-    private func stackSlab(_ context: inout GraphicsContext, _ slab: StackSlab, alpha: Double = 1) {
+    /// One slab of the tower, drawn with the engine's projection. Shared by the game and the Home preview.
+    static func stackSlab(_ context: inout GraphicsContext, _ slab: StackSlab, alpha: Double = 1, engine: ArcadeEngine) {
         let top = CGFloat(slab.level + 1) * StackSlab.height - slab.drop
         let bottom = top - StackSlab.height
         func p(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> CGPoint { engine.stackScreen(x, y, z) }
@@ -167,9 +210,9 @@ struct ArcadeView: View {
         // Pieces falling off the far sides go behind the tower, the rest in front.
         let behind = engine.stackDebris.filter { $0.drift.dx < 0 || $0.drift.dy < 0 }
         let front = engine.stackDebris.filter { !($0.drift.dx < 0 || $0.drift.dy < 0) }
-        for piece in behind { stackSlab(&context, piece, alpha: 0.9) }
+        for piece in behind { Self.stackSlab(&context, piece, alpha: 0.9, engine: engine) }
         let lowest = Int(engine.stackCamera) - 18
-        for slab in engine.slabs where slab.level >= lowest { stackSlab(&context, slab) }
+        for slab in engine.slabs where slab.level >= lowest { Self.stackSlab(&context, slab, engine: engine) }
         if let ripple = engine.ripple {
             let grow = ripple.t * 36, slab = ripple.slab
             let y = CGFloat(slab.level + 1) * StackSlab.height
@@ -179,9 +222,9 @@ struct ArcadeView: View {
             outline.closeSubpath()
             context.stroke(outline, with: .color(.white.opacity(Double(1 - ripple.t * 2))), lineWidth: 2.5)
         }
-        for piece in front { stackSlab(&context, piece, alpha: 0.9) }
+        for piece in front { Self.stackSlab(&context, piece, alpha: 0.9, engine: engine) }
         if engine.state == .playing, let moving = engine.movingSlab {
-            stackSlab(&context, moving)
+            Self.stackSlab(&context, moving, engine: engine)
             if engine.perfectStreak >= 2 {
                 let y = CGFloat(moving.level + 1) * StackSlab.height
                 var glow = Path()
@@ -735,4 +778,37 @@ struct ArcadeSkin {
 
     /// Knife handles: a soft coral.
     static let knifeHandle = Color(red: 0.92, green: 0.48, blue: 0.42)
+}
+
+/// The Tower as it stands mid-game, drawn with the game's own slabs and sky,
+/// for the Home preview.
+struct TowerShowcase: View {
+    let engine: ArcadeEngine
+
+    var body: some View {
+        ZStack {
+            TowerSky(hue: engine.stackHue)
+            Canvas { context, size in
+                // Centre the stack itself, not the full-screen scene.
+                let scale = size.width / 320
+                let top = size.height / 2 - 230 * scale
+                context.translateBy(x: 0, y: top)
+                context.scaleBy(x: scale, y: scale)
+                let lowest = Int(engine.stackCamera) - 18
+                for slab in engine.slabs where slab.level >= lowest {
+                    ArcadeView.stackSlab(&context, slab, engine: engine)
+                }
+                // The next block, the same size as the top, still sliding in
+                // along the next axis before the tap that drops it.
+                if let peak = engine.slabs.last {
+                    let alongX = engine.placed % 2 == 0
+                    let moving = StackSlab(x: peak.x + (alongX ? 40 : 0), z: peak.z + (alongX ? 0 : 40),
+                                           w: peak.w, d: peak.d, level: peak.level + 1,
+                                           hue: ArcadeEngine.stackHue(peak.level + 1))
+                    ArcadeView.stackSlab(&context, moving, engine: engine)
+                }
+            }
+        }
+        .frame(width: 360, height: 360)
+    }
 }

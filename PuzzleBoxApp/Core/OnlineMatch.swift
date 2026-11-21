@@ -261,9 +261,23 @@ struct OnlineMatchScreen<Match: OnlineGameState, Table: View>: View {
         return nil
     }
 
+    /// The game's toy world, when it has one.
+    private var palette: ToyPalette? {
+        switch game {
+        case .durak: ToyDurak.palette
+        case .hangman: ToyHangman.palette
+        case .battleship: ToyBattleship.palette
+        default: nil
+        }
+    }
+
     var body: some View {
         ZStack {
-            GameTheme.background.ignoresSafeArea()
+            if let palette {
+                palette.backdrop.ignoresSafeArea()
+            } else {
+                GameTheme.background.ignoresSafeArea()
+            }
             VStack(spacing: 16) {
                 header
                 if let state = current, let seat = session.seat {
@@ -281,8 +295,9 @@ struct OnlineMatchScreen<Match: OnlineGameState, Table: View>: View {
                 OnlineResultCard(title: result.title, message: result.message) { dismiss() }
             }
         }
-        .foregroundStyle(GameTheme.ink)
-        .tint(GameTheme.accent)
+        .foregroundStyle(palette?.ink ?? GameTheme.ink)
+        .tint(palette?.accent ?? GameTheme.accent)
+        .environment(\.toyStyle, palette?.style)
         .animation(.spring(duration: 0.35), value: result)
         .onAppear {
             session.start()
@@ -315,29 +330,37 @@ struct OnlineMatchScreen<Match: OnlineGameState, Table: View>: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Button {
-                if result == nil && current != nil { confirmingLeave = true } else { dismiss() }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 44, height: 44)
-                    .glassCircle()
+            if let palette {
+                ToyIconButton(symbol: "chevron.left", label: L10n.text("Back"), color: palette.card, ink: palette.ink) {
+                    leave()
+                }
+            } else {
+                Button(action: leave) {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .glassCircle()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Back"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.text("Back"))
             Spacer(minLength: 0)
         }
         .overlay {
             VStack(spacing: 0) {
-                Text(game.info.title).font(.headline)
+                Text(game.info.title).font(.system(.headline, design: .rounded).weight(.heavy))
                 Text(L10n.format("vs %@", opponentNames))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .opacity(0.65)
             }
             .lineLimit(1)
             .padding(.horizontal, 60)
         }
+    }
+
+    private func leave() {
+        if result == nil && current != nil { confirmingLeave = true } else { dismiss() }
     }
 }
 
@@ -345,8 +368,50 @@ private struct OnlineResultCard: View {
     let title: String
     let message: String?
     let home: () -> Void
+    @Environment(\.toyStyle) private var toy
 
     var body: some View {
+        if let toy { toyCard(toy) } else { plainCard }
+    }
+
+    /// The result in the game's own clay, like the solo games' windows.
+    private func toyCard(_ toy: ToyStyle) -> some View {
+        ZStack {
+            Color.black.opacity(0.22).ignoresSafeArea()
+            (toy.haze ?? .clear).opacity(0.55).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Image(systemName: "flag.pattern.checkered")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .padding(.bottom, 4)
+                    .background { ToyBlock(color: toy.accent, shape: Circle(), lip: 4) }
+                Text(title).font(.system(.title2, design: .rounded).weight(.heavy))
+                if let message {
+                    Text(message).font(.system(.subheadline, design: .rounded)).opacity(0.7)
+                }
+                Button(action: home) {
+                    Label(L10n.text("Home"), systemImage: "house.fill")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(ToyPressStyle(color: toy.accent, lip: 4))
+                .padding(.top, 4)
+            }
+            .foregroundStyle(toy.ink)
+            .multilineTextAlignment(.center)
+            .padding(20)
+            .padding(.bottom, 8)
+            .frame(width: 300)
+            .background { ToyBlock(color: toy.card, shape: RoundedRectangle(cornerRadius: 34, style: .continuous), lip: 8) }
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+        }
+        .transition(.opacity)
+    }
+
+    private var plainCard: some View {
         ZStack {
             Color.black.opacity(0.4).ignoresSafeArea()
             VStack(spacing: 12) {

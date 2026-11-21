@@ -88,6 +88,20 @@ final class SudokuEngine: GameEngine {
         let difficulty: SudokuDifficulty
     }
 
+    /// A medium puzzle part way through, for the Home preview. Nothing is saved.
+    func showcase() {
+        difficulty = .medium
+        newPuzzle()
+        var filled = 0
+        for index in stride(from: 3, to: size * size, by: 5) where filled < 14 {
+            let r = index / size, c = index % size
+            guard !given[r][c] else { continue }
+            board[r][c] = solution[r][c]
+            filled += 1
+        }
+        selected = GridPos(r: 4, c: 4)
+    }
+
     private func newPuzzle() {
         let puzzle = Self.generatePuzzle(size: size, blockRows: blockRows, clues: difficulty.clues)
         solution = puzzle.solution
@@ -281,8 +295,31 @@ final class SudokuEngine: GameEngine {
 
 struct SudokuView: View {
     @State private var engine = SudokuEngine()
+    private var isShowcase = false
+
+    init() {}
+
+    /// Just the board, in a fixed position, for the Home preview.
+    init(showcase engine: SudokuEngine) {
+        _engine = State(initialValue: engine)
+        isShowcase = true
+    }
 
     var body: some View {
+        if isShowcase {
+            ZStack {
+                ToySudoku.palette.backdrop
+                board.padding(24)
+            }
+            .environment(\.toyStyle, ToySudoku.palette.style)
+            .frame(width: 360, height: 360)
+        } else {
+            gameBody
+        }
+    }
+
+    @ViewBuilder
+    private var gameBody: some View {
         GameContainerView(gameID: .sudoku, engine: engine,
                           resultSummary: L10n.text(engine.difficulty.title),
                           chrome: .inGame,
